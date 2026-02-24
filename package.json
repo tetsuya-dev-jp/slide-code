@@ -1,0 +1,20 @@
+{
+  "name": "codestage",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^7.3.1"
+  },
+  "dependencies": {
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.33",
+    "marked": "^17.0.3",
+    "mermaid": "^11.12.3"
+  }
+}
