@@ -389,12 +389,16 @@ html, body {
   border-radius: 0 2px 2px 0;
 }
 
-/* --- Main Content Area --- */
+/* --- Main Content Area (CSS Grid) --- */
 .content {
   flex: 1;
-  display: flex;
+  display: grid;
   overflow: hidden;
   min-height: 0;
+  /* Default: 3-column layout. Overridden by JS */
+  grid-template-columns: 1fr 5px 1fr 5px 1fr;
+  grid-template-rows: 1fr;
+  grid-template-areas: "slot0 sp0 slot1 sp1 slot2";
 }
 
 /* --- Panes --- */
@@ -404,49 +408,38 @@ html, body {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  transition: flex var(--transition-normal), opacity var(--transition-normal);
+  background: var(--bg-primary);
 }
 
 .pane.hidden {
-  flex: 0 0 0px !important;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
+  display: none !important;
 }
 
-.pane-code {
-  flex: 1 1 33%;
-  background: var(--bg-primary);
-}
-
-.middle-area {
-  flex: 1 1 33%;
-  display: flex;
-  flex-direction: column;
+/* Grid Splitters (dynamically generated) */
+.grid-splitter {
+  background: var(--border-default);
+  cursor: col-resize;
+  transition: background var(--transition-fast);
+  position: relative;
+  z-index: 5;
   min-width: 0;
   min-height: 0;
-  overflow: hidden;
-  transition: flex var(--transition-normal), opacity var(--transition-normal);
 }
 
-.middle-area.hidden {
-  flex: 0 0 0px !important;
-  opacity: 0;
-  overflow: hidden;
-  pointer-events: none;
+.grid-splitter-v {
+  cursor: col-resize;
 }
 
-.pane-shell {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-primary);
-  min-height: 0;
+.grid-splitter-h {
+  cursor: row-resize;
 }
 
-.pane-markdown {
-  flex: 1 1 33%;
-  background: var(--bg-primary);
+.grid-splitter:hover {
+  background: var(--accent-primary);
+}
+
+.grid-splitter.dragging {
+  background: var(--accent-primary);
 }
 
 /* Pane Header */
@@ -459,6 +452,25 @@ html, body {
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
   flex-shrink: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.pane-header:active {
+  cursor: grabbing;
+}
+
+.pane-header.dragging {
+  opacity: 0.5;
+}
+
+.pane.drop-target .pane-header {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.pane.drop-target .pane-header .pane-label {
+  color: #fff;
 }
 
 .pane-label {
@@ -785,64 +797,94 @@ html, body {
   border-color: var(--accent-warn);
 }
 
-/* --- Splitters --- */
-.splitter {
-  flex-shrink: 0;
-  background: var(--border-default);
-  cursor: col-resize;
-  transition: background var(--transition-fast);
+/* --- Layout Picker --- */
+.layout-picker {
   position: relative;
-  z-index: 5;
 }
 
-.splitter-v {
-  width: var(--splitter-width);
+.layout-picker-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
 }
 
-.splitter-h {
-  height: var(--splitter-width);
-  cursor: row-resize;
+.layout-picker-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+  background: var(--bg-elevated);
 }
 
-.splitter::after {
-  content: '';
-  position: absolute;
-  border-radius: 2px;
-  background: var(--text-tertiary);
-  opacity: 0;
-  transition: opacity var(--transition-fast);
-}
-
-.splitter-v::after {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 3px;
-  height: 30px;
-}
-
-.splitter-h::after {
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 30px;
-  height: 3px;
-}
-
-.splitter:hover {
-  background: var(--accent-primary);
-}
-
-.splitter:hover::after {
-  opacity: 0.7;
-}
-
-.splitter.dragging {
-  background: var(--accent-primary);
-}
-
-.splitter.hidden {
+.layout-dropdown {
   display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-sm);
+  gap: var(--space-xs);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  flex-wrap: wrap;
+  width: 200px;
+}
+
+.layout-dropdown.open {
+  display: flex;
+}
+
+.layout-option {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 40px;
+  border: 2px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  padding: 4px;
+}
+
+.layout-option:hover {
+  border-color: var(--text-tertiary);
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+}
+
+.layout-option.active {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+[data-theme="light"] .layout-option.active {
+  background: rgba(9, 105, 218, 0.08);
+}
+
+/* Resize cursor helpers */
+.resizing-h {
+  cursor: col-resize !important;
+}
+
+.resizing-v {
+  cursor: row-resize !important;
+}
+
+.resizing-h *, .resizing-v * {
+  cursor: inherit !important;
+  user-select: none !important;
 }
 
 /* --- Slide Bar --- */

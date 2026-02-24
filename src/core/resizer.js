@@ -1,49 +1,108 @@
 /**
- * Pane Resizer
- * Handles drag-to-resize for vertical and horizontal splitters
+ * Grid Resizer
+ * Handles drag-to-resize for CSS Grid-based splitters
+ * Supports both vertical (column) and horizontal (row) splitters
  */
 
 export class Resizer {
-    constructor() {
+    constructor(contentEl) {
+        this.contentEl = contentEl;
+        this.splitters = [];
+        this.cleanupFns = [];
+    }
+
+    /**
+     * Remove all existing splitters from DOM and clean up event listeners
+     */
+    reset() {
+        this.cleanupFns.forEach(fn => fn());
+        this.cleanupFns = [];
+        this.splitters.forEach(s => s.el.remove());
         this.splitters = [];
     }
 
     /**
-     * Initialize a vertical splitter
-     * @param {HTMLElement} splitter - The splitter element
-     * @param {HTMLElement} leftEl - Left pane element
-     * @param {HTMLElement} rightEl - Right pane element
-     * @param {Object} options - { minSize: number }
+     * Build splitters for a layout definition
+     * @param {Object} layout - Layout definition from layout.js
+     * @param {string[]} paneOrder - Current pane order
+     * @param {Object} paneVisibility - { code: bool, shell: bool, markdown: bool }
      */
-    addVertical(splitter, leftEl, rightEl, options = {}) {
-        const minSize = options.minSize || 150;
-        let startX, startLeftWidth, startRightWidth;
+    buildSplitters(layout, paneOrder, paneVisibility) {
+        this.reset();
 
+        layout.splitters.forEach(splitterDef => {
+            const el = document.createElement('div');
+            el.className = `grid-splitter grid-splitter-${splitterDef.type === 'vertical' ? 'v' : 'h'}`;
+            el.style.gridArea = splitterDef.id;
+            this.contentEl.appendChild(el);
+
+            if (splitterDef.type === 'vertical') {
+                this.addVerticalGrid(el, splitterDef);
+            } else {
+                this.addHorizontalGrid(el, splitterDef);
+            }
+
+            this.splitters.push({ el, def: splitterDef });
+        });
+    }
+
+    /**
+     * Add vertical (column) resize behavior on CSS Grid
+     */
+    addVerticalGrid(splitterEl, splitterDef) {
         const onMouseDown = (e) => {
             e.preventDefault();
-            startX = e.clientX;
-            const parentWidth = splitter.parentElement.getBoundingClientRect().width;
-            startLeftWidth = leftEl.getBoundingClientRect().width;
-            startRightWidth = rightEl.getBoundingClientRect().width;
+            const startX = e.clientX;
+            const computedStyle = getComputedStyle(this.contentEl);
+            const columns = computedStyle.gridTemplateColumns.split(' ');
+            const startColumns = columns.map(c => parseFloat(c));
 
             document.body.classList.add('resizing-h');
-            splitter.classList.add('dragging');
+            splitterEl.classList.add('dragging');
+
+            const splitterId = splitterDef.id;
+            // Find the splitter's column index in the grid template
+            const areas = computedStyle.gridTemplateAreas;
+            const firstRow = areas.split('"')[1]; // Get first row areas
+            const areaList = firstRow.trim().split(/\s+/);
+            const splitterColIdx = areaList.indexOf(splitterId);
+
+            if (splitterColIdx === -1) {
+                return;
+            }
+
+            // Find adjacent columns (non-splitter)
+            let leftColIdx = splitterColIdx - 1;
+            let rightColIdx = splitterColIdx + 1;
+
+            // In multi-row layouts, the splitter might span. Find actual usable neighbors.
+            while (leftColIdx >= 0 && areaList[leftColIdx].startsWith('sp')) leftColIdx--;
+            while (rightColIdx < areaList.length && areaList[rightColIdx].startsWith('sp')) rightColIdx++;
+
+            if (leftColIdx < 0 || rightColIdx >= startColumns.length) return;
+
+            const startLeft = startColumns[leftColIdx];
+            const startRight = startColumns[rightColIdx];
+            const minSize = 100;
 
             const onMouseMove = (e) => {
                 const dx = e.clientX - startX;
-                const newLeftWidth = startLeftWidth + dx;
-                const newRightWidth = startRightWidth - dx;
+                const newLeft = startLeft + dx;
+                const newRight = startRight - dx;
 
-                if (newLeftWidth >= minSize && newRightWidth >= minSize) {
-                    const totalFlex = startLeftWidth + startRightWidth;
-                    leftEl.style.flex = `${newLeftWidth / totalFlex} 1 0px`;
-                    rightEl.style.flex = `${newRightWidth / totalFlex} 1 0px`;
+                if (newLeft >= minSize && newRight >= minSize) {
+                    const newColumns = [...startColumns];
+                    newColumns[leftColIdx] = newLeft;
+                    newColumns[rightColIdx] = newRight;
+                    this.contentEl.style.gridTemplateColumns = newColumns.map(c => c + 'px').join(' ');
                 }
             };
 
             const onMouseUp = () => {
                 document.body.classList.remove('resizing-h');
-                splitter.classList.remove('dragging');
+                splitterEl.classList.remove('dragging');
+                // Convert pixel sizes to fr units for flexibility
+                this.normalizeGridTemplate('columns');
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
             };
@@ -52,45 +111,65 @@ export class Resizer {
             document.addEventListener('mouseup', onMouseUp);
         };
 
-        splitter.addEventListener('mousedown', onMouseDown);
-        this.splitters.push({ splitter, leftEl, rightEl, type: 'vertical' });
+        splitterEl.addEventListener('mousedown', onMouseDown);
+        this.cleanupFns.push(() => splitterEl.removeEventListener('mousedown', onMouseDown));
     }
 
     /**
-     * Initialize a horizontal splitter
-     * @param {HTMLElement} splitter - The splitter element
-     * @param {HTMLElement} topEl - Top pane element
-     * @param {HTMLElement} bottomEl - Bottom pane element
-     * @param {Object} options - { minSize: number }
+     * Add horizontal (row) resize behavior on CSS Grid
      */
-    addHorizontal(splitter, topEl, bottomEl, options = {}) {
-        const minSize = options.minSize || 100;
-        let startY, startTopHeight, startBottomHeight;
-
+    addHorizontalGrid(splitterEl, splitterDef) {
         const onMouseDown = (e) => {
             e.preventDefault();
-            startY = e.clientY;
-            startTopHeight = topEl.getBoundingClientRect().height;
-            startBottomHeight = bottomEl.getBoundingClientRect().height;
+            const startY = e.clientY;
+            const computedStyle = getComputedStyle(this.contentEl);
+            const rows = computedStyle.gridTemplateRows.split(' ');
+            const startRows = rows.map(r => parseFloat(r));
 
             document.body.classList.add('resizing-v');
-            splitter.classList.add('dragging');
+            splitterEl.classList.add('dragging');
+
+            const splitterId = splitterDef.id;
+            // Find the splitter's row index
+            const areas = computedStyle.gridTemplateAreas;
+            const rowAreas = areas.match(/"([^"]+)"/g).map(r => r.replace(/"/g, '').trim().split(/\s+/));
+
+            let splitterRowIdx = -1;
+            for (let r = 0; r < rowAreas.length; r++) {
+                if (rowAreas[r].includes(splitterId)) {
+                    splitterRowIdx = r;
+                    break;
+                }
+            }
+
+            if (splitterRowIdx === -1) return;
+
+            let topRowIdx = splitterRowIdx - 1;
+            let bottomRowIdx = splitterRowIdx + 1;
+
+            if (topRowIdx < 0 || bottomRowIdx >= startRows.length) return;
+
+            const startTop = startRows[topRowIdx];
+            const startBottom = startRows[bottomRowIdx];
+            const minSize = 80;
 
             const onMouseMove = (e) => {
                 const dy = e.clientY - startY;
-                const newTopHeight = startTopHeight + dy;
-                const newBottomHeight = startBottomHeight - dy;
+                const newTop = startTop + dy;
+                const newBottom = startBottom - dy;
 
-                if (newTopHeight >= minSize && newBottomHeight >= minSize) {
-                    const totalFlex = startTopHeight + startBottomHeight;
-                    topEl.style.flex = `${newTopHeight / totalFlex} 1 0px`;
-                    bottomEl.style.flex = `${newBottomHeight / totalFlex} 1 0px`;
+                if (newTop >= minSize && newBottom >= minSize) {
+                    const newRows = [...startRows];
+                    newRows[topRowIdx] = newTop;
+                    newRows[bottomRowIdx] = newBottom;
+                    this.contentEl.style.gridTemplateRows = newRows.map(r => r + 'px').join(' ');
                 }
             };
 
             const onMouseUp = () => {
                 document.body.classList.remove('resizing-v');
-                splitter.classList.remove('dragging');
+                splitterEl.classList.remove('dragging');
+                this.normalizeGridTemplate('rows');
                 document.removeEventListener('mousemove', onMouseMove);
                 document.removeEventListener('mouseup', onMouseUp);
             };
@@ -99,7 +178,35 @@ export class Resizer {
             document.addEventListener('mouseup', onMouseUp);
         };
 
-        splitter.addEventListener('mousedown', onMouseDown);
-        this.splitters.push({ splitter, topEl, bottomEl, type: 'horizontal' });
+        splitterEl.addEventListener('mousedown', onMouseDown);
+        this.cleanupFns.push(() => splitterEl.removeEventListener('mousedown', onMouseDown));
+    }
+
+    /**
+     * Convert pixel-based grid tracks to fr units (keeping splitter tracks at fixed px)
+     */
+    normalizeGridTemplate(dimension) {
+        const computedStyle = getComputedStyle(this.contentEl);
+        const tracks = dimension === 'columns'
+            ? computedStyle.gridTemplateColumns.split(' ')
+            : computedStyle.gridTemplateRows.split(' ');
+
+        const sizes = tracks.map(t => parseFloat(t));
+        const splitterSize = 5; // fixed splitter width
+
+        // Find non-splitter tracks (fr candidates) and splitter tracks
+        const normalized = sizes.map((size, idx) => {
+            // Splitter tracks are the small ones (~5px)
+            if (size <= splitterSize + 1) {
+                return `${splitterSize}px`;
+            }
+            return `${size}fr`;
+        });
+
+        if (dimension === 'columns') {
+            this.contentEl.style.gridTemplateColumns = normalized.join(' ');
+        } else {
+            this.contentEl.style.gridTemplateRows = normalized.join(' ');
+        }
     }
 }

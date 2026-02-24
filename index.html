@@ -38,6 +38,29 @@
         </div>
       </div>
       <div class="toolbar-right">
+        <!-- Layout Picker -->
+        <div class="layout-picker" id="layoutPicker">
+          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
+          </button>
+          <div class="layout-dropdown" id="layoutDropdown">
+            <button class="layout-option active" data-layout="three-col" title="3列">
+              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="1" width="8" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="layout-option" data-layout="left-stack" title="左2段+右">
+              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="layout-option" data-layout="right-stack" title="左+右2段">
+              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="layout-option" data-layout="top-bottom" title="上+下2列">
+              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+            <button class="layout-option" data-layout="bottom-top" title="上2列+下">
+              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+            </button>
+          </div>
+        </div>
         <button class="theme-toggle" id="themeToggle" title="テーマ切替">
           <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
           <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -59,11 +82,11 @@
       <div class="progress-fill" id="progressFill"></div>
     </div>
 
-    <!-- Main Content Area -->
+    <!-- Main Content Area (CSS Grid) -->
     <main class="content" id="content">
-      <!-- Left: Code Pane -->
-      <section class="pane pane-code" id="paneCode">
-        <div class="pane-header">
+      <!-- Code Pane -->
+      <section class="pane pane-code" id="paneCode" data-pane="code">
+        <div class="pane-header" draggable="true" data-pane="code">
           <span class="pane-label">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
             コード
@@ -80,28 +103,20 @@
         </div>
       </section>
 
-      <!-- Vertical Splitter 1 -->
-      <div class="splitter splitter-v" id="splitterV1" data-left="paneCode" data-right="middleArea"></div>
+      <!-- Shell Pane -->
+      <section class="pane pane-shell" id="paneShell" data-pane="shell">
+        <div class="pane-header" draggable="true" data-pane="shell">
+          <span class="pane-label">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+            シェル
+          </span>
+        </div>
+        <div class="pane-body shell-body" id="shellBody"></div>
+      </section>
 
-      <!-- Middle Area: Shell + spacer -->
-      <div class="middle-area" id="middleArea">
-        <section class="pane pane-shell" id="paneShell">
-          <div class="pane-header">
-            <span class="pane-label">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-              シェル
-            </span>
-          </div>
-          <div class="pane-body shell-body" id="shellBody"></div>
-        </section>
-      </div>
-
-      <!-- Vertical Splitter 2 -->
-      <div class="splitter splitter-v" id="splitterV2" data-left="middleArea" data-right="paneMarkdown"></div>
-
-      <!-- Right: Markdown Pane -->
-      <section class="pane pane-markdown" id="paneMarkdown">
-        <div class="pane-header">
+      <!-- Markdown Pane -->
+      <section class="pane pane-markdown" id="paneMarkdown" data-pane="markdown">
+        <div class="pane-header" draggable="true" data-pane="markdown">
           <span class="pane-label">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
             解説
