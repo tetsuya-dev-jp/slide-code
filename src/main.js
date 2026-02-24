@@ -218,8 +218,48 @@ function showToast(message) {
 }
 
 // ============================
+// Theme Toggle
+// ============================
+
+const themeToggle = document.getElementById('themeToggle');
+
+function getPreferredTheme() {
+  const stored = localStorage.getItem('codestage-theme');
+  if (stored) return stored;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('codestage-theme', theme);
+
+  // Swap highlight.js stylesheet
+  swapHighlightTheme(theme);
+}
+
+function swapHighlightTheme(theme) {
+  const hljsLink = document.getElementById('hljs-theme');
+  if (!hljsLink) return;
+
+  const darkTheme = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css';
+  const lightTheme = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+  hljsLink.href = theme === 'light' ? lightTheme : darkTheme;
+}
+
+themeToggle.addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  // Re-render current slide for mermaid theme update
+  slideManager.emit();
+});
+
+// ============================
 // Initialize
 // ============================
+
+// Apply saved/preferred theme
+applyTheme(getPreferredTheme());
 
 buildSlideBar(sampleSlides);
 slideManager.load(sampleSlides);

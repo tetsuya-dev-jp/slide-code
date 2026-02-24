@@ -8,20 +8,32 @@ import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import mermaid from 'mermaid';
 
-// Configure mermaid
-mermaid.initialize({
-    startOnLoad: false,
-    theme: 'dark',
-    themeVariables: {
-        primaryColor: '#21262d',
-        primaryTextColor: '#e6edf3',
-        primaryBorderColor: '#30363d',
-        lineColor: '#8b949e',
-        secondaryColor: '#161b22',
-        tertiaryColor: '#1c2129',
-        fontFamily: "'Inter', sans-serif",
-    },
-});
+// Configure mermaid (theme-aware)
+function initMermaid() {
+    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    mermaid.initialize({
+        startOnLoad: false,
+        theme: isDark ? 'dark' : 'default',
+        themeVariables: isDark ? {
+            primaryColor: '#21262d',
+            primaryTextColor: '#e6edf3',
+            primaryBorderColor: '#30363d',
+            lineColor: '#8b949e',
+            secondaryColor: '#161b22',
+            tertiaryColor: '#1c2129',
+            fontFamily: "'Inter', sans-serif",
+        } : {
+            primaryColor: '#dbeafe',
+            primaryTextColor: '#1f2328',
+            primaryBorderColor: '#d1d9e0',
+            lineColor: '#59636e',
+            secondaryColor: '#f0f2f5',
+            tertiaryColor: '#f6f8fa',
+            fontFamily: "'Inter', sans-serif",
+        },
+    });
+}
+initMermaid();
 
 /**
  * Process KaTeX math expressions in text
@@ -66,6 +78,8 @@ export class MarkdownPane {
      * @param {string} md - Markdown text
      */
     async render(md) {
+        // Re-init mermaid with current theme
+        initMermaid();
         if (!md) {
             this.markdownBody.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:var(--text-sm);">

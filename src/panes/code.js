@@ -4,7 +4,6 @@
  */
 
 import hljs from 'highlight.js';
-import 'highlight.js/styles/github-dark-dimmed.css';
 
 export class CodePane {
     constructor(codeBodyEl, langBadgeEl, copyBtnEl) {
