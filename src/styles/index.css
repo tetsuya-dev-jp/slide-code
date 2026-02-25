@@ -542,6 +542,14 @@ html, body {
 
 .xterm-container .xterm {
   height: 100%;
+  padding: 0;
+}
+
+.xterm-container .xterm-viewport {
+  background-color: transparent !important;
+}
+
+.xterm-container .xterm-screen {
   padding: 4px;
 }
 
