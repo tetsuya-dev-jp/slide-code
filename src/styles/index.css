@@ -1541,6 +1541,11 @@ body.resizing-v {
   border-bottom: 1px solid var(--border-subtle);
 }
 
+.editor-files-actions {
+  display: flex;
+  gap: 4px;
+}
+
 .editor-section-label {
   font-size: 11px;
   font-weight: 600;

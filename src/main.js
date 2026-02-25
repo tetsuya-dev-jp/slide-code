@@ -589,6 +589,44 @@ document.getElementById('addFileBtn').addEventListener('click', () => {
   loadFileIntoEditor(editorFileIndex);
 });
 
+// Import file(s) from disk
+const EXT_LANG_MAP = {
+  py: 'python', js: 'javascript', ts: 'typescript', jsx: 'javascript', tsx: 'typescript',
+  html: 'html', css: 'css', json: 'json', java: 'java', c: 'c', cpp: 'cpp', h: 'c',
+  hpp: 'cpp', go: 'go', rs: 'rust', rb: 'ruby', php: 'php', swift: 'swift', kt: 'kotlin',
+  sh: 'bash', sql: 'sql', md: 'markdown', yaml: 'yaml', yml: 'yaml', toml: 'toml',
+  xml: 'xml', r: 'r', scala: 'scala', lua: 'lua', pl: 'perl', ex: 'elixir', exs: 'elixir',
+  hs: 'haskell', ml: 'ocaml', clj: 'clojure', dart: 'dart', vue: 'html', svelte: 'html',
+};
+
+function detectLanguage(filename) {
+  const ext = filename.split('.').pop().toLowerCase();
+  return EXT_LANG_MAP[ext] || 'plaintext';
+}
+
+document.getElementById('importFileFromDiskBtn').addEventListener('click', () => {
+  document.getElementById('sourceFileInput').click();
+});
+
+document.getElementById('sourceFileInput').addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files);
+  if (!files.length) return;
+
+  saveCurrentFileFromEditor();
+
+  for (const file of files) {
+    const code = await file.text();
+    const language = detectLanguage(file.name);
+    editorDeck.files.push({ name: file.name, language, code });
+  }
+
+  editorFileIndex = editorDeck.files.length - 1;
+  renderEditorFileTabs();
+  loadFileIntoEditor(editorFileIndex);
+  showToast(`${files.length} ファイルを読み込みました`);
+  e.target.value = '';
+});
+
 // Delete file
 document.getElementById('deleteFileBtn').addEventListener('click', () => {
   if (editorDeck.files.length <= 1) {
