@@ -193,6 +193,30 @@
             </ul>
           </aside>
           <div class="editor-main">
+            <!-- File Tabs Section -->
+            <div class="editor-files-section">
+              <div class="editor-files-header">
+                <span class="editor-section-label">ソースファイル</span>
+                <button class="btn-icon" id="addFileBtn" title="ファイル追加">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+              <div class="editor-file-tabs" id="editorFileTabs">
+                <!-- File tabs rendered here -->
+              </div>
+              <div class="editor-file-editor">
+                <div class="editor-file-meta">
+                  <input type="text" id="editorFileName" placeholder="ファイル名 (例: main.py)" class="editor-file-name-input" />
+                  <input type="text" id="editorFileLang" placeholder="言語 (例: python)" class="editor-file-lang-input" />
+                  <button class="btn-icon btn-danger-icon" id="deleteFileBtn" title="ファイル削除">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                  </button>
+                </div>
+                <textarea id="editorFileCode" class="editor-textarea editor-file-code-textarea" placeholder="ソースコードを入力..." spellcheck="false"></textarea>
+              </div>
+            </div>
+
+            <!-- Slide Fields -->
             <div class="editor-fields">
               <div class="editor-field">
                 <label>スライドタイトル</label>
@@ -200,25 +224,30 @@
               </div>
               <div class="editor-field-row">
                 <div class="editor-field">
-                  <label>言語</label>
-                  <input type="text" id="editorLang" placeholder="python" />
+                  <label>参照ファイル</label>
+                  <select id="editorFileRef" class="editor-select"></select>
                 </div>
                 <div class="editor-field">
-                  <label>ハイライト行 (カンマ区切り)</label>
-                  <input type="text" id="editorHighlight" placeholder="1,2,3" />
+                  <label>表示行範囲</label>
+                  <div class="editor-line-range">
+                    <input type="number" id="editorLineStart" min="1" placeholder="開始" class="editor-line-input" />
+                    <span class="editor-line-separator">〜</span>
+                    <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" />
+                  </div>
+                </div>
+                <div class="editor-field">
+                  <label>ハイライト行 (絶対行, カンマ区切り)</label>
+                  <input type="text" id="editorHighlight" placeholder="4,5,6" />
                 </div>
               </div>
               <div class="editor-field">
-                <label>コード</label>
-                <div class="editor-split">
-                  <textarea id="editorCode" class="editor-textarea editor-code-textarea" placeholder="コードを入力..." spellcheck="false"></textarea>
-                  <div class="editor-preview editor-code-preview">
-                    <div class="editor-preview-header">
-                      <span class="editor-preview-label">プレビュー</span>
-                    </div>
-                    <div class="editor-preview-body code-body" id="editorCodePreview">
-                      <pre><code id="editorCodePreviewContent"></code></pre>
-                    </div>
+                <label>コードプレビュー</label>
+                <div class="editor-preview editor-code-preview">
+                  <div class="editor-preview-header">
+                    <span class="editor-preview-label" id="editorCodePreviewLabel">プレビュー</span>
+                  </div>
+                  <div class="editor-preview-body code-body" id="editorCodePreview">
+                    <pre><code id="editorCodePreviewContent"></code></pre>
                   </div>
                 </div>
               </div>

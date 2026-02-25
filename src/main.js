@@ -16,6 +16,34 @@ import * as api from './core/api.js';
 import hljs from 'highlight.js';
 
 // ============================
+// Code Resolution Helper
+// ============================
+
+/**
+ * Resolve a slide's code from the deck's files array
+ * @param {Object} slide - Slide with fileRef + lineRange
+ * @param {Object} deck - Deck with files array
+ * @returns {{ code: string, language: string, highlightLines: number[] }}
+ */
+function resolveSlideCode(slide, deck) {
+  const files = deck.files || [];
+  const file = files.find(f => f.name === slide.fileRef);
+  if (!file) return { code: '', language: 'python', highlightLines: [] };
+
+  const lines = file.code.split('\n');
+  const [start, end] = slide.lineRange || [1, lines.length];
+  const slicedLines = lines.slice(start - 1, end);
+  const code = slicedLines.join('\n');
+
+  // Convert absolute highlight lines to relative (within the range)
+  const highlightLines = (slide.highlightLines || [])
+    .filter(l => l >= start && l <= end)
+    .map(l => l - start + 1);
+
+  return { code, language: file.language || 'python', highlightLines };
+}
+
+// ============================
 // Theme (must be first for ShellPane)
 // ============================
 
@@ -142,7 +170,8 @@ function initPresentation() {
     const progress = total > 1 ? ((position - 1) / (total - 1)) * 100 : 100;
     document.getElementById('progressFill').style.width = `${progress}%`;
 
-    codePane.render(slide.code || '', slide.language || 'python', slide.highlightLines || []);
+    const resolved = resolveSlideCode(slide, presentationDeck);
+    codePane.render(resolved.code, resolved.language, resolved.highlightLines);
     shellPane.render(slide.shell);
     markdownPane.render(slide.markdown);
 
@@ -434,12 +463,15 @@ document.getElementById('importFileInput').addEventListener('change', async (e) 
 // Presentation View
 // ============================
 
+let presentationDeck = null;
+
 async function showPresentation(deckId) {
   initPresentation();
   showView('presentation');
 
   try {
     const deck = await api.getDeck(deckId);
+    presentationDeck = deck;
     buildSlideBar(deck.slides);
     slideManager.load(deck.slides);
   } catch (err) {
@@ -454,14 +486,20 @@ async function showPresentation(deckId) {
 
 let editorDeck = null;
 let editorSlideIndex = 0;
+let editorFileIndex = 0;
 
 async function showEditor(deckId) {
   showView('editor');
 
   try {
     editorDeck = await api.getDeck(deckId);
+    // Ensure files array exists (backward compat)
+    if (!editorDeck.files) editorDeck.files = [];
     editorSlideIndex = 0;
+    editorFileIndex = 0;
     document.getElementById('editorDeckTitle').value = editorDeck.title || '';
+    renderEditorFileTabs();
+    loadFileIntoEditor(0);
     renderEditorSlideList();
     loadSlideIntoEditor(0);
   } catch (err) {
@@ -469,6 +507,118 @@ async function showEditor(deckId) {
     router.navigate('/');
   }
 }
+
+// --- File Tabs ---
+
+function renderEditorFileTabs() {
+  const tabs = document.getElementById('editorFileTabs');
+  tabs.innerHTML = editorDeck.files.map((file, i) => `
+    <button class="editor-file-tab ${i === editorFileIndex ? 'active' : ''}" data-index="${i}">
+      ${escapeHtml(file.name || '無名')}
+    </button>
+  `).join('');
+
+  tabs.querySelectorAll('.editor-file-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      saveCurrentFileFromEditor();
+      const idx = parseInt(tab.dataset.index);
+      loadFileIntoEditor(idx);
+    });
+  });
+
+  // Update fileRef dropdown
+  updateFileRefOptions();
+}
+
+function updateFileRefOptions() {
+  const select = document.getElementById('editorFileRef');
+  const currentVal = select.value;
+  select.innerHTML = editorDeck.files.map(f =>
+    `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`
+  ).join('');
+  // Restore selection if it still exists
+  if (currentVal && editorDeck.files.some(f => f.name === currentVal)) {
+    select.value = currentVal;
+  }
+}
+
+function loadFileIntoEditor(index) {
+  editorFileIndex = index;
+  const file = editorDeck.files[index];
+  if (!file) {
+    document.getElementById('editorFileName').value = '';
+    document.getElementById('editorFileLang').value = '';
+    document.getElementById('editorFileCode').value = '';
+    return;
+  }
+
+  document.getElementById('editorFileName').value = file.name || '';
+  document.getElementById('editorFileLang').value = file.language || '';
+  document.getElementById('editorFileCode').value = file.code || '';
+
+  // Update active tab
+  document.querySelectorAll('.editor-file-tab').forEach((tab, i) => {
+    tab.classList.toggle('active', i === index);
+  });
+}
+
+function saveCurrentFileFromEditor() {
+  if (!editorDeck || !editorDeck.files[editorFileIndex]) return;
+  const file = editorDeck.files[editorFileIndex];
+  const oldName = file.name;
+  file.name = document.getElementById('editorFileName').value || '無名';
+  file.language = document.getElementById('editorFileLang').value || 'python';
+  file.code = document.getElementById('editorFileCode').value;
+
+  // If name changed, update fileRef in all slides
+  if (oldName !== file.name) {
+    editorDeck.slides.forEach(slide => {
+      if (slide.fileRef === oldName) slide.fileRef = file.name;
+    });
+    updateFileRefOptions();
+  }
+}
+
+// Add file
+document.getElementById('addFileBtn').addEventListener('click', () => {
+  saveCurrentFileFromEditor();
+  const newName = `file${editorDeck.files.length + 1}.py`;
+  editorDeck.files.push({ name: newName, language: 'python', code: '' });
+  editorFileIndex = editorDeck.files.length - 1;
+  renderEditorFileTabs();
+  loadFileIntoEditor(editorFileIndex);
+});
+
+// Delete file
+document.getElementById('deleteFileBtn').addEventListener('click', () => {
+  if (editorDeck.files.length <= 1) {
+    showToast('最後のファイルは削除できません');
+    return;
+  }
+  const deletedName = editorDeck.files[editorFileIndex].name;
+  editorDeck.files.splice(editorFileIndex, 1);
+  if (editorFileIndex >= editorDeck.files.length) {
+    editorFileIndex = editorDeck.files.length - 1;
+  }
+  // Clear fileRef from slides referencing the deleted file
+  editorDeck.slides.forEach(slide => {
+    if (slide.fileRef === deletedName) slide.fileRef = '';
+  });
+  renderEditorFileTabs();
+  loadFileIntoEditor(editorFileIndex);
+  updateCodePreview();
+});
+
+// Auto-save file name/lang changes
+document.getElementById('editorFileName').addEventListener('change', () => {
+  saveCurrentFileFromEditor();
+  renderEditorFileTabs();
+});
+document.getElementById('editorFileLang').addEventListener('change', () => {
+  saveCurrentFileFromEditor();
+});
+
+// --- Slide List ---
 
 function renderEditorSlideList() {
   const list = document.getElementById('editorSlideList');
@@ -482,7 +632,6 @@ function renderEditorSlideList() {
     </li>
   `).join('');
 
-  // Click to select slide
   list.querySelectorAll('.editor-slide-item').forEach(item => {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.editor-slide-delete')) return;
@@ -492,7 +641,6 @@ function renderEditorSlideList() {
     });
   });
 
-  // Delete slide
   list.querySelectorAll('.editor-slide-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.index);
@@ -510,15 +658,19 @@ function renderEditorSlideList() {
   });
 }
 
+// --- Slide Editor ---
+
 function loadSlideIntoEditor(index) {
   editorSlideIndex = index;
   const slide = editorDeck.slides[index];
   if (!slide) return;
 
   document.getElementById('editorSlideTitle').value = slide.title || '';
-  document.getElementById('editorLang').value = slide.language || 'python';
+  document.getElementById('editorFileRef').value = slide.fileRef || '';
+  const [lineStart, lineEnd] = slide.lineRange || [1, 1];
+  document.getElementById('editorLineStart').value = lineStart;
+  document.getElementById('editorLineEnd').value = lineEnd;
   document.getElementById('editorHighlight').value = (slide.highlightLines || []).join(', ');
-  document.getElementById('editorCode').value = slide.code || '';
   document.getElementById('editorMarkdown').value = slide.markdown || '';
 
   // Update active state in list
@@ -535,8 +687,10 @@ function saveCurrentSlideFromEditor() {
   if (!editorDeck || !editorDeck.slides[editorSlideIndex]) return;
   const slide = editorDeck.slides[editorSlideIndex];
   slide.title = document.getElementById('editorSlideTitle').value;
-  slide.language = document.getElementById('editorLang').value || 'python';
-  slide.code = document.getElementById('editorCode').value;
+  slide.fileRef = document.getElementById('editorFileRef').value;
+  const lineStart = parseInt(document.getElementById('editorLineStart').value) || 1;
+  const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
+  slide.lineRange = [lineStart, lineEnd];
   slide.markdown = document.getElementById('editorMarkdown').value;
 
   const hlText = document.getElementById('editorHighlight').value;
@@ -561,35 +715,49 @@ function debounce(fn, ms) {
 }
 
 function updateCodePreview() {
-  const code = document.getElementById('editorCode').value;
-  const language = document.getElementById('editorLang').value || 'python';
+  // Save current file code first (in case the user edited the source)
+  saveCurrentFileFromEditor();
+
+  // Build a temporary slide object from the current form values
+  const fileRef = document.getElementById('editorFileRef').value;
+  const lineStart = parseInt(document.getElementById('editorLineStart').value) || 1;
+  const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
   const hlText = document.getElementById('editorHighlight').value;
   const highlightLines = hlText
     ? hlText.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
     : [];
 
+  const tempSlide = { fileRef, lineRange: [lineStart, lineEnd], highlightLines };
+  const resolved = resolveSlideCode(tempSlide, editorDeck);
+
   const previewEl = document.getElementById('editorCodePreview');
-  if (!code) {
+  const label = document.getElementById('editorCodePreviewLabel');
+
+  if (!resolved.code) {
     previewEl.innerHTML = '<pre><code class="hljs"></code></pre>';
+    label.textContent = 'プレビュー';
     return;
   }
 
+  label.textContent = `${fileRef} : L${lineStart}–${lineEnd}`;
+
   let highlighted;
   try {
-    highlighted = hljs.highlight(code, { language }).value;
+    highlighted = hljs.highlight(resolved.code, { language: resolved.language }).value;
   } catch {
-    highlighted = hljs.highlightAuto(code).value;
+    highlighted = hljs.highlightAuto(resolved.code).value;
   }
 
   const lines = highlighted.split('\n');
   if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
 
-  const highlightSet = new Set(highlightLines);
+  const highlightSet = new Set(resolved.highlightLines);
   const html = lines.map((line, i) => {
     const lineNum = i + 1;
+    const absLine = lineStart + i; // Show absolute line numbers
     const isHL = highlightSet.has(lineNum);
     return `<div class="code-line${isHL ? ' line-highlight' : ''}">` +
-      `<span class="line-number">${lineNum}</span>` +
+      `<span class="line-number">${absLine}</span>` +
       `<span class="line-content">${line || ' '}</span>` +
       `</div>`;
   }).join('');
@@ -605,18 +773,21 @@ function updateMarkdownPreview() {
 const debouncedCodePreview = debounce(updateCodePreview, 300);
 const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
 
-document.getElementById('editorCode').addEventListener('input', debouncedCodePreview);
-document.getElementById('editorLang').addEventListener('input', debouncedCodePreview);
+document.getElementById('editorFileCode').addEventListener('input', debouncedCodePreview);
+document.getElementById('editorFileRef').addEventListener('change', () => updateCodePreview());
+document.getElementById('editorLineStart').addEventListener('input', debouncedCodePreview);
+document.getElementById('editorLineEnd').addEventListener('input', debouncedCodePreview);
 document.getElementById('editorHighlight').addEventListener('input', debouncedCodePreview);
 document.getElementById('editorMarkdown').addEventListener('input', debouncedMarkdownPreview);
 
 // Add slide
 document.getElementById('addSlideBtn').addEventListener('click', () => {
   saveCurrentSlideFromEditor();
+  const firstFile = editorDeck.files[0];
   editorDeck.slides.push({
     title: `スライド ${editorDeck.slides.length + 1}`,
-    code: '',
-    language: 'python',
+    fileRef: firstFile ? firstFile.name : '',
+    lineRange: [1, 1],
     highlightLines: [],
     markdown: '',
   });
@@ -628,12 +799,12 @@ document.getElementById('addSlideBtn').addEventListener('click', () => {
 // Save deck
 document.getElementById('editorSaveBtn').addEventListener('click', async () => {
   saveCurrentSlideFromEditor();
+  saveCurrentFileFromEditor();
   editorDeck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
 
   try {
     await api.updateDeck(editorDeck.id, editorDeck);
     showToast('保存しました');
-    // Refresh slide list titles
     renderEditorSlideList();
   } catch (err) {
     showToast('保存に失敗しました');
@@ -643,6 +814,7 @@ document.getElementById('editorSaveBtn').addEventListener('click', async () => {
 // Preview button
 document.getElementById('editorPreviewBtn').addEventListener('click', () => {
   saveCurrentSlideFromEditor();
+  saveCurrentFileFromEditor();
   if (editorDeck) {
     router.navigate(`/deck/${editorDeck.id}`);
   }
