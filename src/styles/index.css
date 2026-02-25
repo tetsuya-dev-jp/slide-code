@@ -533,6 +533,11 @@ html, body {
 .pane-shell .pane-body {
   overflow: hidden;
   padding: 0;
+  background: #1a1a2e;
+}
+
+[data-theme="light"] .pane-shell .pane-body {
+  background: #fafafa;
 }
 
 .xterm-container {
@@ -545,7 +550,11 @@ html, body {
   padding: 0;
 }
 
-.xterm-container .xterm-viewport {
+.xterm-container .xterm,
+.xterm-container .xterm-viewport,
+.xterm-container .xterm-screen,
+.xterm-container .xterm-scroll-area,
+.xterm-container .xterm-decoration-container {
   background-color: transparent !important;
 }
 
