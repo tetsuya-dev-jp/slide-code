@@ -13,6 +13,7 @@ import { CodePane } from './panes/code.js';
 import { ShellPane } from './panes/shell.js';
 import { MarkdownPane } from './panes/markdown.js';
 import * as api from './core/api.js';
+import hljs from 'highlight.js';
 
 // ============================
 // Theme (must be first for ShellPane)
@@ -524,6 +525,10 @@ function loadSlideIntoEditor(index) {
   document.querySelectorAll('.editor-slide-item').forEach((item, i) => {
     item.classList.toggle('active', i === index);
   });
+
+  // Trigger live previews
+  updateCodePreview();
+  updateMarkdownPreview();
 }
 
 function saveCurrentSlideFromEditor() {
@@ -539,6 +544,71 @@ function saveCurrentSlideFromEditor() {
     ? hlText.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
     : [];
 }
+
+// ============================
+// Live Preview in Editor
+// ============================
+
+const editorMarkdownPreviewEl = document.getElementById('editorMarkdownPreview');
+const editorMdPane = new MarkdownPane(editorMarkdownPreviewEl);
+
+function debounce(fn, ms) {
+  let timer;
+  return (...args) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn(...args), ms);
+  };
+}
+
+function updateCodePreview() {
+  const code = document.getElementById('editorCode').value;
+  const language = document.getElementById('editorLang').value || 'python';
+  const hlText = document.getElementById('editorHighlight').value;
+  const highlightLines = hlText
+    ? hlText.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+    : [];
+
+  const previewEl = document.getElementById('editorCodePreview');
+  if (!code) {
+    previewEl.innerHTML = '<pre><code class="hljs"></code></pre>';
+    return;
+  }
+
+  let highlighted;
+  try {
+    highlighted = hljs.highlight(code, { language }).value;
+  } catch {
+    highlighted = hljs.highlightAuto(code).value;
+  }
+
+  const lines = highlighted.split('\n');
+  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+
+  const highlightSet = new Set(highlightLines);
+  const html = lines.map((line, i) => {
+    const lineNum = i + 1;
+    const isHL = highlightSet.has(lineNum);
+    return `<div class="code-line${isHL ? ' line-highlight' : ''}">` +
+      `<span class="line-number">${lineNum}</span>` +
+      `<span class="line-content">${line || ' '}</span>` +
+      `</div>`;
+  }).join('');
+
+  previewEl.innerHTML = `<pre><code class="hljs">${html}</code></pre>`;
+}
+
+function updateMarkdownPreview() {
+  const md = document.getElementById('editorMarkdown').value;
+  editorMdPane.render(md);
+}
+
+const debouncedCodePreview = debounce(updateCodePreview, 300);
+const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
+
+document.getElementById('editorCode').addEventListener('input', debouncedCodePreview);
+document.getElementById('editorLang').addEventListener('input', debouncedCodePreview);
+document.getElementById('editorHighlight').addEventListener('input', debouncedCodePreview);
+document.getElementById('editorMarkdown').addEventListener('input', debouncedMarkdownPreview);
 
 // Add slide
 document.getElementById('addSlideBtn').addEventListener('click', () => {

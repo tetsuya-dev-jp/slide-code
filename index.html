@@ -210,11 +210,29 @@
               </div>
               <div class="editor-field">
                 <label>コード</label>
-                <textarea id="editorCode" class="editor-textarea editor-code-textarea" placeholder="コードを入力..." spellcheck="false"></textarea>
+                <div class="editor-split">
+                  <textarea id="editorCode" class="editor-textarea editor-code-textarea" placeholder="コードを入力..." spellcheck="false"></textarea>
+                  <div class="editor-preview editor-code-preview">
+                    <div class="editor-preview-header">
+                      <span class="editor-preview-label">プレビュー</span>
+                    </div>
+                    <div class="editor-preview-body code-body" id="editorCodePreview">
+                      <pre><code id="editorCodePreviewContent"></code></pre>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="editor-field">
                 <label>マークダウン解説</label>
-                <textarea id="editorMarkdown" class="editor-textarea editor-markdown-textarea" placeholder="マークダウンで解説を入力..." spellcheck="false"></textarea>
+                <div class="editor-split">
+                  <textarea id="editorMarkdown" class="editor-textarea editor-markdown-textarea" placeholder="マークダウンで解説を入力..." spellcheck="false"></textarea>
+                  <div class="editor-preview editor-markdown-preview">
+                    <div class="editor-preview-header">
+                      <span class="editor-preview-label">プレビュー</span>
+                    </div>
+                    <div class="editor-preview-body markdown-body" id="editorMarkdownPreview"></div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
