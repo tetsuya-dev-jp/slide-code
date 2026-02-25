@@ -1414,6 +1414,44 @@ body.resizing-v {
   border-left: 3px solid var(--accent-primary);
 }
 
+.editor-slide-item {
+  cursor: grab;
+  position: relative;
+}
+
+.editor-slide-item:active {
+  cursor: grabbing;
+}
+
+.editor-slide-item.dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+
+.editor-slide-item.drop-above::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  z-index: 1;
+}
+
+.editor-slide-item.drop-below::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-primary);
+  border-radius: 2px;
+  z-index: 1;
+}
+
 .editor-slide-num {
   width: 20px;
   height: 20px;

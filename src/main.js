@@ -661,7 +661,7 @@ document.getElementById('editorFileLang').addEventListener('change', () => {
 function renderEditorSlideList() {
   const list = document.getElementById('editorSlideList');
   list.innerHTML = editorDeck.slides.map((slide, i) => `
-    <li class="editor-slide-item ${i === editorSlideIndex ? 'active' : ''}" data-index="${i}">
+    <li class="editor-slide-item ${i === editorSlideIndex ? 'active' : ''}" data-index="${i}" draggable="true">
       <span class="editor-slide-num">${i + 1}</span>
       <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
       <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除">
@@ -670,6 +670,7 @@ function renderEditorSlideList() {
     </li>
   `).join('');
 
+  // Click to select
   list.querySelectorAll('.editor-slide-item').forEach(item => {
     item.addEventListener('click', (e) => {
       if (e.target.closest('.editor-slide-delete')) return;
@@ -679,6 +680,7 @@ function renderEditorSlideList() {
     });
   });
 
+  // Delete
   list.querySelectorAll('.editor-slide-delete').forEach(btn => {
     btn.addEventListener('click', () => {
       const idx = parseInt(btn.dataset.index);
@@ -693,6 +695,79 @@ function renderEditorSlideList() {
       renderEditorSlideList();
       loadSlideIntoEditor(editorSlideIndex);
     });
+  });
+
+  // --- Drag & Drop ---
+  let dragSrcIndex = -1;
+
+  list.querySelectorAll('.editor-slide-item').forEach(item => {
+    item.addEventListener('dragstart', (e) => {
+      dragSrcIndex = parseInt(item.dataset.index);
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragSrcIndex.toString());
+    });
+
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      clearDropIndicators(list);
+      dragSrcIndex = -1;
+    });
+
+    item.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const rect = item.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      clearDropIndicators(list);
+      if (e.clientY < midY) {
+        item.classList.add('drop-above');
+      } else {
+        item.classList.add('drop-below');
+      }
+    });
+
+    item.addEventListener('dragleave', () => {
+      item.classList.remove('drop-above', 'drop-below');
+    });
+
+    item.addEventListener('drop', (e) => {
+      e.preventDefault();
+      clearDropIndicators(list);
+      const targetIndex = parseInt(item.dataset.index);
+      if (dragSrcIndex === -1 || dragSrcIndex === targetIndex) return;
+
+      const rect = item.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      let insertAt = e.clientY < midY ? targetIndex : targetIndex + 1;
+
+      // Adjust for the removal of the source element
+      if (dragSrcIndex < insertAt) insertAt--;
+
+      if (dragSrcIndex === insertAt) return;
+
+      saveCurrentSlideFromEditor();
+      const [moved] = editorDeck.slides.splice(dragSrcIndex, 1);
+      editorDeck.slides.splice(insertAt, 0, moved);
+
+      // Update editorSlideIndex to follow the current slide
+      if (editorSlideIndex === dragSrcIndex) {
+        editorSlideIndex = insertAt;
+      } else if (dragSrcIndex < editorSlideIndex && insertAt >= editorSlideIndex) {
+        editorSlideIndex--;
+      } else if (dragSrcIndex > editorSlideIndex && insertAt <= editorSlideIndex) {
+        editorSlideIndex++;
+      }
+
+      renderEditorSlideList();
+      loadSlideIntoEditor(editorSlideIndex);
+    });
+  });
+}
+
+function clearDropIndicators(list) {
+  list.querySelectorAll('.drop-above, .drop-below').forEach(el => {
+    el.classList.remove('drop-above', 'drop-below');
   });
 }
 
