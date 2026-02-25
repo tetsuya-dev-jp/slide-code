@@ -94,7 +94,7 @@ document.querySelectorAll('.toggle-btn').forEach(btn => {
 
 function rebuildLayout() {
   // Apply the CSS Grid layout
-  layoutManager.apply();
+  layoutManager.apply(paneState);
 
   // Build grid splitters
   resizer.buildSplitters(layoutManager.layout, layoutManager.paneOrder, paneState);

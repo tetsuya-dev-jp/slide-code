@@ -119,7 +119,6 @@ export class LayoutManager {
         if (!LAYOUTS[layoutId]) return;
         this.currentLayoutId = layoutId;
         this.save();
-        this.apply();
         this.emit();
     }
 
@@ -132,7 +131,6 @@ export class LayoutManager {
         this.paneOrder[slotA] = this.paneOrder[slotB];
         this.paneOrder[slotB] = temp;
         this.save();
-        this.apply();
         this.emit();
     }
 
@@ -161,23 +159,46 @@ export class LayoutManager {
     /**
      * Apply the current layout to the DOM
      */
-    apply() {
+    apply(paneVisibility) {
         const layout = this.layout;
-        const { gridTemplate } = layout;
+        const visiblePanes = this.paneOrder.filter(p => !paneVisibility || paneVisibility[p]);
+        const visibleCount = visiblePanes.length;
 
-        // Apply CSS Grid template to content element
-        this.contentEl.style.display = 'grid';
-        this.contentEl.style.gridTemplateColumns = gridTemplate.columns;
-        this.contentEl.style.gridTemplateRows = gridTemplate.rows;
-        this.contentEl.style.gridTemplateAreas = gridTemplate.areas;
+        if (visibleCount <= 0) return;
 
-        // Assign grid-area to each pane based on paneOrder
-        this.paneOrder.forEach((paneName, slotIndex) => {
-            const paneEl = this.getPaneElement(paneName);
-            if (paneEl) {
-                paneEl.style.gridArea = `slot${slotIndex}`;
-            }
-        });
+        // If all 3 panes visible, use the preset grid template as-is
+        if (visibleCount === 3) {
+            const { gridTemplate } = layout;
+            this.contentEl.style.gridTemplateColumns = gridTemplate.columns;
+            this.contentEl.style.gridTemplateRows = gridTemplate.rows;
+            this.contentEl.style.gridTemplateAreas = gridTemplate.areas;
+
+            this.paneOrder.forEach((paneName, slotIndex) => {
+                const paneEl = this.getPaneElement(paneName);
+                if (paneEl) paneEl.style.gridArea = `slot${slotIndex}`;
+            });
+            return;
+        }
+
+        // Fewer panes visible: build a simple equal-column layout
+        if (visibleCount === 2) {
+            this.contentEl.style.gridTemplateColumns = '1fr 5px 1fr';
+            this.contentEl.style.gridTemplateRows = '1fr';
+            this.contentEl.style.gridTemplateAreas = '"slot0 sp0 slot1"';
+
+            visiblePanes.forEach((paneName, i) => {
+                const paneEl = this.getPaneElement(paneName);
+                if (paneEl) paneEl.style.gridArea = `slot${i}`;
+            });
+        } else {
+            // Single pane
+            this.contentEl.style.gridTemplateColumns = '1fr';
+            this.contentEl.style.gridTemplateRows = '1fr';
+            this.contentEl.style.gridTemplateAreas = '"slot0"';
+
+            const paneEl = this.getPaneElement(visiblePanes[0]);
+            if (paneEl) paneEl.style.gridArea = 'slot0';
+        }
     }
 
     /**
