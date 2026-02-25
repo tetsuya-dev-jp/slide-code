@@ -4,6 +4,7 @@
  */
 
 import './styles/index.css';
+import '@xterm/xterm/css/xterm.css';
 import { SlideManager } from './core/slides.js';
 import { Resizer } from './core/resizer.js';
 import { LayoutManager, LAYOUTS, LAYOUT_IDS } from './core/layout.js';
@@ -42,7 +43,9 @@ const elements = {
 
 // Pane instances
 const codePane = new CodePane(elements.codeBody, elements.langBadge, elements.copyBtn);
-const shellPane = new ShellPane(elements.shellBody);
+const shellPane = new ShellPane(elements.shellBody, {
+  isDark: getPreferredTheme() !== 'light',
+});
 const markdownPane = new MarkdownPane(elements.markdownBody);
 
 // ============================
@@ -98,6 +101,9 @@ function rebuildLayout() {
 
   // Handle splitter visibility for hidden panes
   updateSplitterVisibility();
+
+  // Re-fit the terminal after layout changes
+  shellPane.fit();
 }
 
 function updateSplitterVisibility() {
@@ -238,6 +244,8 @@ elements.nextBtn.addEventListener('click', () => slideManager.next());
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  // Don't intercept keys when xterm terminal is focused
+  if (e.target.closest('.xterm')) return;
 
   switch (e.key) {
     case 'ArrowLeft':
@@ -343,6 +351,7 @@ function showToast(message) {
 
 const themeToggle = document.getElementById('themeToggle');
 
+// Hoisted so it can be used during ShellPane construction
 function getPreferredTheme() {
   const stored = localStorage.getItem('codestage-theme');
   if (stored) return stored;
@@ -353,6 +362,7 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('codestage-theme', theme);
   swapHighlightTheme(theme);
+  shellPane.setTheme(theme !== 'light');
 }
 
 function swapHighlightTheme(theme) {
