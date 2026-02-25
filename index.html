@@ -16,13 +16,15 @@
     <header class="toolbar">
       <div class="toolbar-left">
         <h1 class="logo">
-          <span class="logo-icon">▶</span>
-          <span class="logo-text">CodeStage</span>
+          <a href="#/" class="logo-link">
+            <span class="logo-icon">▶</span>
+            <span class="logo-text">CodeStage</span>
+          </a>
         </h1>
         <span class="slide-title" id="slideTitle"></span>
       </div>
-      <div class="toolbar-center">
-        <div class="pane-toggles">
+      <div class="toolbar-center" id="toolbarCenter">
+        <div class="pane-toggles" id="paneToggles">
           <button class="toggle-btn active" data-pane="code" title="コードペイン">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
             <span>コード</span>
@@ -37,7 +39,7 @@
           </button>
         </div>
       </div>
-      <div class="toolbar-right">
+      <div class="toolbar-right" id="toolbarRight">
         <!-- Layout Picker -->
         <div class="layout-picker" id="layoutPicker">
           <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更">
@@ -65,7 +67,7 @@
           <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
           <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
-        <div class="slide-nav">
+        <div class="slide-nav" id="slideNav">
           <button class="nav-btn" id="prevBtn" title="前のスライド">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
@@ -78,56 +80,150 @@
     </header>
 
     <!-- Slide Progress Bar -->
-    <div class="progress-bar">
+    <div class="progress-bar" id="progressBar">
       <div class="progress-fill" id="progressFill"></div>
     </div>
 
-    <!-- Main Content Area (CSS Grid) -->
-    <main class="content" id="content">
-      <!-- Code Pane -->
-      <section class="pane pane-code" id="paneCode" data-pane="code">
-        <div class="pane-header" draggable="true" data-pane="code">
-          <span class="pane-label">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-            コード
-          </span>
-          <div class="pane-actions">
-            <span class="lang-badge" id="langBadge">python</span>
-            <button class="action-btn" id="copyBtn" title="コピー">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+    <!-- ========== DASHBOARD VIEW ========== -->
+    <div id="viewDashboard" class="view" style="display:none;">
+      <div class="dashboard">
+        <div class="dashboard-header">
+          <div>
+            <h2 class="dashboard-title">📚 デッキ一覧</h2>
+            <p class="dashboard-subtitle">スライドデッキを作成・管理できます</p>
+          </div>
+          <div class="dashboard-actions">
+            <button class="btn btn-secondary" id="importBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              インポート
+            </button>
+            <button class="btn btn-primary" id="newDeckBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              新規デッキ
             </button>
           </div>
         </div>
-        <div class="pane-body code-body" id="codeBody">
-          <pre><code id="codeContent"></code></pre>
+        <div class="deck-grid" id="deckGrid">
+          <!-- Deck cards rendered here -->
         </div>
-      </section>
+      </div>
+    </div>
 
-      <!-- Shell Pane -->
-      <section class="pane pane-shell" id="paneShell" data-pane="shell">
-        <div class="pane-header" draggable="true" data-pane="shell">
-          <span class="pane-label">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-            シェル
-          </span>
+    <!-- ========== PRESENTATION VIEW ========== -->
+    <div id="viewPresentation" class="view" style="display:none;">
+      <!-- Main Content Area (CSS Grid) -->
+      <main class="content" id="content">
+        <!-- Code Pane -->
+        <section class="pane pane-code" id="paneCode" data-pane="code">
+          <div class="pane-header" draggable="true" data-pane="code">
+            <span class="pane-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+              コード
+            </span>
+            <div class="pane-actions">
+              <span class="lang-badge" id="langBadge">python</span>
+              <button class="action-btn" id="copyBtn" title="コピー">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div class="pane-body code-body" id="codeBody">
+            <pre><code id="codeContent"></code></pre>
+          </div>
+        </section>
+
+        <!-- Shell Pane -->
+        <section class="pane pane-shell" id="paneShell" data-pane="shell">
+          <div class="pane-header" draggable="true" data-pane="shell">
+            <span class="pane-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              シェル
+            </span>
+          </div>
+          <div class="pane-body shell-body" id="shellBody"></div>
+        </section>
+
+        <!-- Markdown Pane -->
+        <section class="pane pane-markdown" id="paneMarkdown" data-pane="markdown">
+          <div class="pane-header" draggable="true" data-pane="markdown">
+            <span class="pane-label">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+              解説
+            </span>
+          </div>
+          <div class="pane-body markdown-body" id="markdownBody"></div>
+        </section>
+      </main>
+
+      <!-- Slide Thumbnails Bar -->
+      <footer class="slide-bar" id="slideBar"></footer>
+    </div>
+
+    <!-- ========== EDITOR VIEW ========== -->
+    <div id="viewEditor" class="view" style="display:none;">
+      <div class="editor-container">
+        <!-- Editor toolbar -->
+        <div class="editor-toolbar">
+          <div class="editor-toolbar-left">
+            <input type="text" class="editor-deck-title" id="editorDeckTitle" placeholder="デッキタイトル" />
+          </div>
+          <div class="editor-toolbar-right">
+            <button class="btn btn-secondary" id="editorPreviewBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              プレビュー
+            </button>
+            <button class="btn btn-primary" id="editorSaveBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+              保存
+            </button>
+          </div>
         </div>
-        <div class="pane-body shell-body" id="shellBody"></div>
-      </section>
 
-      <!-- Markdown Pane -->
-      <section class="pane pane-markdown" id="paneMarkdown" data-pane="markdown">
-        <div class="pane-header" draggable="true" data-pane="markdown">
-          <span class="pane-label">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            解説
-          </span>
+        <!-- Slide list sidebar + editor area -->
+        <div class="editor-body">
+          <aside class="editor-sidebar">
+            <div class="editor-sidebar-header">
+              <span>スライド一覧</span>
+              <button class="btn-icon" id="addSlideBtn" title="スライド追加">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              </button>
+            </div>
+            <ul class="editor-slide-list" id="editorSlideList">
+              <!-- Slide list items rendered here -->
+            </ul>
+          </aside>
+          <div class="editor-main">
+            <div class="editor-fields">
+              <div class="editor-field">
+                <label>スライドタイトル</label>
+                <input type="text" id="editorSlideTitle" placeholder="スライドタイトル" />
+              </div>
+              <div class="editor-field-row">
+                <div class="editor-field">
+                  <label>言語</label>
+                  <input type="text" id="editorLang" placeholder="python" />
+                </div>
+                <div class="editor-field">
+                  <label>ハイライト行 (カンマ区切り)</label>
+                  <input type="text" id="editorHighlight" placeholder="1,2,3" />
+                </div>
+              </div>
+              <div class="editor-field">
+                <label>コード</label>
+                <textarea id="editorCode" class="editor-textarea editor-code-textarea" placeholder="コードを入力..." spellcheck="false"></textarea>
+              </div>
+              <div class="editor-field">
+                <label>マークダウン解説</label>
+                <textarea id="editorMarkdown" class="editor-textarea editor-markdown-textarea" placeholder="マークダウンで解説を入力..." spellcheck="false"></textarea>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="pane-body markdown-body" id="markdownBody"></div>
-      </section>
-    </main>
+      </div>
+    </div>
 
-    <!-- Slide Thumbnails Bar -->
-    <footer class="slide-bar" id="slideBar"></footer>
+    <!-- Hidden file input for import -->
+    <input type="file" id="importFileInput" accept=".json" style="display:none;" />
   </div>
 
   <script type="module" src="/src/main.js"></script>

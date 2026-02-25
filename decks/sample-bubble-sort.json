@@ -1,0 +1,75 @@
+{
+    "id": "sample-bubble-sort",
+    "title": "Pythonでバブルソートを学ぼう",
+    "description": "ソートアルゴリズム入門：バブルソートの基本から最適化まで",
+    "createdAt": "2025-02-25T00:00:00.000Z",
+    "updatedAt": "2025-02-25T00:00:00.000Z",
+    "slides": [
+        {
+            "title": "バブルソートとは？",
+            "code": "# バブルソート (Bubble Sort)\n# 隣接する要素を比較して交換するシンプルなソートアルゴリズム\n\ndef bubble_sort(arr):\n    \"\"\"配列をバブルソートで昇順にソートする\"\"\"\n    n = len(arr)\n    for i in range(n):\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n    return arr\n\n# 使用例\ndata = [64, 34, 25, 12, 22, 11, 90]\nprint(f\"ソート前: {data}\")\nresult = bubble_sort(data)\nprint(f\"ソート後: {result}\")",
+            "language": "python",
+            "highlightLines": [
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10
+            ],
+            "markdown": "# バブルソートとは？\n\n**バブルソート**は最も基本的なソートアルゴリズムの1つです。\n\n## 基本的な考え方\n\n隣り合う2つの要素を比較し、順序が逆なら**交換**します。これをリストの先頭から末尾まで繰り返します。\n\n> [!TIP]\n> 名前の由来：大きな値が泡（バブル）のように配列の末尾に浮かび上がっていく様子から名付けられました。\n\n## 計算量\n\n| ケース | 計算量 |\n|---|---|\n| 最良 | $O(n)$ |\n| 平均 | $O(n^2)$ |\n| 最悪 | $O(n^2)$ |\n\n空間計算量は $O(1)$ で、**インプレース**でソートを行います。\n\n```mermaid\ngraph LR\n    A[\"64, 34, 25, 12\"] --> B[\"比較 & 交換\"]\n    B --> C[\"34, 25, 12, 64\"]\n    C --> D[\"繰り返し\"]\n    D --> E[\"12, 25, 34, 64\"]\n```"
+        },
+        {
+            "title": "ステップ1: 外側のループ",
+            "code": "def bubble_sort(arr):\n    n = len(arr)\n\n    # 外側のループ: n回繰り返す\n    # 各パスで最大の未ソート要素が正しい位置に移動\n    for i in range(n):\n        print(f\"--- パス {i + 1} ---\")\n\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n\n        print(f\"  結果: {arr}\")\n\n    return arr\n\ndata = [64, 34, 25, 12]\nbubble_sort(data)",
+            "language": "python",
+            "highlightLines": [
+                4,
+                5,
+                6,
+                7
+            ],
+            "markdown": "# ステップ1: 外側のループ\n\n## 外側のループの役割\n\n`for i in range(n)` は**パス（巡回）**を制御します。\n\n各パスでは、まだソートされていない部分の中で**最大の要素**が末尾に移動します。\n\n## 動作のイメージ\n\n$$\\text{パス } k \\text{ の後: 末尾 } k \\text{ 個がソート済み}$$\n\n### パスごとの配列の変化\n\n| パス | 配列の状態 | ソート済み |\n|---|---|---|\n| 初期 | `[64, 34, 25, 12]` | なし |\n| 1 | `[34, 25, 12, **64**]` | 64 ✓ |\n| 2 | `[25, 12, **34**, 64]` | 34, 64 ✓ |\n| 3 | `[12, **25**, 34, 64]` | 25, 34, 64 ✓ |\n\n> [!NOTE]\n> パス4では交換が起こらず、配列は既にソート済みです。この点を後で最適化に活かします。"
+        },
+        {
+            "title": "ステップ2: 内側のループと比較",
+            "code": "def bubble_sort(arr):\n    n = len(arr)\n    for i in range(n):\n\n        # 内側のループ: 隣接要素を比較\n        # n - i - 1: 末尾のソート済み部分はスキップ\n        for j in range(0, n - i - 1):\n\n            # 隣の要素と比較\n            if arr[j] > arr[j + 1]:\n                # 交換（スワップ）\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n                print(f\"  交換: {arr[j+1]} ↔ {arr[j]}\")\n            else:\n                print(f\"  維持: {arr[j]} ≤ {arr[j+1]}\")\n\n    return arr\n\ndata = [64, 34, 25, 12]\nprint(f\"初期状態: {data}\")\nbubble_sort(data)\nprint(f\"結果: {data}\")",
+            "language": "python",
+            "highlightLines": [
+                7,
+                10,
+                12
+            ],
+            "markdown": "# ステップ2: 内側のループと比較\n\n## 内側のループの役割\n\n`for j in range(0, n - i - 1)` で隣接する要素を順に比較します。\n\n### なぜ `n - i - 1` ？\n\n各パスの後、末尾 $i$ 個の要素はソート済みなのでスキップできます。\n\n$$\\text{比較回数} = \\sum_{i=0}^{n-1} (n - i - 1) = \\frac{n(n-1)}{2}$$\n\n## 交換（スワップ）の仕組み\n\nPythonでは**タプルアンパッキング**で簡潔に書けます：\n\n```python\n# 一般的な方法（一時変数）\ntemp = arr[j]\narr[j] = arr[j + 1]\narr[j + 1] = temp\n\n# Pythonのタプルアンパッキング ✨\narr[j], arr[j + 1] = arr[j + 1], arr[j]\n```\n\n> [!TIP]\n> Pythonのタプルアンパッキングは内部的に同時代入を行うため、一時変数が不要です！"
+        },
+        {
+            "title": "最適化: 早期終了フラグ",
+            "code": "def bubble_sort_optimized(arr):\n    \"\"\"最適化版: 交換が行われなかったら早期終了\"\"\"\n    n = len(arr)\n\n    for i in range(n):\n        swapped = False  # 交換フラグ\n\n        for j in range(0, n - i - 1):\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n                swapped = True  # 交換が発生\n\n        # 交換がなければソート完了\n        if not swapped:\n            print(f\"  パス {i + 1} で早期終了！\")\n            break\n\n        print(f\"  パス {i + 1}: {arr}\")\n\n    return arr\n\n# ほぼソート済みのデータ\ndata = [11, 12, 22, 25, 64, 34, 90]\nprint(f\"初期: {data}\")\nbubble_sort_optimized(data)\nprint(f\"結果: {data}\")",
+            "language": "python",
+            "highlightLines": [
+                6,
+                11,
+                14,
+                15,
+                16
+            ],
+            "markdown": "# 最適化: 早期終了フラグ\n\n## 問題点\n\n基本的なバブルソートは、配列が**既にソート済み**でも全パスを実行します。\n\n## 解決策: `swapped` フラグ\n\nパス中に1度も交換が起こらなければ、配列はソート済みです。\n\n```mermaid\nflowchart TD\n    A[\"パス開始\"] --> B[\"swapped = False\"]\n    B --> C{\"要素を比較\"}\n    C -->|\"交換あり\"| D[\"swapped = True\"]\n    C -->|\"交換なし\"| E[\"次の要素へ\"]\n    D --> E\n    E --> F{\"全要素比較?\"}\n    F -->|\"いいえ\"| C\n    F -->|\"はい\"| G{\"swapped?\"}\n    G -->|\"True\"| A\n    G -->|\"False\"| H[\"ソート完了 🎉\"]\n```\n\n## 最適化の効果\n\n| データの状態 | 基本版 | 最適化版 |\n|---|---|---|\n| ランダム | $O(n^2)$ | $O(n^2)$ |\n| ほぼソート済み | $O(n^2)$ | $O(n)$ 👍 |\n| ソート済み | $O(n^2)$ | $O(n)$ 👍 |\n\n> [!IMPORTANT]\n> 最良ケースが $O(n^2)$ から $O(n)$ に改善されます！"
+        },
+        {
+            "title": "可視化と比較",
+            "code": "import time\n\ndef bubble_sort_visual(arr):\n    \"\"\"可視化つきバブルソート\"\"\"\n    n = len(arr)\n    comparisons = 0\n    swaps = 0\n\n    for i in range(n):\n        swapped = False\n        for j in range(0, n - i - 1):\n            comparisons += 1\n            if arr[j] > arr[j + 1]:\n                arr[j], arr[j + 1] = arr[j + 1], arr[j]\n                swaps += 1\n                swapped = True\n\n            # 配列の状態を表示\n            visual = \"\"\n            for k, v in enumerate(arr):\n                if k == j or k == j + 1:\n                    visual += f\"[{v}]\"\n                else:\n                    visual += f\" {v} \"\n            print(f\"  {visual}\")\n\n        if not swapped:\n            break\n\n    print(f\"\\n比較回数: {comparisons}\")\n    print(f\"交換回数: {swaps}\")\n    return arr\n\ndata = [5, 3, 8, 1, 2]\nprint(f\"\\nソート開始: {data}\\n\")\nbubble_sort_visual(data)\nprint(f\"\\n完了: {data}\")",
+            "language": "python",
+            "highlightLines": [
+                19,
+                20,
+                21,
+                22,
+                23,
+                24,
+                25
+            ],
+            "markdown": "# 可視化と他のアルゴリズムとの比較\n\n## ソートの各ステップ\n\n`[]` で囲まれた要素が現在**比較中のペア**です。\n\n## 他のソートアルゴリズムとの比較\n\n| アルゴリズム | 最良 | 平均 | 最悪 | 安定性 | メモリ |\n|---|---|---|---|---|---|\n| **バブルソート** | $O(n)$ | $O(n^2)$ | $O(n^2)$ | ✅ | $O(1)$ |\n| 選択ソート | $O(n^2)$ | $O(n^2)$ | $O(n^2)$ | ❌ | $O(1)$ |\n| 挿入ソート | $O(n)$ | $O(n^2)$ | $O(n^2)$ | ✅ | $O(1)$ |\n| マージソート | $O(n\\log n)$ | $O(n\\log n)$ | $O(n\\log n)$ | ✅ | $O(n)$ |\n| クイックソート | $O(n\\log n)$ | $O(n\\log n)$ | $O(n^2)$ | ❌ | $O(\\log n)$ |\n\n## バブルソートの適用場面\n\n- ✅ 学習・教育目的\n- ✅ ほぼソート済みの小さなデータ\n- ✅ 安定ソートが必要な場合\n- ❌ 大規模データの実用には不向き\n\n> [!NOTE]\n> **安定ソート**とは、同じ値を持つ要素の相対的な順序がソート後も保たれるソートのことです。\n\n## まとめ\n\nバブルソートは実用面では遅いですが、**ソートの基本的な考え方**を学ぶのに最適なアルゴリズムです。ここで学んだ「比較と交換」の概念は、他のソートアルゴリズムを理解する土台になります 🎓"
+        }
+    ]
+}

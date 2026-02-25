@@ -1,251 +1,593 @@
 /**
  * CodeStage — Main Application Entry Point
- * Wires together all panes, slide management, layout, and UI interactions
+ * Wires together router, views, panes, slide management, layout, and UI interactions
  */
 
 import './styles/index.css';
 import '@xterm/xterm/css/xterm.css';
+import { Router } from './core/router.js';
 import { SlideManager } from './core/slides.js';
 import { Resizer } from './core/resizer.js';
 import { LayoutManager, LAYOUTS, LAYOUT_IDS } from './core/layout.js';
 import { CodePane } from './panes/code.js';
 import { ShellPane } from './panes/shell.js';
 import { MarkdownPane } from './panes/markdown.js';
-import { sampleSlides } from './data/sample-slides.js';
+import * as api from './core/api.js';
 
 // ============================
-// Initialize components
+// Theme (must be first for ShellPane)
+// ============================
+
+function getPreferredTheme() {
+  const stored = localStorage.getItem('codestage-theme');
+  if (stored) return stored;
+  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+}
+
+function swapHighlightTheme(theme) {
+  const hljsLink = document.getElementById('hljs-theme');
+  if (!hljsLink) return;
+  const darkTheme = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css';
+  const lightTheme = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
+  hljsLink.href = theme === 'light' ? lightTheme : darkTheme;
+}
+
+let shellPane = null;
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('codestage-theme', theme);
+  swapHighlightTheme(theme);
+  if (shellPane) shellPane.setTheme(theme !== 'light');
+}
+
+applyTheme(getPreferredTheme());
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  if (slideManager) slideManager.emit();
+});
+
+// ============================
+// Toast Notification
+// ============================
+
+let toastTimeout;
+function showToast(message) {
+  let toast = document.querySelector('.toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(toastTimeout);
+  toastTimeout = setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ============================
+// Router + View Switching
+// ============================
+
+const router = new Router();
+const views = {
+  dashboard: document.getElementById('viewDashboard'),
+  presentation: document.getElementById('viewPresentation'),
+  editor: document.getElementById('viewEditor'),
+};
+
+// Presentation-only toolbar elements
+const paneToggles = document.getElementById('paneToggles');
+const layoutPicker = document.getElementById('layoutPicker');
+const slideNav = document.getElementById('slideNav');
+const progressBar = document.getElementById('progressBar');
+
+function showView(name) {
+  Object.entries(views).forEach(([key, el]) => {
+    el.style.display = key === name ? '' : 'none';
+  });
+
+  // Show/hide presentation-specific toolbar items
+  const isPresentation = name === 'presentation';
+  paneToggles.style.display = isPresentation ? '' : 'none';
+  layoutPicker.style.display = isPresentation ? '' : 'none';
+  slideNav.style.display = isPresentation ? '' : 'none';
+  progressBar.style.display = isPresentation ? '' : 'none';
+
+  // Show/hide slide title
+  document.getElementById('slideTitle').style.display = isPresentation ? '' : 'none';
+}
+
+// ============================
+// Presentation Components (lazy-init)
 // ============================
 
 const slideManager = new SlideManager();
-const contentEl = document.getElementById('content');
-const resizer = new Resizer(contentEl);
-const layoutManager = new LayoutManager(contentEl);
+let presentationInitialized = false;
+let contentEl, resizer, layoutManager;
+let codePane, markdownPane;
 
-// DOM Elements
-const elements = {
-  slideTitle: document.getElementById('slideTitle'),
-  slideCounter: document.getElementById('slideCounter'),
-  progressFill: document.getElementById('progressFill'),
-  prevBtn: document.getElementById('prevBtn'),
-  nextBtn: document.getElementById('nextBtn'),
-  paneCode: document.getElementById('paneCode'),
-  paneShell: document.getElementById('paneShell'),
-  paneMarkdown: document.getElementById('paneMarkdown'),
-  content: contentEl,
-  slideBar: document.getElementById('slideBar'),
-  codeBody: document.getElementById('codeBody'),
-  langBadge: document.getElementById('langBadge'),
-  copyBtn: document.getElementById('copyBtn'),
-  shellBody: document.getElementById('shellBody'),
-  markdownBody: document.getElementById('markdownBody'),
-};
+const paneState = { code: true, shell: true, markdown: true };
 
-// Pane instances
-const codePane = new CodePane(elements.codeBody, elements.langBadge, elements.copyBtn);
-const shellPane = new ShellPane(elements.shellBody, {
-  isDark: getPreferredTheme() !== 'light',
-});
-const markdownPane = new MarkdownPane(elements.markdownBody);
+function initPresentation() {
+  if (presentationInitialized) return;
+  presentationInitialized = true;
 
-// ============================
-// Pane Visibility
-// ============================
+  contentEl = document.getElementById('content');
+  resizer = new Resizer(contentEl);
+  layoutManager = new LayoutManager(contentEl);
 
-const paneState = {
-  code: true,
-  shell: true,
-  markdown: true,
-};
+  const codeBody = document.getElementById('codeBody');
+  const langBadge = document.getElementById('langBadge');
+  const copyBtn = document.getElementById('copyBtn');
+  const shellBody = document.getElementById('shellBody');
+  const markdownBody = document.getElementById('markdownBody');
 
-function updatePaneVisibility() {
-  // Update pane hidden class
-  elements.paneCode.classList.toggle('hidden', !paneState.code);
-  elements.paneShell.classList.toggle('hidden', !paneState.shell);
-  elements.paneMarkdown.classList.toggle('hidden', !paneState.markdown);
+  codePane = new CodePane(codeBody, langBadge, copyBtn);
+  shellPane = new ShellPane(shellBody, { isDark: getPreferredTheme() !== 'light' });
+  markdownPane = new MarkdownPane(markdownBody);
 
-  // Update toggle button states
-  document.querySelectorAll('.toggle-btn').forEach(btn => {
-    const pane = btn.dataset.pane;
-    btn.classList.toggle('active', paneState[pane]);
+  // Slide change handler
+  slideManager.onChange(({ slide, position, total, hasPrev, hasNext }) => {
+    if (!slide) return;
+    document.getElementById('slideTitle').textContent = slide.title || '';
+    document.getElementById('slideCounter').textContent = `${position} / ${total}`;
+    document.getElementById('prevBtn').disabled = !hasPrev;
+    document.getElementById('nextBtn').disabled = !hasNext;
+
+    const progress = total > 1 ? ((position - 1) / (total - 1)) * 100 : 100;
+    document.getElementById('progressFill').style.width = `${progress}%`;
+
+    codePane.render(slide.code || '', slide.language || 'python', slide.highlightLines || []);
+    shellPane.render(slide.shell);
+    markdownPane.render(slide.markdown);
+
+    document.querySelectorAll('.slide-thumb').forEach((thumb, i) => {
+      thumb.classList.toggle('active', i === position - 1);
+    });
+    const activeThumb = document.getElementById('slideBar').querySelector('.slide-thumb.active');
+    if (activeThumb) {
+      activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
   });
 
-  // Rebuild grid layout considering hidden panes
+  // Navigation buttons
+  document.getElementById('prevBtn').addEventListener('click', () => slideManager.prev());
+  document.getElementById('nextBtn').addEventListener('click', () => slideManager.next());
+
+  // Pane toggle buttons
+  document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const pane = btn.dataset.pane;
+      const visibleCount = Object.values(paneState).filter(Boolean).length;
+      if (visibleCount <= 1 && paneState[pane]) {
+        showToast('少なくとも1つのペインを表示する必要があります');
+        return;
+      }
+      paneState[pane] = !paneState[pane];
+      updatePaneVisibility();
+    });
+  });
+
+  // Layout picker
+  const layoutPickerBtn = document.getElementById('layoutPickerBtn');
+  const layoutDropdown = document.getElementById('layoutDropdown');
+
+  layoutPickerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    layoutDropdown.classList.toggle('open');
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.layout-picker')) {
+      layoutDropdown.classList.remove('open');
+    }
+  });
+
+  document.querySelectorAll('.layout-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      layoutManager.setLayout(btn.dataset.layout);
+      rebuildLayout();
+      document.querySelectorAll('.layout-option').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      layoutDropdown.classList.remove('open');
+    });
+  });
+
+  // Drag & drop pane swapping
+  let dragSourcePane = null;
+  document.querySelectorAll('.pane-header[draggable="true"]').forEach(header => {
+    header.addEventListener('dragstart', (e) => {
+      dragSourcePane = header.dataset.pane;
+      header.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', dragSourcePane);
+      const ghost = header.cloneNode(true);
+      ghost.style.opacity = '0.7';
+      ghost.style.position = 'absolute';
+      ghost.style.top = '-1000px';
+      document.body.appendChild(ghost);
+      e.dataTransfer.setDragImage(ghost, 0, 0);
+      setTimeout(() => ghost.remove(), 0);
+    });
+    header.addEventListener('dragend', () => {
+      header.classList.remove('dragging');
+      dragSourcePane = null;
+      document.querySelectorAll('.pane').forEach(p => p.classList.remove('drop-target'));
+    });
+  });
+
+  document.querySelectorAll('.pane[data-pane]').forEach(paneEl => {
+    paneEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (paneEl.dataset.pane !== dragSourcePane) paneEl.classList.add('drop-target');
+    });
+    paneEl.addEventListener('dragleave', (e) => {
+      if (!paneEl.contains(e.relatedTarget)) paneEl.classList.remove('drop-target');
+    });
+    paneEl.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const sourcePane = e.dataTransfer.getData('text/plain');
+      const targetPane = paneEl.dataset.pane;
+      if (sourcePane && targetPane && sourcePane !== targetPane) {
+        layoutManager.swapPanesByName(sourcePane, targetPane);
+        rebuildLayout();
+      }
+      document.querySelectorAll('.pane').forEach(p => p.classList.remove('drop-target'));
+    });
+  });
+
+  // Init layout
+  syncLayoutPicker();
   rebuildLayout();
+  updatePaneVisibility();
 }
 
-// Toggle button click handlers
-document.querySelectorAll('.toggle-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const pane = btn.dataset.pane;
-    const visibleCount = Object.values(paneState).filter(Boolean).length;
-    if (visibleCount <= 1 && paneState[pane]) {
-      showToast('少なくとも1つのペインを表示する必要があります');
-      return;
-    }
-    paneState[pane] = !paneState[pane];
-    updatePaneVisibility();
-  });
-});
-
-// ============================
-// Layout Management
-// ============================
-
 function rebuildLayout() {
-  // Apply the CSS Grid layout
   layoutManager.apply(paneState);
-
-  // Build grid splitters
   resizer.buildSplitters(layoutManager.layout, layoutManager.paneOrder, paneState);
-
-  // Handle splitter visibility for hidden panes
   updateSplitterVisibility();
+  if (shellPane) shellPane.fit();
+}
 
-  // Re-fit the terminal after layout changes
-  shellPane.fit();
+function updatePaneVisibility() {
+  document.getElementById('paneCode').classList.toggle('hidden', !paneState.code);
+  document.getElementById('paneShell').classList.toggle('hidden', !paneState.shell);
+  document.getElementById('paneMarkdown').classList.toggle('hidden', !paneState.markdown);
+  document.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', paneState[btn.dataset.pane]);
+  });
+  rebuildLayout();
 }
 
 function updateSplitterVisibility() {
   const visiblePanes = layoutManager.paneOrder.filter(p => paneState[p]);
-
   resizer.splitters.forEach(({ el, def }) => {
-    // Determine if the splitter should be visible
-    const between = def.between;
     let shouldShow = true;
-
-    between.forEach(slot => {
+    def.between.forEach(slot => {
       if (typeof slot === 'number') {
         const paneName = layoutManager.paneOrder[slot];
         if (!paneState[paneName]) shouldShow = false;
       }
     });
-
-    // If only 1 pane is visible next to a splitter, hide it
-    if (!shouldShow || visiblePanes.length < 2) {
-      el.style.display = 'none';
-    } else {
-      el.style.display = '';
-    }
+    el.style.display = (!shouldShow || visiblePanes.length < 2) ? 'none' : '';
   });
 }
 
-// ============================
-// Layout Picker
-// ============================
-
-const layoutPickerBtn = document.getElementById('layoutPickerBtn');
-const layoutDropdown = document.getElementById('layoutDropdown');
-
-layoutPickerBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  layoutDropdown.classList.toggle('open');
-});
-
-// Close dropdown on outside click
-document.addEventListener('click', (e) => {
-  if (!e.target.closest('.layout-picker')) {
-    layoutDropdown.classList.remove('open');
-  }
-});
-
-// Layout option click handlers
-document.querySelectorAll('.layout-option').forEach(btn => {
-  btn.addEventListener('click', () => {
-    const layoutId = btn.dataset.layout;
-    layoutManager.setLayout(layoutId);
-    rebuildLayout();
-
-    // Update active state
-    document.querySelectorAll('.layout-option').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    layoutDropdown.classList.remove('open');
-  });
-});
-
-// Set initial active layout option
 function syncLayoutPicker() {
   document.querySelectorAll('.layout-option').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.layout === layoutManager.currentLayoutId);
   });
 }
 
-// ============================
-// Drag & Drop Pane Swapping
-// ============================
-
-let dragSourcePane = null;
-
-document.querySelectorAll('.pane-header[draggable="true"]').forEach(header => {
-  header.addEventListener('dragstart', (e) => {
-    dragSourcePane = header.dataset.pane;
-    header.classList.add('dragging');
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', dragSourcePane);
-
-    // Create minimal drag image
-    const ghost = header.cloneNode(true);
-    ghost.style.opacity = '0.7';
-    ghost.style.position = 'absolute';
-    ghost.style.top = '-1000px';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => ghost.remove(), 0);
+function buildSlideBar(slides) {
+  const slideBar = document.getElementById('slideBar');
+  slideBar.innerHTML = '';
+  slides.forEach((slide, i) => {
+    const thumb = document.createElement('button');
+    thumb.className = 'slide-thumb';
+    thumb.textContent = i + 1;
+    thumb.title = slide.title || `Slide ${i + 1}`;
+    thumb.addEventListener('click', () => slideManager.goTo(i));
+    slideBar.appendChild(thumb);
   });
+}
 
-  header.addEventListener('dragend', () => {
-    header.classList.remove('dragging');
-    dragSourcePane = null;
-    // Remove all drop targets
-    document.querySelectorAll('.pane').forEach(p => p.classList.remove('drop-target'));
+// ============================
+// Dashboard View
+// ============================
+
+async function showDashboard() {
+  showView('dashboard');
+  const grid = document.getElementById('deckGrid');
+  grid.innerHTML = '<div class="deck-loading">読み込み中...</div>';
+
+  try {
+    const decks = await api.listDecks();
+    renderDeckGrid(decks);
+  } catch (err) {
+    grid.innerHTML = '<div class="deck-error">デッキの読み込みに失敗しました</div>';
+    console.error(err);
+  }
+}
+
+function renderDeckGrid(decks) {
+  const grid = document.getElementById('deckGrid');
+  if (decks.length === 0) {
+    grid.innerHTML = `
+      <div class="deck-empty">
+        <p>まだデッキがありません</p>
+        <button class="btn btn-primary" onclick="document.getElementById('newDeckBtn').click()">最初のデッキを作成</button>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = decks.map(deck => `
+    <div class="deck-card" data-id="${deck.id}">
+      <div class="deck-card-body">
+        <h3 class="deck-card-title">${escapeHtml(deck.title)}</h3>
+        <p class="deck-card-desc">${escapeHtml(deck.description || '')}</p>
+        <div class="deck-card-meta">
+          <span>${deck.slideCount} スライド</span>
+          <span>${formatDate(deck.updatedAt)}</span>
+        </div>
+      </div>
+      <div class="deck-card-actions">
+        <button class="btn-icon deck-open" data-id="${deck.id}" title="開く">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+        </button>
+        <button class="btn-icon deck-edit" data-id="${deck.id}" title="編集">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+        </button>
+        <button class="btn-icon deck-export" data-id="${deck.id}" title="エクスポート">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+        </button>
+        <button class="btn-icon deck-delete" data-id="${deck.id}" title="削除">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+        </button>
+      </div>
+    </div>
+  `).join('');
+
+  // Attach event listeners
+  grid.querySelectorAll('.deck-open').forEach(btn => {
+    btn.addEventListener('click', () => router.navigate(`/deck/${btn.dataset.id}`));
   });
+  grid.querySelectorAll('.deck-edit').forEach(btn => {
+    btn.addEventListener('click', () => router.navigate(`/deck/${btn.dataset.id}/edit`));
+  });
+  grid.querySelectorAll('.deck-export').forEach(btn => {
+    btn.addEventListener('click', () => exportDeck(btn.dataset.id));
+  });
+  grid.querySelectorAll('.deck-delete').forEach(btn => {
+    btn.addEventListener('click', () => handleDeleteDeck(btn.dataset.id));
+  });
+}
+
+async function exportDeck(id) {
+  try {
+    const deck = await api.getDeck(id);
+    const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${deck.title || 'deck'}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('エクスポートしました');
+  } catch (err) {
+    showToast('エクスポートに失敗しました');
+  }
+}
+
+async function handleDeleteDeck(id) {
+  if (!confirm('このデッキを削除しますか？')) return;
+  try {
+    await api.deleteDeck(id);
+    showToast('削除しました');
+    showDashboard();
+  } catch (err) {
+    showToast('削除に失敗しました');
+  }
+}
+
+// New deck button
+document.getElementById('newDeckBtn').addEventListener('click', async () => {
+  try {
+    const deck = await api.createDeck({ title: '新しいデッキ' });
+    router.navigate(`/deck/${deck.id}/edit`);
+  } catch (err) {
+    showToast('デッキの作成に失敗しました');
+  }
 });
 
-// Drop targets
-document.querySelectorAll('.pane[data-pane]').forEach(paneEl => {
-  paneEl.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const targetPane = paneEl.dataset.pane;
-    if (targetPane !== dragSourcePane) {
-      paneEl.classList.add('drop-target');
-    }
-  });
+// Import button
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFileInput').click();
+});
 
-  paneEl.addEventListener('dragleave', (e) => {
-    // Only remove if we're actually leaving the pane (not entering a child)
-    if (!paneEl.contains(e.relatedTarget)) {
-      paneEl.classList.remove('drop-target');
-    }
-  });
-
-  paneEl.addEventListener('drop', (e) => {
-    e.preventDefault();
-    const sourcePane = e.dataTransfer.getData('text/plain');
-    const targetPane = paneEl.dataset.pane;
-
-    if (sourcePane && targetPane && sourcePane !== targetPane) {
-      layoutManager.swapPanesByName(sourcePane, targetPane);
-      rebuildLayout();
-    }
-
-    document.querySelectorAll('.pane').forEach(p => p.classList.remove('drop-target'));
-  });
+document.getElementById('importFileInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    await api.createDeck({
+      title: data.title || file.name.replace('.json', ''),
+      description: data.description || '',
+      slides: data.slides || [],
+    });
+    showToast('インポートしました');
+    showDashboard();
+  } catch (err) {
+    showToast('インポートに失敗しました');
+  }
+  e.target.value = '';
 });
 
 // ============================
-// Slide Navigation
+// Presentation View
 // ============================
 
-elements.prevBtn.addEventListener('click', () => slideManager.prev());
-elements.nextBtn.addEventListener('click', () => slideManager.next());
+async function showPresentation(deckId) {
+  initPresentation();
+  showView('presentation');
 
-// Keyboard shortcuts
+  try {
+    const deck = await api.getDeck(deckId);
+    buildSlideBar(deck.slides);
+    slideManager.load(deck.slides);
+  } catch (err) {
+    showToast('デッキの読み込みに失敗しました');
+    router.navigate('/');
+  }
+}
+
+// ============================
+// Editor View
+// ============================
+
+let editorDeck = null;
+let editorSlideIndex = 0;
+
+async function showEditor(deckId) {
+  showView('editor');
+
+  try {
+    editorDeck = await api.getDeck(deckId);
+    editorSlideIndex = 0;
+    document.getElementById('editorDeckTitle').value = editorDeck.title || '';
+    renderEditorSlideList();
+    loadSlideIntoEditor(0);
+  } catch (err) {
+    showToast('デッキの読み込みに失敗しました');
+    router.navigate('/');
+  }
+}
+
+function renderEditorSlideList() {
+  const list = document.getElementById('editorSlideList');
+  list.innerHTML = editorDeck.slides.map((slide, i) => `
+    <li class="editor-slide-item ${i === editorSlideIndex ? 'active' : ''}" data-index="${i}">
+      <span class="editor-slide-num">${i + 1}</span>
+      <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
+      <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+    </li>
+  `).join('');
+
+  // Click to select slide
+  list.querySelectorAll('.editor-slide-item').forEach(item => {
+    item.addEventListener('click', (e) => {
+      if (e.target.closest('.editor-slide-delete')) return;
+      saveCurrentSlideFromEditor();
+      const idx = parseInt(item.dataset.index);
+      loadSlideIntoEditor(idx);
+    });
+  });
+
+  // Delete slide
+  list.querySelectorAll('.editor-slide-delete').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = parseInt(btn.dataset.index);
+      if (editorDeck.slides.length <= 1) {
+        showToast('最後のスライドは削除できません');
+        return;
+      }
+      editorDeck.slides.splice(idx, 1);
+      if (editorSlideIndex >= editorDeck.slides.length) {
+        editorSlideIndex = editorDeck.slides.length - 1;
+      }
+      renderEditorSlideList();
+      loadSlideIntoEditor(editorSlideIndex);
+    });
+  });
+}
+
+function loadSlideIntoEditor(index) {
+  editorSlideIndex = index;
+  const slide = editorDeck.slides[index];
+  if (!slide) return;
+
+  document.getElementById('editorSlideTitle').value = slide.title || '';
+  document.getElementById('editorLang').value = slide.language || 'python';
+  document.getElementById('editorHighlight').value = (slide.highlightLines || []).join(', ');
+  document.getElementById('editorCode').value = slide.code || '';
+  document.getElementById('editorMarkdown').value = slide.markdown || '';
+
+  // Update active state in list
+  document.querySelectorAll('.editor-slide-item').forEach((item, i) => {
+    item.classList.toggle('active', i === index);
+  });
+}
+
+function saveCurrentSlideFromEditor() {
+  if (!editorDeck || !editorDeck.slides[editorSlideIndex]) return;
+  const slide = editorDeck.slides[editorSlideIndex];
+  slide.title = document.getElementById('editorSlideTitle').value;
+  slide.language = document.getElementById('editorLang').value || 'python';
+  slide.code = document.getElementById('editorCode').value;
+  slide.markdown = document.getElementById('editorMarkdown').value;
+
+  const hlText = document.getElementById('editorHighlight').value;
+  slide.highlightLines = hlText
+    ? hlText.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+    : [];
+}
+
+// Add slide
+document.getElementById('addSlideBtn').addEventListener('click', () => {
+  saveCurrentSlideFromEditor();
+  editorDeck.slides.push({
+    title: `スライド ${editorDeck.slides.length + 1}`,
+    code: '',
+    language: 'python',
+    highlightLines: [],
+    markdown: '',
+  });
+  editorSlideIndex = editorDeck.slides.length - 1;
+  renderEditorSlideList();
+  loadSlideIntoEditor(editorSlideIndex);
+});
+
+// Save deck
+document.getElementById('editorSaveBtn').addEventListener('click', async () => {
+  saveCurrentSlideFromEditor();
+  editorDeck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
+
+  try {
+    await api.updateDeck(editorDeck.id, editorDeck);
+    showToast('保存しました');
+    // Refresh slide list titles
+    renderEditorSlideList();
+  } catch (err) {
+    showToast('保存に失敗しました');
+  }
+});
+
+// Preview button
+document.getElementById('editorPreviewBtn').addEventListener('click', () => {
+  saveCurrentSlideFromEditor();
+  if (editorDeck) {
+    router.navigate(`/deck/${editorDeck.id}`);
+  }
+});
+
+// ============================
+// Keyboard Shortcuts
+// ============================
+
 document.addEventListener('keydown', (e) => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-  // Don't intercept keys when xterm terminal is focused
   if (e.target.closest('.xterm')) return;
+
+  // Only handle navigation when in presentation view
+  if (views.presentation.style.display === 'none') return;
 
   switch (e.key) {
     case 'ArrowLeft':
@@ -283,118 +625,34 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ============================
-// Slide Change Handler
+// Utilities
 // ============================
 
-slideManager.onChange(({ slide, position, total, hasPrev, hasNext }) => {
-  if (!slide) return;
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
 
-  elements.slideTitle.textContent = slide.title || '';
-  elements.slideCounter.textContent = `${position} / ${total}`;
-  elements.prevBtn.disabled = !hasPrev;
-  elements.nextBtn.disabled = !hasNext;
-
-  const progress = total > 1 ? ((position - 1) / (total - 1)) * 100 : 100;
-  elements.progressFill.style.width = `${progress}%`;
-
-  codePane.render(slide.code || '', slide.language || 'python', slide.highlightLines || []);
-  shellPane.render(slide.shell);
-  markdownPane.render(slide.markdown);
-
-  document.querySelectorAll('.slide-thumb').forEach((thumb, i) => {
-    thumb.classList.toggle('active', i === position - 1);
-  });
-
-  const activeThumb = elements.slideBar.querySelector('.slide-thumb.active');
-  if (activeThumb) {
-    activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+function formatDate(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+  } catch {
+    return '';
   }
-});
-
-// ============================
-// Slide Thumbnail Bar
-// ============================
-
-function buildSlideBar(slides) {
-  elements.slideBar.innerHTML = '';
-  slides.forEach((slide, i) => {
-    const thumb = document.createElement('button');
-    thumb.className = 'slide-thumb';
-    thumb.textContent = i + 1;
-    thumb.title = slide.title || `Slide ${i + 1}`;
-    thumb.addEventListener('click', () => slideManager.goTo(i));
-    elements.slideBar.appendChild(thumb);
-  });
 }
 
 // ============================
-// Toast Notification
+// Routes
 // ============================
 
-let toastTimeout;
-function showToast(message) {
-  let toast = document.querySelector('.toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.className = 'toast';
-    document.body.appendChild(toast);
-  }
-  toast.textContent = message;
-  toast.classList.add('show');
-  clearTimeout(toastTimeout);
-  toastTimeout = setTimeout(() => toast.classList.remove('show'), 2000);
-}
-
-// ============================
-// Theme Toggle
-// ============================
-
-const themeToggle = document.getElementById('themeToggle');
-
-// Hoisted so it can be used during ShellPane construction
-function getPreferredTheme() {
-  const stored = localStorage.getItem('codestage-theme');
-  if (stored) return stored;
-  return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
-}
-
-function applyTheme(theme) {
-  document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('codestage-theme', theme);
-  swapHighlightTheme(theme);
-  shellPane.setTheme(theme !== 'light');
-}
-
-function swapHighlightTheme(theme) {
-  const hljsLink = document.getElementById('hljs-theme');
-  if (!hljsLink) return;
-
-  const darkTheme = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css';
-  const lightTheme = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css';
-  hljsLink.href = theme === 'light' ? lightTheme : darkTheme;
-}
-
-themeToggle.addEventListener('click', () => {
-  const current = document.documentElement.getAttribute('data-theme');
-  const next = current === 'dark' ? 'light' : 'dark';
-  applyTheme(next);
-  slideManager.emit();
-});
-
-// ============================
-// Initialize
-// ============================
-
-// Apply saved/preferred theme
-applyTheme(getPreferredTheme());
-
-// Build layout
-syncLayoutPicker();
-rebuildLayout();
-
-buildSlideBar(sampleSlides);
-slideManager.load(sampleSlides);
-updatePaneVisibility();
+router
+  .on('/', () => showDashboard())
+  .on('/deck/:id', ({ id }) => showPresentation(id))
+  .on('/deck/:id/edit', ({ id }) => showEditor(id))
+  .start();
 
 // Remove Vite default styles
 const defaultStyle = document.querySelector('link[href="/style.css"]');
