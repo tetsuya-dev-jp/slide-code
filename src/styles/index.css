@@ -1168,6 +1168,30 @@ body.resizing-v {
   box-shadow: 0 4px 12px rgba(88, 166, 255, 0.3);
 }
 
+/* Unsaved changes indicator on save button */
+#editorSaveBtn.has-changes {
+  position: relative;
+  animation: save-pulse 2s ease-in-out infinite;
+}
+
+#editorSaveBtn.has-changes::after {
+  content: '';
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  background: #f97316;
+  border-radius: 50%;
+  border: 2px solid var(--bg-default);
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.6);
+}
+
+@keyframes save-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0); }
+  50% { box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.15); }
+}
+
 .btn-secondary {
   background: var(--bg-elevated);
   color: var(--text-primary);

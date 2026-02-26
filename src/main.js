@@ -510,6 +510,28 @@ let editorSlideIndex = 0;
 let editorFileIndex = 0;
 let monacoEditor = null;
 let monacoDecorations = [];
+let editorDirty = false;
+let editorLoading = false;
+
+function markDirty() {
+  if (editorDirty || editorLoading) return;
+  editorDirty = true;
+  const btn = document.getElementById('editorSaveBtn');
+  if (btn) btn.classList.add('has-changes');
+}
+
+function clearDirty() {
+  editorDirty = false;
+  const btn = document.getElementById('editorSaveBtn');
+  if (btn) btn.classList.remove('has-changes');
+}
+
+window.addEventListener('beforeunload', (e) => {
+  if (editorDirty) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 function monacoLangId(lang) {
   const map = {
@@ -556,6 +578,7 @@ async function showEditor(deckId) {
       monacoEditor.onDidChangeModelContent(debounce(() => {
         saveCurrentFileFromEditor();
         updateCodePreview();
+        markDirty();
       }, 300));
       // Auto-resize
       const resizeObserver = new ResizeObserver(() => monacoEditor?.layout());
@@ -607,12 +630,14 @@ function updateFileRefOptions() {
 }
 
 function loadFileIntoEditor(index) {
+  editorLoading = true;
   editorFileIndex = index;
   const file = editorDeck.files[index];
   if (!file) {
     document.getElementById('editorFileName').value = '';
     document.getElementById('editorFileLang').value = '';
     if (monacoEditor) monacoEditor.setValue('');
+    editorLoading = false;
     return;
   }
 
@@ -630,6 +655,7 @@ function loadFileIntoEditor(index) {
   document.querySelectorAll('.editor-file-tab').forEach((tab, i) => {
     tab.classList.toggle('active', i === index);
   });
+  editorLoading = false;
 }
 
 function updateMonacoDecorations() {
@@ -678,6 +704,7 @@ document.getElementById('addFileBtn').addEventListener('click', () => {
   editorFileIndex = editorDeck.files.length - 1;
   renderEditorFileTabs();
   loadFileIntoEditor(editorFileIndex);
+  markDirty();
 });
 
 // Import file(s) from disk
@@ -716,6 +743,7 @@ document.getElementById('sourceFileInput').addEventListener('change', async (e) 
   loadFileIntoEditor(editorFileIndex);
   showToast(`${files.length} ファイルを読み込みました`);
   e.target.value = '';
+  markDirty();
 });
 
 // Delete file
@@ -736,6 +764,7 @@ document.getElementById('deleteFileBtn').addEventListener('click', () => {
   renderEditorFileTabs();
   loadFileIntoEditor(editorFileIndex);
   updateCodePreview();
+  markDirty();
 });
 
 // Auto-save file name/lang changes
@@ -798,6 +827,7 @@ function renderEditorSlideList() {
       }
       renderEditorSlideList();
       loadSlideIntoEditor(editorSlideIndex);
+      markDirty();
     });
   });
 
@@ -853,6 +883,7 @@ function renderEditorSlideList() {
       saveCurrentSlideFromEditor();
       const [moved] = editorDeck.slides.splice(dragSrcIndex, 1);
       editorDeck.slides.splice(insertAt, 0, moved);
+      markDirty();
 
       // Update editorSlideIndex to follow the current slide
       if (editorSlideIndex === dragSrcIndex) {
@@ -878,9 +909,10 @@ function clearDropIndicators(list) {
 // --- Slide Editor ---
 
 function loadSlideIntoEditor(index) {
+  editorLoading = true;
   editorSlideIndex = index;
   const slide = editorDeck.slides[index];
-  if (!slide) return;
+  if (!slide) { editorLoading = false; return; }
 
   document.getElementById('editorSlideTitle').value = slide.title || '';
   document.getElementById('editorFileRef').value = slide.fileRef || '';
@@ -899,6 +931,7 @@ function loadSlideIntoEditor(index) {
   updateCodePreview();
   updateMarkdownPreview();
   updateMonacoDecorations();
+  editorLoading = false;
 }
 
 function saveCurrentSlideFromEditor() {
@@ -1078,11 +1111,15 @@ const debouncedCodePreview = debounce(updateCodePreview, 300);
 const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
 
 // Monaco handles content change via onDidChangeModelContent (set up in showEditor)
-document.getElementById('editorFileRef').addEventListener('change', () => updateCodePreview());
-document.getElementById('editorLineStart').addEventListener('input', debouncedCodePreview);
-document.getElementById('editorLineEnd').addEventListener('input', debouncedCodePreview);
-document.getElementById('editorHighlight').addEventListener('input', debouncedCodePreview);
-document.getElementById('editorMarkdown').addEventListener('input', debouncedMarkdownPreview);
+document.getElementById('editorFileRef').addEventListener('change', () => { updateCodePreview(); markDirty(); });
+document.getElementById('editorLineStart').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
+document.getElementById('editorLineEnd').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
+document.getElementById('editorHighlight').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
+document.getElementById('editorMarkdown').addEventListener('input', () => { debouncedMarkdownPreview(); markDirty(); });
+document.getElementById('editorDeckTitle').addEventListener('input', () => markDirty());
+document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
+document.getElementById('editorFileName').addEventListener('input', () => markDirty());
+document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
 
 // Add slide
 document.getElementById('addSlideBtn').addEventListener('click', () => {
@@ -1098,6 +1135,7 @@ document.getElementById('addSlideBtn').addEventListener('click', () => {
   editorSlideIndex = editorDeck.slides.length - 1;
   renderEditorSlideList();
   loadSlideIntoEditor(editorSlideIndex);
+  markDirty();
 });
 
 // Save deck
@@ -1108,6 +1146,7 @@ document.getElementById('editorSaveBtn').addEventListener('click', async () => {
 
   try {
     await api.updateDeck(editorDeck.id, editorDeck);
+    clearDirty();
     showToast('保存しました');
     renderEditorSlideList();
   } catch (err) {

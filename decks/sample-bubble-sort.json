@@ -1,9 +1,9 @@
 {
   "id": "sample-bubble-sort",
-  "title": "Pythonでバブルソートを学ぼう",
+  "title": "Pythonでバブルソートを学!ぼう",
   "description": "ソートアルゴリズム入門：バブルソートの基本から最適化まで",
   "createdAt": "2025-02-25T00:00:00.000Z",
-  "updatedAt": "2026-02-26T06:42:02.789Z",
+  "updatedAt": "2026-02-26T07:04:50.848Z",
   "files": [
     {
       "name": "bubble_sort.py",
