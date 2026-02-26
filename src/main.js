@@ -14,6 +14,26 @@ import { ShellPane } from './panes/shell.js';
 import { MarkdownPane } from './panes/markdown.js';
 import * as api from './core/api.js';
 import hljs from 'highlight.js';
+import * as monaco from 'monaco-editor';
+
+// Configure Monaco workers for Vite
+self.MonacoEnvironment = {
+  getWorker(_, label) {
+    if (label === 'json') {
+      return new Worker(new URL('monaco-editor/esm/vs/language/json/json.worker.js', import.meta.url), { type: 'module' });
+    }
+    if (label === 'css' || label === 'scss' || label === 'less') {
+      return new Worker(new URL('monaco-editor/esm/vs/language/css/css.worker.js', import.meta.url), { type: 'module' });
+    }
+    if (label === 'html' || label === 'handlebars' || label === 'razor') {
+      return new Worker(new URL('monaco-editor/esm/vs/language/html/html.worker.js', import.meta.url), { type: 'module' });
+    }
+    if (label === 'typescript' || label === 'javascript') {
+      return new Worker(new URL('monaco-editor/esm/vs/language/typescript/ts.worker.js', import.meta.url), { type: 'module' });
+    }
+    return new Worker(new URL('monaco-editor/esm/vs/editor/editor.worker.js', import.meta.url), { type: 'module' });
+  },
+};
 
 // ============================
 // Code Resolution Helper
@@ -76,6 +96,7 @@ document.getElementById('themeToggle').addEventListener('click', () => {
   const current = document.documentElement.getAttribute('data-theme');
   const next = current === 'dark' ? 'light' : 'dark';
   applyTheme(next);
+  if (monacoEditor) monaco.editor.setTheme(next === 'dark' ? 'vs-dark' : 'vs');
   if (slideManager) slideManager.emit();
 });
 
@@ -487,6 +508,19 @@ async function showPresentation(deckId) {
 let editorDeck = null;
 let editorSlideIndex = 0;
 let editorFileIndex = 0;
+let monacoEditor = null;
+let monacoDecorations = [];
+
+function monacoLangId(lang) {
+  const map = {
+    python: 'python', javascript: 'javascript', typescript: 'typescript',
+    java: 'java', c: 'c', cpp: 'cpp', go: 'go', rust: 'rust', ruby: 'ruby',
+    php: 'php', swift: 'swift', kotlin: 'kotlin', bash: 'shell', sh: 'shell',
+    sql: 'sql', html: 'html', css: 'css', json: 'json', yaml: 'yaml',
+    toml: 'ini', xml: 'xml', markdown: 'markdown', plaintext: 'plaintext',
+  };
+  return map[lang] || 'plaintext';
+}
 
 async function showEditor(deckId) {
   showView('editor');
@@ -498,6 +532,36 @@ async function showEditor(deckId) {
     editorSlideIndex = 0;
     editorFileIndex = 0;
     document.getElementById('editorDeckTitle').value = editorDeck.title || '';
+
+    // Initialize Monaco Editor (lazy, only once)
+    if (!monacoEditor) {
+      const container = document.getElementById('editorFileCode');
+      const isDark = document.body.classList.contains('dark');
+      monacoEditor = monaco.editor.create(container, {
+        value: '',
+        language: 'python',
+        theme: isDark ? 'vs-dark' : 'vs',
+        minimap: { enabled: false },
+        fontSize: 13,
+        lineNumbers: 'on',
+        scrollBeyondLastLine: false,
+        automaticLayout: false,
+        wordWrap: 'on',
+        tabSize: 4,
+        renderLineHighlight: 'all',
+        bracketPairColorization: { enabled: true },
+        padding: { top: 8, bottom: 8 },
+      });
+      // Debounced code preview on content change
+      monacoEditor.onDidChangeModelContent(debounce(() => {
+        saveCurrentFileFromEditor();
+        updateCodePreview();
+      }, 300));
+      // Auto-resize
+      const resizeObserver = new ResizeObserver(() => monacoEditor?.layout());
+      resizeObserver.observe(container);
+    }
+
     renderEditorFileTabs();
     loadFileIntoEditor(0);
     renderEditorSlideList();
@@ -548,18 +612,45 @@ function loadFileIntoEditor(index) {
   if (!file) {
     document.getElementById('editorFileName').value = '';
     document.getElementById('editorFileLang').value = '';
-    document.getElementById('editorFileCode').value = '';
+    if (monacoEditor) monacoEditor.setValue('');
     return;
   }
 
   document.getElementById('editorFileName').value = file.name || '';
   document.getElementById('editorFileLang').value = file.language || '';
-  document.getElementById('editorFileCode').value = file.code || '';
+
+  if (monacoEditor) {
+    monacoEditor.setValue(file.code || '');
+    const langId = monacoLangId(file.language || 'python');
+    monaco.editor.setModelLanguage(monacoEditor.getModel(), langId);
+    updateMonacoDecorations();
+  }
 
   // Update active tab
   document.querySelectorAll('.editor-file-tab').forEach((tab, i) => {
     tab.classList.toggle('active', i === index);
   });
+}
+
+function updateMonacoDecorations() {
+  if (!monacoEditor || !editorDeck) return;
+  // Show the current slide's highlight lines as decorations on the source
+  const slide = editorDeck.slides[editorSlideIndex];
+  const file = editorDeck.files[editorFileIndex];
+  if (!slide || !file || slide.fileRef !== file.name) {
+    monacoDecorations = monacoEditor.deltaDecorations(monacoDecorations, []);
+    return;
+  }
+  const hls = slide.highlightLines || [];
+  const newDecorations = hls.map(line => ({
+    range: new monaco.Range(line, 1, line, 1),
+    options: {
+      isWholeLine: true,
+      className: 'monaco-hl-line',
+      glyphMarginClassName: 'monaco-hl-glyph',
+    },
+  }));
+  monacoDecorations = monacoEditor.deltaDecorations(monacoDecorations, newDecorations);
 }
 
 function saveCurrentFileFromEditor() {
@@ -568,7 +659,7 @@ function saveCurrentFileFromEditor() {
   const oldName = file.name;
   file.name = document.getElementById('editorFileName').value || '無名';
   file.language = document.getElementById('editorFileLang').value || 'python';
-  file.code = document.getElementById('editorFileCode').value;
+  file.code = monacoEditor ? monacoEditor.getValue() : '';
 
   // If name changed, update fileRef in all slides
   if (oldName !== file.name) {
@@ -654,21 +745,34 @@ document.getElementById('editorFileName').addEventListener('change', () => {
 });
 document.getElementById('editorFileLang').addEventListener('change', () => {
   saveCurrentFileFromEditor();
+  if (monacoEditor) {
+    const lang = document.getElementById('editorFileLang').value || 'python';
+    monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(lang));
+  }
 });
 
 // --- Slide List ---
 
 function renderEditorSlideList() {
   const list = document.getElementById('editorSlideList');
-  list.innerHTML = editorDeck.slides.map((slide, i) => `
+  list.innerHTML = editorDeck.slides.map((slide, i) => {
+    const lr = slide.lineRange || [1, 1];
+    const fileRef = slide.fileRef || '';
+    const file = editorDeck.files?.find(f => f.name === fileRef);
+    const lang = file?.language || '';
+    const langIcon = getLangIcon(lang);
+    return `
     <li class="editor-slide-item ${i === editorSlideIndex ? 'active' : ''}" data-index="${i}" draggable="true">
-      <span class="editor-slide-num">${i + 1}</span>
-      <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
+      <span class="editor-slide-num" title="${escapeHtml(lang)}">${langIcon}</span>
+      <div class="editor-slide-info">
+        <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
+        <span class="editor-slide-meta">${escapeHtml(fileRef)} L${lr[0]}–${lr[1]}</span>
+      </div>
       <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
       </button>
-    </li>
-  `).join('');
+    </li>`;
+  }).join('');
 
   // Click to select
   list.querySelectorAll('.editor-slide-item').forEach(item => {
@@ -794,6 +898,7 @@ function loadSlideIntoEditor(index) {
   // Trigger live previews
   updateCodePreview();
   updateMarkdownPreview();
+  updateMonacoDecorations();
 }
 
 function saveCurrentSlideFromEditor() {
@@ -840,43 +945,129 @@ function updateCodePreview() {
     ? hlText.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
     : [];
 
-  const tempSlide = { fileRef, lineRange: [lineStart, lineEnd], highlightLines };
-  const resolved = resolveSlideCode(tempSlide, editorDeck);
-
-  const previewEl = document.getElementById('editorCodePreview');
-  const label = document.getElementById('editorCodePreviewLabel');
-
-  if (!resolved.code) {
+  // Resolve full file to show ALL lines (for interactive selection)
+  const file = editorDeck.files?.find(f => f.name === fileRef);
+  if (!file || !file.code) {
+    const previewEl = document.getElementById('editorCodePreview');
+    const label = document.getElementById('editorCodePreviewLabel');
     previewEl.innerHTML = '<pre><code class="hljs"></code></pre>';
     label.textContent = 'プレビュー';
     return;
   }
 
+  const label = document.getElementById('editorCodePreviewLabel');
   label.textContent = `${fileRef} : L${lineStart}–${lineEnd}`;
 
   let highlighted;
   try {
-    highlighted = hljs.highlight(resolved.code, { language: resolved.language }).value;
+    highlighted = hljs.highlight(file.code, { language: file.language || 'python' }).value;
   } catch {
-    highlighted = hljs.highlightAuto(resolved.code).value;
+    highlighted = hljs.highlightAuto(file.code).value;
   }
 
-  const lines = highlighted.split('\n');
-  if (lines.length > 0 && lines[lines.length - 1] === '') lines.pop();
+  const allLines = highlighted.split('\n');
+  if (allLines.length > 0 && allLines[allLines.length - 1] === '') allLines.pop();
 
-  const highlightSet = new Set(resolved.highlightLines);
-  const html = lines.map((line, i) => {
-    const lineNum = i + 1;
-    const absLine = lineStart + i; // Show absolute line numbers
-    const isHL = highlightSet.has(lineNum);
-    return `<div class="code-line${isHL ? ' line-highlight' : ''}">` +
-      `<span class="line-number">${absLine}</span>` +
+  const highlightSet = new Set(highlightLines);
+  const html = allLines.map((line, i) => {
+    const absLine = i + 1;
+    const inRange = absLine >= lineStart && absLine <= lineEnd;
+    const isHL = highlightSet.has(absLine);
+    const classes = ['code-line'];
+    if (inRange) classes.push('in-range');
+    if (isHL) classes.push('line-highlight');
+    if (!inRange) classes.push('out-of-range');
+    return `<div class="${classes.join(' ')}" data-abs-line="${absLine}">` +
+      `<span class="line-number line-number-interactive" data-abs-line="${absLine}">${absLine}</span>` +
       `<span class="line-content">${line || ' '}</span>` +
       `</div>`;
   }).join('');
 
+  const previewEl = document.getElementById('editorCodePreview');
   previewEl.innerHTML = `<pre><code class="hljs">${html}</code></pre>`;
+
+  // Scroll to bring the selected range into view
+  const firstInRange = previewEl.querySelector('.code-line.in-range');
+  if (firstInRange) {
+    firstInRange.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
 }
+
+// --- Interactive line range selection on code preview ---
+(function setupCodePreviewInteraction() {
+  const preview = document.getElementById('editorCodePreview');
+  let isDragging = false;
+  let dragStartLine = -1;
+
+  function getLineFromEvent(e) {
+    const lineEl = e.target.closest('[data-abs-line]');
+    return lineEl ? parseInt(lineEl.dataset.absLine) : -1;
+  }
+
+  function updateVisualDragSelection(startLine, endLine) {
+    const minL = Math.min(startLine, endLine);
+    const maxL = Math.max(startLine, endLine);
+    preview.querySelectorAll('.code-line').forEach(el => {
+      const line = parseInt(el.dataset.absLine);
+      el.classList.toggle('drag-selecting', line >= minL && line <= maxL);
+    });
+  }
+
+  preview.addEventListener('mousedown', (e) => {
+    const line = getLineFromEvent(e);
+    if (line === -1) return;
+
+    // Ctrl/Cmd + click for highlight toggle
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      const hlInput = document.getElementById('editorHighlight');
+      const current = hlInput.value
+        ? hlInput.value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+        : [];
+      const idx = current.indexOf(line);
+      if (idx >= 0) {
+        current.splice(idx, 1);
+      } else {
+        current.push(line);
+        current.sort((a, b) => a - b);
+      }
+      hlInput.value = current.join(', ');
+      updateCodePreview();
+      return;
+    }
+
+    // Start drag for line range selection
+    e.preventDefault();
+    isDragging = true;
+    dragStartLine = line;
+    updateVisualDragSelection(line, line);
+  });
+
+  preview.addEventListener('mousemove', (e) => {
+    if (!isDragging) return;
+    const line = getLineFromEvent(e);
+    if (line === -1) return;
+    updateVisualDragSelection(dragStartLine, line);
+  });
+
+  document.addEventListener('mouseup', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    const line = getLineFromEvent(e);
+    const endLine = line === -1 ? dragStartLine : line;
+
+    const minL = Math.min(dragStartLine, endLine);
+    const maxL = Math.max(dragStartLine, endLine);
+
+    document.getElementById('editorLineStart').value = minL;
+    document.getElementById('editorLineEnd').value = maxL;
+
+    // Clear drag visual and re-render with the new range
+    preview.querySelectorAll('.drag-selecting').forEach(el => el.classList.remove('drag-selecting'));
+    updateCodePreview();
+    dragStartLine = -1;
+  });
+})();
 
 function updateMarkdownPreview() {
   const md = document.getElementById('editorMarkdown').value;
@@ -886,7 +1077,7 @@ function updateMarkdownPreview() {
 const debouncedCodePreview = debounce(updateCodePreview, 300);
 const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
 
-document.getElementById('editorFileCode').addEventListener('input', debouncedCodePreview);
+// Monaco handles content change via onDidChangeModelContent (set up in showEditor)
 document.getElementById('editorFileRef').addEventListener('change', () => updateCodePreview());
 document.getElementById('editorLineStart').addEventListener('input', debouncedCodePreview);
 document.getElementById('editorLineEnd').addEventListener('input', debouncedCodePreview);
@@ -982,6 +1173,313 @@ document.addEventListener('keydown', (e) => {
 // ============================
 // Utilities
 // ============================
+
+function getLangIcon(lang) {
+  // Comprehensive mapping: language/filetype ID → devicon class
+  // Built from https://github.com/devicons/devicon/blob/master/devicon.json
+  const icons = {
+    // --- Programming Languages ---
+    python: 'devicon-python-plain',
+    javascript: 'devicon-javascript-plain',
+    typescript: 'devicon-typescript-plain',
+    java: 'devicon-java-plain',
+    c: 'devicon-c-plain',
+    cpp: 'devicon-cplusplus-plain',
+    'c++': 'devicon-cplusplus-plain',
+    csharp: 'devicon-csharp-plain',
+    'c#': 'devicon-csharp-plain',
+    go: 'devicon-go-original-wordmark',
+    golang: 'devicon-go-original-wordmark',
+    rust: 'devicon-rust-original',
+    ruby: 'devicon-ruby-plain',
+    php: 'devicon-php-plain',
+    swift: 'devicon-swift-plain',
+    kotlin: 'devicon-kotlin-plain',
+    dart: 'devicon-dart-plain',
+    scala: 'devicon-scala-plain',
+    lua: 'devicon-lua-plain',
+    perl: 'devicon-perl-plain',
+    r: 'devicon-r-plain',
+    julia: 'devicon-julia-plain',
+    elixir: 'devicon-elixir-plain',
+    erlang: 'devicon-erlang-plain',
+    haskell: 'devicon-haskell-plain',
+    clojure: 'devicon-clojure-line',
+    clojurescript: 'devicon-clojurescript-plain',
+    fsharp: 'devicon-fsharp-plain',
+    'f#': 'devicon-fsharp-plain',
+    ocaml: 'devicon-ocaml-plain',
+    nim: 'devicon-nim-plain',
+    zig: 'devicon-zig-original',
+    crystal: 'devicon-crystal-original',
+    fortran: 'devicon-fortran-original',
+    cobol: 'devicon-cobol-original',
+    groovy: 'devicon-groovy-plain',
+    objectivec: 'devicon-objectivec-plain',
+    'objective-c': 'devicon-objectivec-plain',
+    prolog: 'devicon-prolog-plain',
+    solidity: 'devicon-solidity-plain',
+    matlab: 'devicon-matlab-plain',
+    racket: 'devicon-racket-plain',
+    ballerina: 'devicon-ballerina-original',
+    purescript: 'devicon-purescript-original',
+    delphi: 'devicon-delphi-plain',
+    visualbasic: 'devicon-visualbasic-plain',
+    vb: 'devicon-visualbasic-plain',
+    processing: 'devicon-processing-plain',
+    wasm: 'devicon-wasm-original',
+    webassembly: 'devicon-wasm-original',
+    apl: 'devicon-apl-plain',
+    cairo: 'devicon-cairo-plain',
+    ceylon: 'devicon-ceylon-plain',
+    coffeescript: 'devicon-coffeescript-original',
+    haxe: 'devicon-haxe-plain',
+    vala: 'devicon-vala-plain',
+    vyper: 'devicon-vyper-original',
+    rexx: 'devicon-rexx-plain',
+
+    // --- Shell / Scripting ---
+    bash: 'devicon-bash-plain',
+    sh: 'devicon-bash-plain',
+    shell: 'devicon-bash-plain',
+    zsh: 'devicon-zsh-plain',
+    powershell: 'devicon-powershell-plain',
+    awk: 'devicon-awk-plain-wordmark',
+
+    // --- Web / Markup / Config ---
+    html: 'devicon-html5-plain',
+    html5: 'devicon-html5-plain',
+    css: 'devicon-css3-plain',
+    css3: 'devicon-css3-plain',
+    sass: 'devicon-sass-original',
+    scss: 'devicon-sass-original',
+    less: 'devicon-less-plain-wordmark',
+    stylus: 'devicon-stylus-original',
+    json: 'devicon-json-plain',
+    xml: 'devicon-xml-plain',
+    yaml: 'devicon-yaml-plain',
+    yml: 'devicon-yaml-plain',
+    toml: 'devicon-yaml-plain',
+    markdown: 'devicon-markdown-original',
+    md: 'devicon-markdown-original',
+    tex: 'devicon-tex-original',
+    latex: 'devicon-latex-original',
+    svg: 'devicon-xml-plain',
+    graphql: 'devicon-graphql-plain',
+    pug: 'devicon-pug-plain',
+    handlebars: 'devicon-handlebars-original',
+    htmx: 'devicon-htmx-plain',
+
+    // --- Frontend Frameworks ---
+    react: 'devicon-react-original',
+    jsx: 'devicon-react-original',
+    tsx: 'devicon-react-original',
+    vue: 'devicon-vuejs-plain',
+    vuejs: 'devicon-vuejs-plain',
+    svelte: 'devicon-svelte-plain',
+    angular: 'devicon-angular-plain',
+    angularjs: 'devicon-angularjs-plain',
+    nextjs: 'devicon-nextjs-original-wordmark',
+    nuxt: 'devicon-nuxt-original',
+    nuxtjs: 'devicon-nuxtjs-plain',
+    gatsby: 'devicon-gatsby-original',
+    ember: 'devicon-ember-original-wordmark',
+    astro: 'devicon-astro-plain',
+    solidjs: 'devicon-solidjs-plain',
+    qwik: 'devicon-qwik-plain',
+    jquery: 'devicon-jquery-plain',
+    backbonejs: 'devicon-backbonejs-plain',
+    d3js: 'devicon-d3js-plain',
+    threejs: 'devicon-threejs-original',
+
+    // --- Backend Frameworks ---
+    django: 'devicon-django-plain',
+    flask: 'devicon-flask-original',
+    fastapi: 'devicon-fastapi-plain',
+    rails: 'devicon-rails-plain',
+    spring: 'devicon-spring-original',
+    express: 'devicon-express-original',
+    nestjs: 'devicon-nestjs-original',
+    laravel: 'devicon-laravel-original',
+    phoenix: 'devicon-phoenix-original',
+    dotnet: 'devicon-dot-net-plain',
+    '.net': 'devicon-dot-net-plain',
+    dotnetcore: 'devicon-dotnetcore-plain',
+    grails: 'devicon-grails-plain',
+    fiber: 'devicon-fiber-plain',
+    fastify: 'devicon-fastify-plain',
+    symfony: 'devicon-symfony-original',
+
+    // --- Databases ---
+    sql: 'devicon-azuresqldatabase-plain',
+    mysql: 'devicon-mysql-original',
+    postgresql: 'devicon-postgresql-plain',
+    postgres: 'devicon-postgresql-plain',
+    sqlite: 'devicon-sqlite-plain',
+    mongodb: 'devicon-mongodb-plain',
+    redis: 'devicon-redis-plain',
+    cassandra: 'devicon-cassandra-plain',
+    neo4j: 'devicon-neo4j-plain',
+    elasticsearch: 'devicon-elasticsearch-plain-wordmark',
+    dynamodb: 'devicon-dynamodb-plain',
+    couchdb: 'devicon-couchdb-plain',
+    mariadb: 'devicon-mariadb-original',
+    firebase: 'devicon-firebase-plain',
+    supabase: 'devicon-supabase-plain',
+    prisma: 'devicon-prisma-original',
+    sequelize: 'devicon-sequelize-plain',
+    mongoose: 'devicon-mongoose-original',
+    cosmosdb: 'devicon-cosmosdb-plain',
+
+    // --- DevOps / Infra ---
+    docker: 'devicon-docker-plain',
+    kubernetes: 'devicon-kubernetes-plain',
+    terraform: 'devicon-terraform-plain',
+    ansible: 'devicon-ansible-plain',
+    nginx: 'devicon-nginx-original',
+    jenkins: 'devicon-jenkins-line',
+    github: 'devicon-github-original',
+    githubactions: 'devicon-githubactions-plain',
+    gitlab: 'devicon-gitlab-plain',
+    git: 'devicon-git-plain',
+    linux: 'devicon-linux-plain',
+    ubuntu: 'devicon-ubuntu-plain',
+    debian: 'devicon-debian-plain',
+    centos: 'devicon-centos-plain',
+    fedora: 'devicon-fedora-plain',
+    archlinux: 'devicon-archlinux-plain',
+    nixos: 'devicon-nixos-plain',
+    prometheus: 'devicon-prometheus-original',
+    grafana: 'devicon-grafana-plain',
+    vagrant: 'devicon-vagrant-plain',
+    consul: 'devicon-consul-original',
+    packer: 'devicon-packer-plain',
+    pulumi: 'devicon-pulumi-plain',
+    helm: 'devicon-helm-original',
+    argocd: 'devicon-argocd-plain',
+    circleci: 'devicon-circleci-plain',
+    travis: 'devicon-travis-plain',
+    podman: 'devicon-podman-plain',
+
+    // --- Build / Package ---
+    npm: 'devicon-npm-original-wordmark',
+    yarn: 'devicon-yarn-original',
+    pnpm: 'devicon-pnpm-plain',
+    webpack: 'devicon-webpack-plain',
+    vite: 'devicon-vitejs-plain',
+    rollup: 'devicon-rollup-plain',
+    gradle: 'devicon-gradle-original',
+    maven: 'devicon-maven-plain',
+    cmake: 'devicon-cmake-plain',
+    bun: 'devicon-bun-plain',
+    bazel: 'devicon-bazel-plain',
+    composer: 'devicon-composer-line',
+    poetry: 'devicon-poetry-plain',
+
+    // --- Editors / IDEs ---
+    vim: 'devicon-vim-plain',
+    neovim: 'devicon-neovim-plain',
+    vscode: 'devicon-vscode-plain',
+    intellij: 'devicon-intellij-plain',
+    emacs: 'devicon-emacs-original',
+    atom: 'devicon-atom-original',
+    pycharm: 'devicon-pycharm-plain',
+    webstorm: 'devicon-webstorm-plain',
+    goland: 'devicon-goland-plain',
+    rider: 'devicon-rider-plain',
+    clion: 'devicon-clion-plain',
+
+    // --- Data Science / ML ---
+    jupyter: 'devicon-jupyter-plain',
+    numpy: 'devicon-numpy-plain',
+    pandas: 'devicon-pandas-plain',
+    tensorflow: 'devicon-tensorflow-original',
+    pytorch: 'devicon-pytorch-original',
+    matplotlib: 'devicon-matplotlib-plain',
+    keras: 'devicon-keras-plain',
+    scikitlearn: 'devicon-scikitlearn-plain',
+    opencv: 'devicon-opencv-plain',
+    anaconda: 'devicon-anaconda-original',
+    plotly: 'devicon-plotly-plain',
+    streamlit: 'devicon-streamlit-plain',
+
+    // --- Mobile ---
+    android: 'devicon-android-plain',
+    flutter: 'devicon-flutter-plain',
+    reactnative: 'devicon-reactnative-original',
+    ionic: 'devicon-ionic-original',
+    xamarin: 'devicon-xamarin-original',
+
+    // --- Game Engines ---
+    unity: 'devicon-unity-plain',
+    unrealengine: 'devicon-unrealengine-original',
+    godot: 'devicon-godot-plain',
+    love2d: 'devicon-love2d-plain',
+
+    // --- Testing ---
+    jest: 'devicon-jest-plain',
+    mocha: 'devicon-mocha-plain',
+    pytest: 'devicon-pytest-plain',
+    rspec: 'devicon-rspec-plain',
+    junit: 'devicon-junit-plain',
+    cypressio: 'devicon-cypressio-plain',
+    playwright: 'devicon-playwright-plain',
+    selenium: 'devicon-selenium-original',
+    vitest: 'devicon-vitest-plain',
+    cucumber: 'devicon-cucumber-plain',
+    storybook: 'devicon-storybook-plain',
+
+    // --- Cloud ---
+    amazonwebservices: 'devicon-amazonwebservices-plain-wordmark',
+    aws: 'devicon-amazonwebservices-plain-wordmark',
+    googlecloud: 'devicon-googlecloud-plain',
+    gcp: 'devicon-googlecloud-plain',
+    azure: 'devicon-azure-plain',
+    digitalocean: 'devicon-digitalocean-original',
+    heroku: 'devicon-heroku-original',
+    vercel: 'devicon-vercel-original',
+    netlify: 'devicon-netlify-plain',
+    cloudflare: 'devicon-cloudflare-plain',
+    railway: 'devicon-railway-original',
+
+    // --- Misc ---
+    arduino: 'devicon-arduino-plain',
+    raspberrypi: 'devicon-raspberrypi-plain',
+    electron: 'devicon-electron-original',
+    tauri: 'devicon-tauri-plain',
+    figma: 'devicon-figma-plain',
+    blender: 'devicon-blender-original',
+    wordpress: 'devicon-wordpress-plain',
+    drupal: 'devicon-drupal-plain',
+    tailwindcss: 'devicon-tailwindcss-original',
+    bootstrap: 'devicon-bootstrap-plain',
+    materialui: 'devicon-materialui-plain',
+    socketio: 'devicon-socketio-original',
+    grpc: 'devicon-grpc-plain',
+    rabbitmq: 'devicon-rabbitmq-original',
+    swagger: 'devicon-swagger-plain',
+    postman: 'devicon-postman-plain',
+    insomnia: 'devicon-insomnia-plain',
+    eslint: 'devicon-eslint-plain',
+    babel: 'devicon-babel-plain',
+    trpc: 'devicon-trpc-plain',
+    rxjs: 'devicon-rxjs-plain',
+    redux: 'devicon-redux-original',
+    mobx: 'devicon-mobx-plain',
+    renpy: 'devicon-renpy-plain',
+    sdl: 'devicon-sdl-plain',
+    opengl: 'devicon-opengl-plain',
+    vulkan: 'devicon-vulkan-original',
+    plaintext: '',
+    text: '',
+    txt: '',
+  };
+  const key = (lang || '').toLowerCase().trim();
+  const cls = icons[key];
+  if (cls) return `<i class="${cls} colored"></i>`;
+  if (cls === '') return `<i class="devicon-devicon-plain colored"></i>`;
+  return `<span class="lang-icon-text">${key.slice(0, 2).toUpperCase() || '📄'}</span>`;
+}
 
 function escapeHtml(str) {
   const div = document.createElement('div');
