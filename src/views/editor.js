@@ -566,10 +566,17 @@ export function initEditor(router) {
       }
     });
 
-    // Preview button
-    document.getElementById('editorPreviewBtn').addEventListener('click', () => {
+    // Preview button (auto-save before navigating)
+    document.getElementById('editorPreviewBtn').addEventListener('click', async () => {
       saveCurrentSlide();
       saveCurrentFile();
+      deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
+      try {
+        await api.updateDeck(deck.id, deck);
+        clearDirty();
+      } catch {
+        // save failed, but still navigate
+      }
       if (deck) router.navigate(`/deck/${deck.id}`);
     });
 
