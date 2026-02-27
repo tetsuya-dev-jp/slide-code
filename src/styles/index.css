@@ -1354,11 +1354,15 @@ body.resizing-v {
 
 .editor-toolbar-left {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .editor-toolbar-right {
   display: flex;
   gap: 8px;
+  align-items: flex-start;
 }
 
 .editor-deck-title {
@@ -1377,6 +1381,24 @@ body.resizing-v {
 .editor-deck-title:focus {
   outline: none;
   border-color: var(--accent-primary);
+}
+
+.editor-deck-desc {
+  width: 100%;
+  max-width: 400px;
+  padding: 4px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-family: 'Inter', sans-serif;
+}
+
+.editor-deck-desc:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .editor-body {

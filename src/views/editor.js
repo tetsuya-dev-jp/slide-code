@@ -530,6 +530,7 @@ export function initEditor(router) {
     document.getElementById('editorHighlight').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorMarkdown').addEventListener('input', () => { debouncedMarkdownPreview(); markDirty(); });
     document.getElementById('editorDeckTitle').addEventListener('input', () => markDirty());
+    document.getElementById('editorDeckDesc').addEventListener('input', () => markDirty());
     document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
     document.getElementById('editorFileName').addEventListener('input', () => markDirty());
     document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
@@ -556,6 +557,7 @@ export function initEditor(router) {
       saveCurrentSlide();
       saveCurrentFile();
       deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
+      deck.description = document.getElementById('editorDeckDesc').value || '';
       try {
         await api.updateDeck(deck.id, deck);
         clearDirty();
@@ -571,6 +573,7 @@ export function initEditor(router) {
       saveCurrentSlide();
       saveCurrentFile();
       deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
+      deck.description = document.getElementById('editorDeckDesc').value || '';
       try {
         await api.updateDeck(deck.id, deck);
         clearDirty();
@@ -628,6 +631,7 @@ export function initEditor(router) {
       slideIndex = 0;
       fileIndex = 0;
       document.getElementById('editorDeckTitle').value = deck.title || '';
+      document.getElementById('editorDeckDesc').value = deck.description || '';
 
       initMonaco();
       renderFileTabs();
