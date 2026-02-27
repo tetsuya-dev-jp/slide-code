@@ -97,8 +97,11 @@ app.post('/api/decks', (req, res) => {
             description: req.body.description || '',
             createdAt: now,
             updatedAt: now,
+            files: req.body.files || [
+                { name: 'main.py', language: 'python', code: '' }
+            ],
             slides: req.body.slides || [
-                { title: 'スライド 1', code: '', language: 'python', highlightLines: [], markdown: '' }
+                { title: 'スライド 1', fileRef: 'main.py', lineRange: [1, 1], highlightLines: [], markdown: '' }
             ],
         };
         writeDeck(deck.id, deck);
@@ -120,6 +123,7 @@ app.put('/api/decks/:id', (req, res) => {
             ...existing,
             title: req.body.title ?? existing.title,
             description: req.body.description ?? existing.description,
+            files: req.body.files ?? existing.files,
             slides: req.body.slides ?? existing.slides,
             updatedAt: new Date().toISOString(),
         };

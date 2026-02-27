@@ -622,7 +622,9 @@ export function initEditor(router) {
   async function show(deckId) {
     try {
       deck = await api.getDeck(deckId);
-      if (!deck.files) deck.files = [];
+      if (!deck.files || deck.files.length === 0) {
+        deck.files = [{ name: 'main.py', language: 'python', code: '' }];
+      }
       slideIndex = 0;
       fileIndex = 0;
       document.getElementById('editorDeckTitle').value = deck.title || '';

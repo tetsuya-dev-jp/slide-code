@@ -31,6 +31,7 @@ export function initDashboard(router) {
       await api.createDeck({
         title: data.title || file.name.replace('.json', ''),
         description: data.description || '',
+        files: data.files || [],
         slides: data.slides || [],
       });
       showToast('インポートしました');
