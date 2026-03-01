@@ -184,21 +184,54 @@
         <!-- Slide list sidebar + editor area -->
         <div class="editor-body">
           <aside class="editor-sidebar">
-            <div class="editor-sidebar-header">
-              <span>スライド一覧</span>
-              <button class="btn-icon" id="addSlideBtn" title="スライド追加">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              </button>
-            </div>
-            <ul class="editor-slide-list" id="editorSlideList">
-              <!-- Slide list items rendered here -->
-            </ul>
+            <section class="editor-panel editor-panel-slides">
+              <div class="editor-sidebar-header">
+                <span>スライド一覧</span>
+                <button class="btn-icon" id="addSlideBtn" title="スライド追加">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+              </div>
+              <ul class="editor-slide-list" id="editorSlideList">
+                <!-- Slide list items rendered here -->
+              </ul>
+            </section>
+
+            <section class="editor-panel editor-panel-settings">
+              <div class="editor-panel-header">
+                <span>スライド設定</span>
+              </div>
+              <div class="editor-fields editor-fields-meta">
+                <div class="editor-field">
+                  <label>スライドタイトル</label>
+                  <input type="text" id="editorSlideTitle" placeholder="スライドタイトル" />
+                </div>
+                <div class="editor-field">
+                  <label>参照ファイル</label>
+                  <select id="editorFileRef" class="editor-select"></select>
+                </div>
+                <div class="editor-field">
+                  <label>表示行範囲</label>
+                  <div class="editor-line-range">
+                    <input type="number" id="editorLineStart" min="1" placeholder="開始" class="editor-line-input" />
+                    <span class="editor-line-separator">〜</span>
+                    <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" />
+                  </div>
+                  <button class="btn btn-secondary btn-sm" id="applySelectionToRangeBtn">選択範囲を行範囲に反映</button>
+                  <p class="editor-field-hint">行番号をドラッグして範囲選択できます</p>
+                </div>
+                <div class="editor-field">
+                  <label>ハイライト行 (絶対行, カンマ区切り)</label>
+                  <input type="text" id="editorHighlight" placeholder="4,5,6" />
+                  <p class="editor-field-hint">行番号ドラッグで表示範囲、Cmd/Ctrl + 行番号クリックでハイライト</p>
+                </div>
+              </div>
+            </section>
           </aside>
-          <div class="editor-main">
-            <!-- File Tabs Section -->
+
+          <main class="editor-main">
             <div class="editor-files-section">
               <div class="editor-files-header">
-                <span class="editor-section-label">ソースファイル</span>
+                <span class="editor-section-label">ソースファイル + エディタ</span>
                 <div class="editor-files-actions">
                   <button class="btn-icon" id="importFileFromDiskBtn" title="ローカルファイルを読み込む">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
@@ -223,56 +256,32 @@
                 <div id="editorFileCode" class="editor-file-code-container"></div>
               </div>
             </div>
+          </main>
 
-            <!-- Slide Fields -->
-            <div class="editor-fields">
-              <div class="editor-field">
-                <label>スライドタイトル</label>
-                <input type="text" id="editorSlideTitle" placeholder="スライドタイトル" />
+          <div class="editor-resizer" id="editorMainNarrativeResizer" title="ドラッグして幅を調整"></div>
+
+          <aside class="editor-narrative">
+            <section class="editor-panel editor-panel-markdown">
+              <div class="editor-panel-header">
+                <span>解説</span>
               </div>
-              <div class="editor-field-row">
+              <div class="editor-fields editor-fields-markdown">
                 <div class="editor-field">
-                  <label>参照ファイル</label>
-                  <select id="editorFileRef" class="editor-select"></select>
-                </div>
-                <div class="editor-field">
-                  <label>表示行範囲</label>
-                  <div class="editor-line-range">
-                    <input type="number" id="editorLineStart" min="1" placeholder="開始" class="editor-line-input" />
-                    <span class="editor-line-separator">〜</span>
-                    <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" />
-                  </div>
-                </div>
-                <div class="editor-field">
-                  <label>ハイライト行 (絶対行, カンマ区切り)</label>
-                  <input type="text" id="editorHighlight" placeholder="4,5,6" />
-                </div>
-              </div>
-              <div class="editor-field">
-                <label>コードプレビュー</label>
-                <div class="editor-preview editor-code-preview">
-                  <div class="editor-preview-header">
-                    <span class="editor-preview-label" id="editorCodePreviewLabel">プレビュー</span>
-                  </div>
-                  <div class="editor-preview-body code-body" id="editorCodePreview">
-                    <pre><code id="editorCodePreviewContent"></code></pre>
-                  </div>
-                </div>
-              </div>
-              <div class="editor-field">
-                <label>マークダウン解説</label>
-                <div class="editor-split">
+                  <label>マークダウン</label>
                   <textarea id="editorMarkdown" class="editor-textarea editor-markdown-textarea" placeholder="マークダウンで解説を入力..." spellcheck="false"></textarea>
+                </div>
+                <div class="editor-field editor-markdown-preview-field">
+                  <label>プレビュー</label>
                   <div class="editor-preview editor-markdown-preview">
                     <div class="editor-preview-header">
-                      <span class="editor-preview-label">プレビュー</span>
+                      <span class="editor-preview-label">Render</span>
                     </div>
                     <div class="editor-preview-body markdown-body" id="editorMarkdownPreview"></div>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
+            </section>
+          </aside>
         </div>
       </div>
     </div>
