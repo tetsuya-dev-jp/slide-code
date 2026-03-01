@@ -1108,19 +1108,15 @@ body.resizing-v {
   }
 
   .content {
-    flex-direction: column;
+    grid-auto-flow: row;
   }
 
-  .splitter-v {
-    display: none;
+  .grid-splitter {
+    display: none !important;
   }
 
   .pane {
-    flex: 1 1 auto !important;
-  }
-
-  .middle-area {
-    flex: 1 1 auto !important;
+    min-height: 0;
   }
 }
 

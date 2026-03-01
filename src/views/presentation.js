@@ -48,6 +48,7 @@ export function initPresentation(router) {
     setupLayoutPicker();
     setupPaneDragDrop();
     setupKeyboardShortcuts();
+    setupViewportHandler();
 
     syncLayoutPicker();
     rebuildLayout();
@@ -67,7 +68,6 @@ export function initPresentation(router) {
 
       const resolved = resolveSlideCode(slide, presentationDeck);
       codePane.render(resolved.code, resolved.language, resolved.highlightLines);
-      shellPane.render(slide.shell);
       markdownPane.render(slide.markdown);
 
       document.querySelectorAll('.slide-thumb').forEach((thumb, i) => {
@@ -204,9 +204,25 @@ export function initPresentation(router) {
     });
   }
 
+  function setupViewportHandler() {
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const onViewportChange = () => rebuildLayout();
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', onViewportChange);
+    } else {
+      mediaQuery.addListener(onViewportChange);
+    }
+  }
+
   function rebuildLayout() {
     layoutManager.apply(paneState);
-    resizer.buildSplitters(layoutManager.layout, layoutManager.paneOrder, paneState);
+    const isMobile = window.matchMedia('(max-width: 768px)').matches;
+    if (isMobile) {
+      resizer.reset();
+    } else {
+      resizer.buildSplitters(layoutManager.layout, layoutManager.paneOrder, paneState);
+    }
     updateSplitterVisibility();
     if (shellPane) shellPane.fit();
   }

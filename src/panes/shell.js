@@ -54,10 +54,33 @@ const LIGHT_THEME = {
     brightWhite: '#ffffff',
 };
 
+function defaultWsUrl() {
+    const configuredUrl = import.meta.env?.VITE_TERMINAL_WS_URL;
+    if (configuredUrl) return configuredUrl;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.hostname || 'localhost';
+    const port = import.meta.env?.VITE_TERMINAL_WS_PORT || '3001';
+    return `${protocol}//${host}:${port}`;
+}
+
+function withAuthToken(wsUrl) {
+    const token = import.meta.env?.VITE_TERMINAL_WS_TOKEN;
+    if (!token) return wsUrl;
+
+    try {
+        const url = new URL(wsUrl, window.location.href);
+        url.searchParams.set('token', token);
+        return url.toString();
+    } catch {
+        return wsUrl;
+    }
+}
+
 export class ShellPane {
     constructor(shellBodyEl, options = {}) {
         this.shellBody = shellBodyEl;
-        this.wsUrl = options.wsUrl || 'ws://localhost:3001';
+        this.wsUrl = withAuthToken(options.wsUrl || defaultWsUrl());
         this.isDark = options.isDark !== false;
 
         this.terminal = null;

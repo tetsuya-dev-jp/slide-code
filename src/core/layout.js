@@ -166,6 +166,18 @@ export class LayoutManager {
 
         if (visibleCount <= 0) return;
 
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            this.contentEl.style.gridTemplateColumns = '1fr';
+            this.contentEl.style.gridTemplateRows = visiblePanes.map(() => 'minmax(0, 1fr)').join(' ');
+            this.contentEl.style.gridTemplateAreas = visiblePanes.map((_, i) => `"slot${i}"`).join(' ');
+
+            visiblePanes.forEach((paneName, i) => {
+                const paneEl = this.getPaneElement(paneName);
+                if (paneEl) paneEl.style.gridArea = `slot${i}`;
+            });
+            return;
+        }
+
         // If all 3 panes visible, use the preset grid template as-is
         if (visibleCount === 3) {
             const { gridTemplate } = layout;

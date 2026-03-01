@@ -7,6 +7,25 @@ import { marked } from 'marked';
 import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import mermaid from 'mermaid';
+import DOMPurify from 'dompurify';
+
+const HTML_SANITIZE_OPTIONS = {
+    USE_PROFILES: {
+        html: true,
+        svg: true,
+        svgFilters: true,
+    },
+};
+
+const MERMAID_SANITIZE_OPTIONS = {
+    USE_PROFILES: {
+        html: true,
+        svg: true,
+        svgFilters: true,
+    },
+    ADD_TAGS: ['foreignObject'],
+    ADD_ATTR: ['xmlns', 'xmlns:xlink', 'xlink:href', 'xml:space'],
+};
 
 // Configure mermaid (theme-aware)
 function initMermaid() {
@@ -135,7 +154,7 @@ export class MarkdownPane {
             }
         );
 
-        this.markdownBody.innerHTML = html;
+        this.markdownBody.innerHTML = DOMPurify.sanitize(html, HTML_SANITIZE_OPTIONS);
 
         // Render mermaid diagrams
         for (const block of mermaidBlocks) {
@@ -143,12 +162,15 @@ export class MarkdownPane {
                 const el = document.getElementById(block.id);
                 if (el) {
                     const { svg } = await mermaid.render(block.id + '-svg', block.code);
-                    el.innerHTML = svg;
+                    el.innerHTML = DOMPurify.sanitize(svg, MERMAID_SANITIZE_OPTIONS);
                 }
             } catch (e) {
                 const el = document.getElementById(block.id);
                 if (el) {
-                    el.innerHTML = `<pre style="color:var(--accent-danger)">${e.message}</pre>`;
+                    const errorPre = document.createElement('pre');
+                    errorPre.style.color = 'var(--accent-danger)';
+                    errorPre.textContent = e instanceof Error ? e.message : String(e);
+                    el.replaceChildren(errorPre);
                 }
             }
         }
