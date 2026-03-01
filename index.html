@@ -187,9 +187,14 @@
             <section class="editor-panel editor-panel-slides">
               <div class="editor-sidebar-header">
                 <span>スライド一覧</span>
-                <button class="btn-icon" id="addSlideBtn" title="スライド追加">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                </button>
+                <div class="editor-sidebar-header-actions">
+                  <button class="btn-icon" id="addSlideBtn" title="スライド追加">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                  </button>
+                  <button class="btn-icon editor-sidebar-collapse" id="collapseEditorSidebarBtn" title="左パネルを隠す" aria-label="左パネルを隠す">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
+                  </button>
+                </div>
               </div>
               <ul class="editor-slide-list" id="editorSlideList">
                 <!-- Slide list items rendered here -->
@@ -227,6 +232,10 @@
               </div>
             </section>
           </aside>
+
+          <button class="editor-sidebar-expand" id="expandEditorSidebarBtn" title="左パネルを表示" aria-label="左パネルを表示">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg>
+          </button>
 
           <main class="editor-main">
             <div class="editor-files-section">
@@ -266,10 +275,11 @@
                 <span>解説</span>
               </div>
               <div class="editor-fields editor-fields-markdown">
-                <div class="editor-field">
+                <div class="editor-field editor-markdown-input-field">
                   <label>マークダウン</label>
                   <textarea id="editorMarkdown" class="editor-textarea editor-markdown-textarea" placeholder="マークダウンで解説を入力..." spellcheck="false"></textarea>
                 </div>
+                <div class="editor-markdown-resizer" id="editorMarkdownResizer" title="ドラッグして上下の比率を調整"></div>
                 <div class="editor-field editor-markdown-preview-field">
                   <label>プレビュー</label>
                   <div class="editor-preview editor-markdown-preview">

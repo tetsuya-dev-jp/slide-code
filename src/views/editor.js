@@ -464,10 +464,14 @@ export function initEditor(router) {
 
     const clampWidth = (rawWidth) => {
       const bodyWidth = bodyEl.getBoundingClientRect().width;
-      const sidebarWidth = sidebarEl.getBoundingClientRect().width;
+      const collapsed = bodyEl.classList.contains('sidebar-collapsed');
+      const sidebarWidth = collapsed ? 0 : sidebarEl.getBoundingClientRect().width;
+      const gap = parseFloat(getComputedStyle(bodyEl).columnGap) || 0;
+      const gapCount = collapsed ? 2 : 3;
+      const totalGap = gap * gapCount;
       const maxNarrativeWidth = Math.max(
         minNarrativeWidth,
-        bodyWidth - sidebarWidth - minMainWidth - splitterSize - 16,
+        bodyWidth - sidebarWidth - minMainWidth - splitterSize - totalGap,
       );
       return Math.min(Math.max(rawWidth, minNarrativeWidth), maxNarrativeWidth);
     };
@@ -482,7 +486,7 @@ export function initEditor(router) {
 
     const savedWidth = parseInt(localStorage.getItem(STORAGE_KEY), 10);
     if (Number.isFinite(savedWidth)) {
-      applyWidth(savedWidth);
+      bodyEl.style.setProperty('--editor-narrative-width', `${savedWidth}px`);
     }
 
     let dragging = false;
@@ -529,6 +533,112 @@ export function initEditor(router) {
     });
   }
 
+  function setupSidebarToggle() {
+    const bodyEl = document.querySelector('.editor-body');
+    const collapseBtn = document.getElementById('collapseEditorSidebarBtn');
+    const expandBtn = document.getElementById('expandEditorSidebarBtn');
+    if (!bodyEl || !collapseBtn || !expandBtn) return;
+
+    const STORAGE_KEY = 'codestage-editor-sidebar-collapsed';
+
+    const setCollapsed = (collapsed, persist = false) => {
+      bodyEl.classList.toggle('sidebar-collapsed', collapsed);
+      collapseBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      expandBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
+      collapseBtn.title = '左パネルを隠す';
+      expandBtn.title = '左パネルを表示';
+
+      if (persist) {
+        localStorage.setItem(STORAGE_KEY, collapsed ? '1' : '0');
+      }
+
+      window.dispatchEvent(new Event('resize'));
+      if (monacoEditor) monacoEditor.layout();
+    };
+
+    const initialCollapsed = localStorage.getItem(STORAGE_KEY) === '1';
+    setCollapsed(initialCollapsed);
+
+    collapseBtn.addEventListener('click', () => {
+      const nextCollapsed = !bodyEl.classList.contains('sidebar-collapsed');
+      setCollapsed(nextCollapsed, true);
+    });
+
+    expandBtn.addEventListener('click', () => {
+      setCollapsed(false, true);
+    });
+  }
+
+  function setupMarkdownResizer() {
+    const containerEl = document.querySelector('.editor-fields-markdown');
+    const resizerEl = document.getElementById('editorMarkdownResizer');
+    if (!containerEl || !resizerEl) return;
+
+    const STORAGE_KEY = 'codestage-editor-markdown-input-height';
+    const minInputHeight = 140;
+    const minPreviewHeight = 140;
+    const splitterSize = 8;
+
+    const clampHeight = (rawHeight) => {
+      const total = containerEl.getBoundingClientRect().height;
+      const maxInputHeight = Math.max(minInputHeight, total - minPreviewHeight - splitterSize);
+      return Math.min(Math.max(rawHeight, minInputHeight), maxInputHeight);
+    };
+
+    const applyHeight = (height, persist = false) => {
+      const clamped = clampHeight(height);
+      containerEl.style.setProperty('--editor-markdown-input-height', `${clamped}px`);
+      if (persist) {
+        localStorage.setItem(STORAGE_KEY, String(Math.round(clamped)));
+      }
+    };
+
+    const savedHeight = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+    if (Number.isFinite(savedHeight)) {
+      containerEl.style.setProperty('--editor-markdown-input-height', `${savedHeight}px`);
+    }
+
+    let dragging = false;
+
+    const onMouseMove = (e) => {
+      if (!dragging) return;
+      const rect = containerEl.getBoundingClientRect();
+      const nextHeight = e.clientY - rect.top;
+      applyHeight(nextHeight);
+    };
+
+    const onMouseUp = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      document.body.classList.remove('resizing-v');
+      resizerEl.classList.remove('dragging');
+
+      const rect = containerEl.getBoundingClientRect();
+      const nextHeight = e.clientY - rect.top;
+      applyHeight(nextHeight, true);
+
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    resizerEl.addEventListener('mousedown', (e) => {
+      if (window.matchMedia('(max-width: 860px)').matches) return;
+      e.preventDefault();
+      dragging = true;
+      document.body.classList.add('resizing-v');
+      resizerEl.classList.add('dragging');
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    });
+
+    window.addEventListener('resize', () => {
+      const current = parseInt(containerEl.style.getPropertyValue('--editor-markdown-input-height'), 10);
+      if (Number.isFinite(current)) {
+        applyHeight(current);
+      }
+    });
+  }
+
   // --- Event Listeners ---
 
   function setupEventListeners() {
@@ -536,6 +646,8 @@ export function initEditor(router) {
     const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
 
     setupEditorResizer();
+    setupMarkdownResizer();
+    setupSidebarToggle();
 
     // File management
     document.getElementById('addFileBtn').addEventListener('click', () => {
@@ -801,6 +913,9 @@ export function initEditor(router) {
       loadFile(0);
       renderSlideList();
       loadSlide(0);
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
     } catch {
       showToast('デッキの読み込みに失敗しました');
       router.navigate('/');
