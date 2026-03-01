@@ -191,9 +191,6 @@
                   <button class="btn-icon" id="addSlideBtn" title="スライド追加">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </button>
-                  <button class="btn-icon editor-sidebar-collapse" id="collapseEditorSidebarBtn" title="左パネルを隠す" aria-label="左パネルを隠す">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
-                  </button>
                 </div>
               </div>
               <ul class="editor-slide-list" id="editorSlideList">
@@ -233,9 +230,11 @@
             </section>
           </aside>
 
-          <button class="editor-sidebar-expand" id="expandEditorSidebarBtn" title="左パネルを表示" aria-label="左パネルを表示">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"></path></svg>
-          </button>
+          <div class="editor-sidebar-resizer" id="editorSidebarResizer" title="ドラッグで幅調整 / ダブルクリックで開閉">
+            <button class="editor-sidebar-handle" id="editorSidebarHandle" title="左パネルを開閉" aria-label="左パネルを開閉" aria-pressed="false">
+              <svg class="editor-sidebar-handle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
+            </button>
+          </div>
 
           <main class="editor-main">
             <div class="editor-files-section">
