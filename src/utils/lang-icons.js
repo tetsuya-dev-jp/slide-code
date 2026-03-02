@@ -306,5 +306,5 @@ export function getLangIcon(lang) {
   const cls = LANG_ICONS[key];
   if (cls) return `<i class="${cls} colored"></i>`;
   if (cls === '') return `<i class="devicon-devicon-plain colored"></i>`;
-  return `<span class="lang-icon-text">${key.slice(0, 2).toUpperCase() || '📄'}</span>`;
+  return `<span class="lang-icon-text">${key.slice(0, 2).toUpperCase() || 'TX'}</span>`;
 }

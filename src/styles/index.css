@@ -1245,10 +1245,18 @@ body.resizing-v {
 }
 
 .dashboard-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
   font-size: 24px;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
+}
+
+.dashboard-title-icon {
+  color: var(--accent-primary);
+  flex-shrink: 0;
 }
 
 .dashboard-subtitle {
@@ -1274,6 +1282,7 @@ body.resizing-v {
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
   overflow: hidden;
+  cursor: pointer;
   transition: all var(--transition-fast);
 }
 

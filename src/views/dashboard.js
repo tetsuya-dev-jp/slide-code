@@ -184,6 +184,13 @@ export function initDashboard(router) {
       </div>
     `).join('');
 
+    grid.querySelectorAll('.deck-card').forEach(card => {
+      card.addEventListener('click', (event) => {
+        if (event.target.closest('.deck-card-actions')) return;
+        router.navigate(`/deck/${card.dataset.id}/edit`);
+      });
+    });
+
     grid.querySelectorAll('.deck-open').forEach(btn => {
       btn.addEventListener('click', () => router.navigate(`/deck/${btn.dataset.id}`));
     });
