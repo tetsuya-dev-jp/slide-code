@@ -33,6 +33,7 @@ const viewEls = {
 const presentationToolbar = [
   document.getElementById('paneToggles'),
   document.getElementById('layoutPicker'),
+  document.getElementById('editDeckBtn'),
   document.getElementById('slideNav'),
   document.getElementById('progressBar'),
   document.getElementById('slideTitle'),

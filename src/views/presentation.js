@@ -22,6 +22,7 @@ export function initPresentation(router) {
   let contentEl, resizer, layoutManager;
   let codePane, shellPane, markdownPane;
   let presentationDeck = null;
+  let currentDeckId = null;
 
   function init() {
     if (initialized) return;
@@ -83,6 +84,10 @@ export function initPresentation(router) {
   function setupNavigation() {
     document.getElementById('prevBtn').addEventListener('click', () => slideManager.prev());
     document.getElementById('nextBtn').addEventListener('click', () => slideManager.next());
+    document.getElementById('editDeckBtn').addEventListener('click', () => {
+      if (!currentDeckId) return;
+      router.navigate(`/deck/${currentDeckId}/edit`);
+    });
   }
 
   function setupPaneToggles() {
@@ -272,12 +277,14 @@ export function initPresentation(router) {
 
   async function show(deckId) {
     init();
+    currentDeckId = deckId;
     try {
       const deck = await api.getDeck(deckId);
       presentationDeck = deck;
       buildSlideBar(deck.slides);
       slideManager.load(deck.slides);
     } catch {
+      currentDeckId = null;
       showToast('デッキの読み込みに失敗しました');
       router.navigate('/');
     }
