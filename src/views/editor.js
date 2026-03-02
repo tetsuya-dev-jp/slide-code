@@ -30,6 +30,37 @@ self.MonacoEnvironment = {
 };
 
 export function initEditor(router) {
+  const MONACO_THEME = {
+    dark: 'codestage-dark',
+    light: 'vs',
+  };
+
+  function ensureMonacoThemes() {
+    monaco.editor.defineTheme(MONACO_THEME.dark, {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+        'editor.background': '#233851',
+        'editor.foreground': '#f1f3f3',
+        'editorLineNumber.foreground': '#7a8882',
+        'editorLineNumber.activeForeground': '#d4dbd3',
+        'editorGutter.background': '#233851',
+        'editor.lineHighlightBackground': '#2a4c64',
+        'editor.lineHighlightBorder': '#395567',
+        'editor.selectionBackground': '#4db7c840',
+        'editor.inactiveSelectionBackground': '#4db7c82a',
+        'editorCursor.foreground': '#7eced9',
+        'editorIndentGuide.background1': '#33465a',
+        'editorIndentGuide.activeBackground1': '#4db7c8',
+        'editorWhitespace.foreground': '#7a888244',
+        'scrollbarSlider.background': '#4db7c838',
+        'scrollbarSlider.hoverBackground': '#4db7c850',
+        'scrollbarSlider.activeBackground': '#4db7c870',
+      },
+    });
+  }
+
   let deck = null;
   let slideIndex = 0;
   let fileIndex = 0;
@@ -1043,11 +1074,12 @@ export function initEditor(router) {
 
   function initMonaco() {
     if (monacoEditor) return;
+    ensureMonacoThemes();
     const container = document.getElementById('editorFileCode');
     monacoEditor = monaco.editor.create(container, {
       value: '',
       language: 'python',
-      theme: document.documentElement.getAttribute('data-theme') === 'light' ? 'vs' : 'vs-dark',
+      theme: document.documentElement.getAttribute('data-theme') === 'light' ? MONACO_THEME.light : MONACO_THEME.dark,
       minimap: { enabled: false },
       glyphMargin: true,
       fontSize: 13,
@@ -1242,7 +1274,7 @@ export function initEditor(router) {
     show,
     get monacoEditor() { return monacoEditor; },
     setMonacoTheme(isDark) {
-      if (monacoEditor) monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs');
+      if (monacoEditor) monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);
     },
   };
 }
