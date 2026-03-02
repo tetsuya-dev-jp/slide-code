@@ -1809,12 +1809,57 @@ body.resizing-v {
   flex: 1;
 }
 
+.editor-file-code-wrapper {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.editor-code-column-header {
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.editor-hl-column-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.02em;
+  user-select: none;
+  cursor: help;
+}
+
+.editor-hl-column-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #10b981;
+}
+
 .editor-file-code-container {
   flex: 1;
   min-height: 0;
   height: auto;
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
   background: var(--bg-primary);
 }
@@ -1913,11 +1958,95 @@ body.resizing-v {
   color: var(--text-tertiary);
 }
 
-.btn-sm {
-  margin-top: 4px;
-  padding: 6px 10px;
+.editor-summary-row,
+.editor-inline-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.editor-inline-actions {
+  justify-content: flex-end;
+  margin-bottom: 2px;
+}
+
+.editor-inline-action {
+  border: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  border-radius: 999px;
+  padding: 4px 8px;
+  cursor: pointer;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.editor-inline-action:hover {
+  border-color: var(--border-accent);
+  color: var(--text-primary);
+}
+
+.editor-selection-summary {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
   font-size: 12px;
-  align-self: flex-start;
+  font-family: var(--font-mono);
+}
+
+.editor-highlight-chips {
+  min-height: 30px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.editor-highlight-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.12);
+  color: var(--text-primary);
+  font-size: 11px;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.editor-highlight-chip-remove {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.editor-chip-placeholder {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.editor-highlight-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.editor-highlight-input-row[hidden] {
+  display: none !important;
+}
+
+.editor-highlight-input-row input[type="text"] {
+  flex: 1;
 }
 
 .editor-textarea {
@@ -2054,19 +2183,116 @@ body.resizing-v {
 
 /* Monaco highlight decorations — active range and highlight lines */
 .monaco-range-line {
-  background-color: rgba(37, 99, 235, 0.08) !important;
+  background: linear-gradient(
+    90deg,
+    rgba(37, 99, 235, 0.14) 0,
+    rgba(37, 99, 235, 0.09) 14px,
+    rgba(37, 99, 235, 0.08) 100%
+  ) !important;
+  box-shadow: inset 1px 0 0 rgba(37, 99, 235, 0.72) !important;
+}
+
+.monaco-range-start-line {
+  box-shadow:
+    inset 1px 0 0 rgba(37, 99, 235, 0.82),
+    inset 0 1px 0 rgba(37, 99, 235, 0.7) !important;
+}
+
+.monaco-range-end-line {
+  box-shadow:
+    inset 1px 0 0 rgba(37, 99, 235, 0.82),
+    inset 0 -1px 0 rgba(37, 99, 235, 0.7) !important;
 }
 
 .monaco-hl-line {
-  background-color: rgba(16, 185, 129, 0.2) !important;
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.24) 0,
+    rgba(16, 185, 129, 0.16) 16px,
+    rgba(16, 185, 129, 0.14) 100%
+  ) !important;
+  box-shadow: inset 2px 0 0 rgba(16, 185, 129, 0.92) !important;
+}
+
+.monaco-editor .lines-decoration.monaco-range-lines-decoration {
+  width: 2px !important;
+  margin-left: 1px;
+  border-radius: 1px;
+  background: rgba(37, 99, 235, 0.8);
+}
+
+.monaco-editor .lines-decoration.monaco-hl-lines-decoration {
+  width: 2px !important;
+  margin-left: 1px;
+  border-radius: 1px;
+  background: rgba(16, 185, 129, 0.95);
+}
+
+.monaco-editor .margin-view-overlays {
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.08) 0,
+    rgba(16, 185, 129, 0.08) 16px,
+    transparent 16px
+  );
+}
+
+.monaco-editor .monaco-hl-glyph,
+.monaco-editor .margin-view-overlays .monaco-hl-glyph {
+  position: relative;
+  background: rgba(16, 185, 129, 0.18);
+  border-left: 2px solid rgba(16, 185, 129, 0.82);
+}
+
+.monaco-editor .monaco-hl-glyph::after,
+.monaco-editor .margin-view-overlays .monaco-hl-glyph::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #059669;
+  transform: translate(-50%, -50%);
 }
 
 [data-theme="dark"] .monaco-range-line {
-  background-color: rgba(59, 130, 246, 0.12) !important;
+  background: linear-gradient(
+    90deg,
+    rgba(59, 130, 246, 0.18) 0,
+    rgba(59, 130, 246, 0.12) 14px,
+    rgba(59, 130, 246, 0.1) 100%
+  ) !important;
+  box-shadow: inset 1px 0 0 rgba(96, 165, 250, 0.82) !important;
 }
 
 [data-theme="dark"] .monaco-hl-line {
-  background-color: rgba(16, 185, 129, 0.18) !important;
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.28) 0,
+    rgba(16, 185, 129, 0.18) 16px,
+    rgba(16, 185, 129, 0.16) 100%
+  ) !important;
+}
+
+[data-theme="dark"] .monaco-editor .margin-view-overlays {
+  background: linear-gradient(
+    90deg,
+    rgba(16, 185, 129, 0.12) 0,
+    rgba(16, 185, 129, 0.12) 16px,
+    transparent 16px
+  );
+}
+
+[data-theme="dark"] .monaco-editor .monaco-hl-glyph,
+[data-theme="dark"] .monaco-editor .margin-view-overlays .monaco-hl-glyph {
+  background: rgba(16, 185, 129, 0.24);
+}
+
+[data-theme="dark"] .monaco-editor .monaco-hl-glyph::after,
+[data-theme="dark"] .monaco-editor .margin-view-overlays .monaco-hl-glyph::after {
+  background: #6ee7b7;
 }
 
 [data-theme="light"] .editor-body {

@@ -218,13 +218,24 @@
                     <span class="editor-line-separator">〜</span>
                     <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" />
                   </div>
-                  <button class="btn btn-secondary btn-sm" id="applySelectionToRangeBtn">選択範囲を行範囲に反映</button>
-                  <p class="editor-field-hint">行番号をドラッグして範囲選択できます</p>
+                  <div class="editor-summary-row">
+                    <div class="editor-selection-summary" id="editorRangeSummary">L1-L1 (1行)</div>
+                    <button class="editor-inline-action" id="resetRangeBtn" type="button" title="全体範囲に戻す">全体に戻す</button>
+                  </div>
+                  <p class="editor-field-hint">青い帯が表示範囲です。行番号ドラッグで範囲選択、Shift+クリックで範囲確定</p>
                 </div>
                 <div class="editor-field">
-                  <label>ハイライト行 (絶対行, カンマ区切り)</label>
-                  <input type="text" id="editorHighlight" placeholder="4,5,6" />
-                  <p class="editor-field-hint">行番号ドラッグで表示範囲、Cmd/Ctrl + 行番号クリックでハイライト</p>
+                  <label>ハイライト行</label>
+                  <div class="editor-inline-actions">
+                    <button class="editor-inline-action" id="toggleHighlightInputBtn" type="button">編集</button>
+                    <button class="editor-inline-action" id="clearHighlightBtn" type="button">全解除</button>
+                  </div>
+                  <div class="editor-highlight-chips" id="editorHighlightChips"></div>
+                  <div class="editor-highlight-input-row" id="editorHighlightInputRow" hidden>
+                    <input type="text" id="editorHighlight" placeholder="4,5,6" />
+                    <button class="editor-inline-action" id="closeHighlightInputBtn" type="button">閉じる</button>
+                  </div>
+                  <p class="editor-field-hint">左端の緑チェック列をクリック/ドラッグで選択（必要なら編集で数値入力）</p>
                 </div>
               </div>
             </section>
@@ -261,7 +272,19 @@
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                   </button>
                 </div>
-                <div id="editorFileCode" class="editor-file-code-container"></div>
+                <div class="editor-file-code-wrapper">
+                  <div class="editor-code-column-header">
+                    <span
+                      class="editor-hl-column-label"
+                      title="クリック/ドラッグでハイライト"
+                      aria-label="クリックまたはドラッグでハイライト行を選択"
+                    >
+                      <span class="editor-hl-column-dot" aria-hidden="true"></span>
+                      <span>HL</span>
+                    </span>
+                  </div>
+                  <div id="editorFileCode" class="editor-file-code-container"></div>
+                </div>
               </div>
             </div>
           </main>

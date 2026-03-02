@@ -173,6 +173,111 @@ export function initEditor(router) {
     };
   }
 
+  function setLineRangeInputs(startLine, endLine) {
+    document.getElementById('editorLineStart').value = startLine;
+    document.getElementById('editorLineEnd').value = endLine;
+  }
+
+  function setHighlightInput(lines) {
+    const normalized = Array.from(
+      new Set((lines || []).map(line => parseInt(line, 10)).filter(line => Number.isFinite(line) && line >= 1)),
+    ).sort((a, b) => a - b);
+    document.getElementById('editorHighlight').value = normalized.join(', ');
+  }
+
+  function compactLineGroups(lines) {
+    if (!lines.length) return [];
+
+    const groups = [];
+    let start = lines[0];
+    let prev = lines[0];
+
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i];
+      if (line === prev + 1) {
+        prev = line;
+        continue;
+      }
+      groups.push({ start, end: prev });
+      start = line;
+      prev = line;
+    }
+
+    groups.push({ start, end: prev });
+    return groups;
+  }
+
+  function renderRangeSummary(slideState = null) {
+    const summaryEl = document.getElementById('editorRangeSummary');
+    if (!summaryEl) return;
+
+    const draft = slideState || getDraftSlideStateFromForm();
+    const result = normalizeDraftSlideState(draft);
+    if (!result) {
+      summaryEl.textContent = '範囲未設定';
+      return;
+    }
+
+    const [start, end] = result.normalized.lineRange;
+    const count = Math.max(end - start + 1, 1);
+    summaryEl.textContent = start === end
+      ? `L${start} (1行)`
+      : `L${start}-L${end} (${count}行)`;
+  }
+
+  function renderHighlightChips(slideState = null) {
+    const chipsEl = document.getElementById('editorHighlightChips');
+    if (!chipsEl) return;
+
+    const draft = slideState || getDraftSlideStateFromForm();
+    const lines = [...(draft.highlightLines || [])].sort((a, b) => a - b);
+    const groups = compactLineGroups(lines);
+
+    if (!groups.length) {
+      chipsEl.innerHTML = '<span class="editor-chip-placeholder">未選択</span>';
+      return;
+    }
+
+    chipsEl.innerHTML = groups.map(group => {
+      const label = group.start === group.end
+        ? `L${group.start}`
+        : `L${group.start}-L${group.end}`;
+      return `
+        <span class="editor-highlight-chip">
+          <span>${label}</span>
+          <button class="editor-highlight-chip-remove" data-remove-range="${group.start}:${group.end}" title="この範囲を解除">x</button>
+        </span>
+      `;
+    }).join('');
+  }
+
+  function refreshSelectionWidgets(slideState = null) {
+    renderRangeSummary(slideState);
+    renderHighlightChips(slideState);
+  }
+
+  function setHighlightInputVisible(visible) {
+    const rowEl = document.getElementById('editorHighlightInputRow');
+    const toggleBtn = document.getElementById('toggleHighlightInputBtn');
+    if (!rowEl || !toggleBtn) return;
+
+    rowEl.hidden = !visible;
+    toggleBtn.textContent = visible ? '編集を閉じる' : '編集';
+  }
+
+  function resetRangeToWholeFile() {
+    if (!deck) return;
+
+    const fileRef = document.getElementById('editorFileRef').value;
+    const targetFile = deck.files.find(file => file.name === fileRef);
+    if (!targetFile) return;
+
+    const maxLine = Math.max((targetFile.code || '').split('\n').length, 1);
+    setLineRangeInputs(1, maxLine);
+    updateCodePreview({ saveFile: false, reveal: false });
+    markDirty();
+  }
+
   function normalizeDraftSlideState(draft) {
     if (!deck) return null;
 
@@ -180,12 +285,15 @@ export function initEditor(router) {
     if (!targetFile) return null;
 
     const [start, end] = normalizeLineRangeForFile(draft.lineRange, targetFile);
+    const highlightLines = Array.from(
+      new Set((draft.highlightLines || []).map(line => parseInt(line, 10)).filter(line => Number.isFinite(line) && line >= 1)),
+    ).sort((a, b) => a - b);
     return {
       targetFile,
       normalized: {
         ...draft,
         lineRange: [start, end],
-        highlightLines: draft.highlightLines.filter(line => line >= start && line <= end),
+        highlightLines,
       },
     };
   }
@@ -199,6 +307,7 @@ export function initEditor(router) {
     const result = normalizeDraftSlideState(draft);
     if (!result) {
       updateMonacoDecorations();
+      refreshSelectionWidgets();
       return;
     }
 
@@ -217,6 +326,8 @@ export function initEditor(router) {
     if (highlightInput.value !== nextHighlightValue) {
       highlightInput.value = nextHighlightValue;
     }
+
+    refreshSelectionWidgets(normalized);
 
     updateMonacoDecorations(normalized);
 
@@ -246,22 +357,44 @@ export function initEditor(router) {
     const [start, end] = normalizeLineRangeForFile(slide.lineRange || [1, 1], file);
     const highlightLines = (slide.highlightLines || [])
       .map(line => parseInt(line, 10))
-      .filter(line => Number.isFinite(line) && line >= start && line <= end);
+      .filter(line => Number.isFinite(line) && line >= 1);
 
-    const newDecorations = [{
+    const rangeDecorations = [{
       range: new monaco.Range(start, 1, end, 1),
       options: {
         isWholeLine: true,
         className: 'monaco-range-line',
+        linesDecorationsClassName: 'monaco-range-lines-decoration',
       },
-    }, ...highlightLines.map(line => ({
+    }, {
+      range: new monaco.Range(start, 1, start, 1),
+      options: {
+        isWholeLine: true,
+        className: 'monaco-range-start-line',
+      },
+    }];
+
+    if (end !== start) {
+      rangeDecorations.push({
+        range: new monaco.Range(end, 1, end, 1),
+        options: {
+          isWholeLine: true,
+          className: 'monaco-range-end-line',
+        },
+      });
+    }
+
+    const highlightDecorations = highlightLines.map(line => ({
       range: new monaco.Range(line, 1, line, 1),
       options: {
         isWholeLine: true,
         className: 'monaco-hl-line',
         glyphMarginClassName: 'monaco-hl-glyph',
+        linesDecorationsClassName: 'monaco-hl-lines-decoration',
       },
-    }))];
+    }));
+
+    const newDecorations = [...rangeDecorations, ...highlightDecorations];
 
     monacoDecorations = monacoEditor.deltaDecorations(monacoDecorations, newDecorations);
   }
@@ -408,7 +541,7 @@ export function initEditor(router) {
       item.classList.toggle('active', i === index);
     });
 
-    updateCodePreview();
+    updateCodePreview({ saveFile: false, reveal: true });
     updateMarkdownPreview();
     loading = false;
   }
@@ -427,8 +560,8 @@ export function initEditor(router) {
 
   // --- Live Previews ---
 
-  function updateCodePreview() {
-    syncMonacoWithFormState({ saveFile: true, reveal: true });
+  function updateCodePreview({ saveFile = true, reveal = false } = {}) {
+    syncMonacoWithFormState({ saveFile, reveal });
   }
 
   function updateMarkdownPreview() {
@@ -436,18 +569,17 @@ export function initEditor(router) {
     mdPreviewPane.render(md);
   }
 
-  function applyMonacoSelectionToLineRange() {
-    if (!monacoEditor) return;
+  function clearAllHighlightLines() {
+    setHighlightInput([]);
+    updateCodePreview({ saveFile: false, reveal: false });
+    markDirty();
+  }
 
-    const selection = monacoEditor.getSelection();
-    if (!selection) return;
-
-    const start = Math.min(selection.startLineNumber, selection.endLineNumber);
-    const end = Math.max(selection.startLineNumber, selection.endLineNumber);
-
-    document.getElementById('editorLineStart').value = start;
-    document.getElementById('editorLineEnd').value = end;
-    updateCodePreview();
+  function removeHighlightRange(start, end) {
+    const values = parseHighlightLinesInput(document.getElementById('editorHighlight').value)
+      .filter(line => line < start || line > end);
+    setHighlightInput(values);
+    updateCodePreview({ saveFile: false, reveal: false });
     markDirty();
   }
 
@@ -751,6 +883,7 @@ export function initEditor(router) {
     setupEditorResizer();
     setupMarkdownResizer();
     setupSidebarHandle();
+    setHighlightInputVisible(false);
 
     // File management
     document.getElementById('addFileBtn').addEventListener('click', () => {
@@ -819,14 +952,37 @@ export function initEditor(router) {
     // Slide fields
     document.getElementById('editorFileRef').addEventListener('change', () => {
       loadFileByName(document.getElementById('editorFileRef').value);
-      updateCodePreview();
+      updateCodePreview({ saveFile: false, reveal: true });
       markDirty();
     });
+    document.getElementById('resetRangeBtn').addEventListener('click', () => resetRangeToWholeFile());
     document.getElementById('editorLineStart').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorLineEnd').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorHighlight').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorMarkdown').addEventListener('input', () => { debouncedMarkdownPreview(); markDirty(); });
-    document.getElementById('applySelectionToRangeBtn').addEventListener('click', () => applyMonacoSelectionToLineRange());
+    document.getElementById('toggleHighlightInputBtn').addEventListener('click', () => {
+      const rowEl = document.getElementById('editorHighlightInputRow');
+      const nextVisible = rowEl ? rowEl.hidden : true;
+      setHighlightInputVisible(nextVisible);
+      if (nextVisible) {
+        document.getElementById('editorHighlight').focus();
+      }
+    });
+    document.getElementById('closeHighlightInputBtn').addEventListener('click', () => {
+      setHighlightInputVisible(false);
+    });
+    document.getElementById('clearHighlightBtn').addEventListener('click', () => {
+      clearAllHighlightLines();
+    });
+    document.getElementById('editorHighlightChips').addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('[data-remove-range]');
+      if (!removeBtn) return;
+      const [startRaw, endRaw] = removeBtn.dataset.removeRange.split(':');
+      const start = parseInt(startRaw, 10);
+      const end = parseInt(endRaw, 10);
+      if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+      removeHighlightRange(start, end);
+    });
     document.getElementById('editorDeckTitle').addEventListener('input', () => markDirty());
     document.getElementById('editorDeckDesc').addEventListener('input', () => markDirty());
     document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
@@ -911,76 +1067,127 @@ export function initEditor(router) {
       markDirty();
     }, 300));
 
-    const lineTargetTypes = [
-      monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN,
-      monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS,
-    ];
+    const lineNumberTargetType = monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
+    const glyphTargetType = monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN;
 
-    let draggingRange = false;
-    let dragStartLine = -1;
+    let rangePointerDown = false;
+    let rangeDragChanged = false;
+    let rangeStartLine = -1;
+    let rangeAnchorLine = null;
+    let highlightPointerDown = false;
+    let highlightDragMode = null;
+    let lastHighlightDragLine = -1;
 
-    const setRangeInputs = (lineA, lineB) => {
+    const applyRangePreview = (lineA, lineB) => {
       const start = Math.min(lineA, lineB);
       const end = Math.max(lineA, lineB);
-      document.getElementById('editorLineStart').value = start;
-      document.getElementById('editorLineEnd').value = end;
+      setLineRangeInputs(start, end);
+      syncMonacoWithFormState({ saveFile: false, reveal: false });
     };
 
-    const finishRangeDrag = () => {
-      if (!draggingRange) return;
-      draggingRange = false;
-      document.body.classList.remove('resizing-v');
-      updateCodePreview();
-      markDirty();
+    const canEditCurrentSlideFile = () => {
+      if (!deck) return false;
+      const activeFile = deck.files[fileIndex];
+      const fileRef = document.getElementById('editorFileRef').value;
+      return Boolean(activeFile && activeFile.name === fileRef);
+    };
+
+    const setHighlightLine = (line, shouldHighlight) => {
+      const values = parseHighlightLinesInput(document.getElementById('editorHighlight').value);
+      const hasLine = values.includes(line);
+      if (shouldHighlight && !hasLine) {
+        values.push(line);
+      } else if (!shouldHighlight && hasLine) {
+        const idx = values.indexOf(line);
+        values.splice(idx, 1);
+      } else {
+        return false;
+      }
+
+      values.sort((a, b) => a - b);
+      setHighlightInput(values);
+      syncMonacoWithFormState({ saveFile: false, reveal: false });
+      return true;
+    };
+
+    const finishPointerInteractions = () => {
+      if (highlightPointerDown) {
+        highlightPointerDown = false;
+        highlightDragMode = null;
+        lastHighlightDragLine = -1;
+      }
+
+      if (rangePointerDown) {
+        const didRangeChange = rangeDragChanged;
+        rangePointerDown = false;
+        rangeDragChanged = false;
+        rangeStartLine = -1;
+        document.body.classList.remove('resizing-v');
+        if (didRangeChange) {
+          syncMonacoWithFormState({ saveFile: false, reveal: false });
+          markDirty();
+        }
+      }
     };
 
     monacoEditor.onMouseDown((e) => {
-      if (!lineTargetTypes.includes(e.target.type)) return;
+      if (![glyphTargetType, lineNumberTargetType].includes(e.target.type)) return;
 
       const line = e.target.position?.lineNumber;
-      if (!line || !deck) return;
+      if (!line || !canEditCurrentSlideFile()) return;
 
-      const activeFile = deck.files[fileIndex];
-      const fileRef = document.getElementById('editorFileRef').value;
-      if (!activeFile || activeFile.name !== fileRef) return;
-
-      // Cmd/Ctrl + gutter click: toggle highlight line
-      if (e.event.ctrlKey || e.event.metaKey) {
+      if (e.target.type === glyphTargetType) {
         e.event.preventDefault();
-        const input = document.getElementById('editorHighlight');
-        const values = parseHighlightLinesInput(input.value);
-        const idx = values.indexOf(line);
-        if (idx >= 0) {
-          values.splice(idx, 1);
-        } else {
-          values.push(line);
+        const existing = parseHighlightLinesInput(document.getElementById('editorHighlight').value);
+        highlightDragMode = existing.includes(line) ? 'remove' : 'add';
+        highlightPointerDown = true;
+        lastHighlightDragLine = -1;
+        if (setHighlightLine(line, highlightDragMode === 'add')) {
+          markDirty();
         }
-        values.sort((a, b) => a - b);
-
-        input.value = values.join(', ');
-        syncMonacoWithFormState({ saveFile: false, reveal: false });
-        markDirty();
         return;
       }
 
-      // Gutter drag: update visible line range
+      if (e.event.shiftKey && Number.isFinite(rangeAnchorLine)) {
+        e.event.preventDefault();
+        applyRangePreview(rangeAnchorLine, line);
+        markDirty();
+        rangeAnchorLine = line;
+        return;
+      }
+
       e.event.preventDefault();
-      draggingRange = true;
-      dragStartLine = line;
-      document.body.classList.add('resizing-v');
-      setRangeInputs(line, line);
-      syncMonacoWithFormState({ saveFile: false, reveal: false });
+      rangePointerDown = true;
+      rangeDragChanged = false;
+      rangeStartLine = line;
+      rangeAnchorLine = line;
     });
 
     monacoEditor.onMouseMove((e) => {
-      if (!draggingRange) return;
       const line = e.target.position?.lineNumber;
       if (!line) return;
-      setRangeInputs(dragStartLine, line);
-      syncMonacoWithFormState({ saveFile: false, reveal: false });
+
+      if (highlightPointerDown) {
+        if (!canEditCurrentSlideFile()) return;
+        if (line === lastHighlightDragLine) return;
+        lastHighlightDragLine = line;
+        if (setHighlightLine(line, highlightDragMode === 'add')) {
+          markDirty();
+        }
+        return;
+      }
+
+      if (!rangePointerDown) return;
+      if (!rangeDragChanged && line === rangeStartLine) return;
+
+      if (!rangeDragChanged) {
+        document.body.classList.add('resizing-v');
+      }
+      rangeDragChanged = true;
+      applyRangePreview(rangeStartLine, line);
     });
 
-    window.addEventListener('mouseup', finishRangeDrag);
+    window.addEventListener('mouseup', finishPointerInteractions);
 
     const resizeObserver = new ResizeObserver(() => monacoEditor?.layout());
     resizeObserver.observe(container);
