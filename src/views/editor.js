@@ -1061,7 +1061,8 @@ export function initEditor(router) {
       padding: { top: 8, bottom: 8 },
     });
 
-    monacoEditor.onDidChangeModelContent(debounce(() => {
+    monacoEditor.onDidChangeModelContent(debounce((event) => {
+      if (loading || event?.isFlush) return;
       saveCurrentFile();
       updateCodePreview();
       markDirty();
@@ -1199,7 +1200,9 @@ export function initEditor(router) {
   setupEventListeners();
 
   async function show(deckId) {
+    clearDirty();
     try {
+      loading = true;
       deck = await api.getDeck(deckId);
       if (!deck.files || deck.files.length === 0) {
         deck.files = [{ name: 'main.py', language: 'python', code: '' }];
@@ -1223,12 +1226,15 @@ export function initEditor(router) {
       loadFile(0);
       renderSlideList();
       loadSlide(0);
+      clearDirty();
       requestAnimationFrame(() => {
         window.dispatchEvent(new Event('resize'));
       });
     } catch {
       showToast('デッキの読み込みに失敗しました');
       router.navigate('/');
+    } finally {
+      loading = false;
     }
   }
 
