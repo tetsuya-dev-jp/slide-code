@@ -397,16 +397,24 @@ export function initEditor(router) {
         className: 'monaco-range-line',
         linesDecorationsClassName: 'monaco-range-lines-decoration',
       },
-    }, {
-      range: new monaco.Range(start, 1, start, 1),
-      options: {
-        isWholeLine: true,
-        className: 'monaco-range-start-line',
-      },
     }];
 
-    if (end !== start) {
+    if (end === start) {
       rangeDecorations.push({
+        range: new monaco.Range(start, 1, start, 1),
+        options: {
+          isWholeLine: true,
+          className: 'monaco-range-single-line',
+        },
+      });
+    } else {
+      rangeDecorations.push({
+        range: new monaco.Range(start, 1, start, 1),
+        options: {
+          isWholeLine: true,
+          className: 'monaco-range-start-line',
+        },
+      }, {
         range: new monaco.Range(end, 1, end, 1),
         options: {
           isWholeLine: true,
