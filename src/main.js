@@ -11,6 +11,12 @@ import { initDashboard } from './views/dashboard.js';
 import { initPresentation } from './views/presentation.js';
 import { initEditor } from './views/editor.js';
 
+const revealApp = () => {
+  document.documentElement.setAttribute('data-app-ready', 'true');
+};
+
+window.setTimeout(revealApp, 1800);
+
 // ============================
 // Theme
 // ============================
@@ -82,6 +88,8 @@ router
     editor.show(id);
   })
   .start();
+
+requestAnimationFrame(revealApp);
 
 // Remove Vite default styles
 const defaultStyle = document.querySelector('link[href="/style.css"]');

@@ -1,10 +1,42 @@
 <!DOCTYPE html>
-<html lang="ja" data-theme="dark">
+<html lang="ja" data-theme="dark" data-app-ready="false">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CodeStage — コードスライドショー</title>
   <meta name="description" content="コード・実行結果・解説を1画面でスライド形式で学べるツール" />
+  <script>
+    (() => {
+      try {
+        const stored = localStorage.getItem('codestage-theme');
+        const initial = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        document.documentElement.setAttribute('data-theme', initial);
+      } catch {
+        // Ignore storage/matchMedia issues and keep defaults.
+      }
+    })();
+  </script>
+  <style>
+    html[data-app-ready="false"],
+    html[data-app-ready="false"] body {
+      background: #0b0b0b;
+    }
+
+    html[data-theme="light"][data-app-ready="false"],
+    html[data-theme="light"][data-app-ready="false"] body {
+      background: #f2f2f2;
+    }
+
+    html[data-app-ready="false"] body {
+      visibility: hidden;
+      opacity: 0;
+    }
+
+    html[data-app-ready="true"] body {
+      visibility: visible;
+      opacity: 1;
+    }
+  </style>
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
