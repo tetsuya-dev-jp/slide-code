@@ -632,12 +632,12 @@ html, body {
 
 /* --- Shell Pane --- */
 .shell-body {
-  background: #000;
+  background: var(--bg-primary);
   padding: var(--space-md);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.5;
-  color: #e0e0e0;
+  color: var(--text-primary);
   overflow: auto;
 }
 
