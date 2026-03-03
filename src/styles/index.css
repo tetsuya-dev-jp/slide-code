@@ -590,6 +590,11 @@ html, body {
   tab-size: 4;
 }
 
+.code-body .hljs {
+  background: transparent !important;
+  padding: 0;
+}
+
 /* Line numbers */
 .code-line {
   display: flex;
