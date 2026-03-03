@@ -475,11 +475,11 @@ html, body {
 
 .pane.drop-target .pane-header {
   background: var(--accent-primary);
-  color: #fff;
+  color: #0b0b0b;
 }
 
 .pane.drop-target .pane-header .pane-label {
-  color: #fff;
+  color: #0b0b0b;
 }
 
 .pane-label {
