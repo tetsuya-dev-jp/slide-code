@@ -70,14 +70,6 @@ export function initPresentation(router) {
       const resolved = resolveSlideCode(slide, presentationDeck);
       codePane.render(resolved.code, resolved.language, resolved.highlightLines);
       markdownPane.render(slide.markdown);
-
-      document.querySelectorAll('.slide-thumb').forEach((thumb, i) => {
-        thumb.classList.toggle('active', i === position - 1);
-      });
-      const activeThumb = document.getElementById('slideBar').querySelector('.slide-thumb.active');
-      if (activeThumb) {
-        activeThumb.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-      }
     });
   }
 
@@ -262,26 +254,12 @@ export function initPresentation(router) {
     });
   }
 
-  function buildSlideBar(slides) {
-    const slideBar = document.getElementById('slideBar');
-    slideBar.innerHTML = '';
-    slides.forEach((slide, i) => {
-      const thumb = document.createElement('button');
-      thumb.className = 'slide-thumb';
-      thumb.textContent = i + 1;
-      thumb.title = slide.title || `Slide ${i + 1}`;
-      thumb.addEventListener('click', () => slideManager.goTo(i));
-      slideBar.appendChild(thumb);
-    });
-  }
-
   async function show(deckId) {
     init();
     currentDeckId = deckId;
     try {
       const deck = await api.getDeck(deckId);
       presentationDeck = deck;
-      buildSlideBar(deck.slides);
       slideManager.load(deck.slides);
     } catch {
       currentDeckId = null;
