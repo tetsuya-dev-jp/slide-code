@@ -271,6 +271,10 @@ export function initPresentation(router) {
 
   return {
     show,
+    applyTheme(isDark) {
+      if (shellPane) shellPane.setTheme(isDark);
+      if (slideManager.current()) slideManager.emit();
+    },
     get shellPane() { return shellPane; },
     get slideManager() { return slideManager; },
   };

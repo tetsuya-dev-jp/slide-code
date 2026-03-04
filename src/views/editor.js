@@ -1610,8 +1610,15 @@ export function initEditor(router) {
   return {
     show,
     get monacoEditor() { return monacoEditor; },
-    setMonacoTheme(isDark) {
+    applyTheme(isDark) {
       if (monacoEditor) monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);
+
+      const currentSlide = deck?.slides?.[slideIndex];
+      if (!currentSlide) return;
+
+      const markdownInput = document.getElementById('editorMarkdown');
+      const markdown = markdownInput ? markdownInput.value : (currentSlide.markdown || '');
+      mdPreviewPane.render(markdown);
     },
   };
 }

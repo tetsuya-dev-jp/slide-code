@@ -71,9 +71,8 @@ const editor = initEditor(router);
 document.getElementById('themeToggle').addEventListener('click', () => {
   const next = theme.toggle();
   const isDark = next === 'dark';
-  if (presentation.shellPane) presentation.shellPane.setTheme(isDark);
-  editor.setMonacoTheme(isDark);
-  if (presentation.slideManager) presentation.slideManager.emit();
+  presentation.applyTheme(isDark);
+  editor.applyTheme(isDark);
 });
 
 // ============================
