@@ -70,6 +70,18 @@ export function initEditor(router) {
   let loading = false;
 
   const mdPreviewPane = new MarkdownPane(document.getElementById('editorMarkdownPreview'));
+  const cwdPicker = {
+    modalEl: document.getElementById('cwdPickerModal'),
+    currentEl: document.getElementById('cwdPickerCurrent'),
+    listEl: document.getElementById('cwdPickerList'),
+    homeBtn: document.getElementById('cwdPickerHomeBtn'),
+    upBtn: document.getElementById('cwdPickerUpBtn'),
+    cancelBtn: document.getElementById('cwdPickerCancel'),
+    selectBtn: document.getElementById('cwdPickerSelect'),
+    openBtn: document.getElementById('editorPickTerminalCwdBtn'),
+    currentPath: '',
+    parentPath: null,
+  };
 
   // --- Dirty state ---
 
@@ -612,8 +624,122 @@ export function initEditor(router) {
     if (!deck) return;
 
     deck.terminal = {
-      cwd: document.getElementById('editorTerminalCwd').value.trim(),
+      cwd: normalizeRelativeDirectory(document.getElementById('editorTerminalCwd').value),
     };
+  }
+
+  function normalizeRelativeDirectory(rawValue) {
+    if (typeof rawValue !== 'string') return '';
+    const compact = rawValue.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+    if (!compact) return '';
+    const segments = compact
+      .split('/')
+      .map(segment => segment.trim())
+      .filter(Boolean)
+      .filter(segment => segment !== '.' && segment !== '..');
+    return segments.join('/');
+  }
+
+  function formatCwdDisplay(relativePath) {
+    const normalized = normalizeRelativeDirectory(relativePath);
+    return normalized ? `~/${normalized}` : '~';
+  }
+
+  function renderCwdPickerList(directories) {
+    if (!cwdPicker.listEl) return;
+
+    if (!directories.length) {
+      cwdPicker.listEl.innerHTML = '<p class="cwd-picker-empty">サブディレクトリがありません</p>';
+      return;
+    }
+
+    cwdPicker.listEl.innerHTML = directories.map((directory) => {
+      const dirPath = normalizeRelativeDirectory(directory.path || '');
+      return `
+        <button type="button" class="cwd-picker-item" data-path="${escapeHtml(dirPath)}">
+          <span class="cwd-picker-item-name">${escapeHtml(directory.name || '')}</span>
+          <span class="cwd-picker-item-path">${escapeHtml(formatCwdDisplay(dirPath))}</span>
+        </button>
+      `;
+    }).join('');
+
+    cwdPicker.listEl.querySelectorAll('.cwd-picker-item').forEach((button) => {
+      button.addEventListener('click', async () => {
+        await loadCwdPickerDirectory(button.dataset.path || '');
+      });
+    });
+  }
+
+  async function loadCwdPickerDirectory(requestedPath) {
+    const pathToLoad = normalizeRelativeDirectory(requestedPath || '');
+    try {
+      const payload = await api.listDirectories(pathToLoad);
+      cwdPicker.currentPath = normalizeRelativeDirectory(payload.currentPath || '');
+      cwdPicker.parentPath = typeof payload.parentPath === 'string'
+        ? normalizeRelativeDirectory(payload.parentPath)
+        : null;
+
+      if (cwdPicker.currentEl) {
+        cwdPicker.currentEl.textContent = formatCwdDisplay(cwdPicker.currentPath);
+      }
+      if (cwdPicker.upBtn) {
+        cwdPicker.upBtn.disabled = !cwdPicker.parentPath;
+      }
+
+      const directories = Array.isArray(payload.directories) ? payload.directories : [];
+      renderCwdPickerList(directories);
+    } catch {
+      showToast('ディレクトリ一覧の取得に失敗しました');
+    }
+  }
+
+  function openCwdPickerModal() {
+    if (!cwdPicker.modalEl) return;
+    cwdPicker.modalEl.hidden = false;
+    const initialPath = normalizeRelativeDirectory(document.getElementById('editorTerminalCwd').value);
+    loadCwdPickerDirectory(initialPath);
+  }
+
+  function closeCwdPickerModal() {
+    if (!cwdPicker.modalEl) return;
+    cwdPicker.modalEl.hidden = true;
+  }
+
+  function applyCwdPickerSelection() {
+    const input = document.getElementById('editorTerminalCwd');
+    const nextValue = normalizeRelativeDirectory(cwdPicker.currentPath || '');
+    if (input.value !== nextValue) {
+      input.value = nextValue;
+      markDirty();
+    }
+    closeCwdPickerModal();
+  }
+
+  function setupCwdPickerEventListeners() {
+    if (!cwdPicker.modalEl || !cwdPicker.openBtn) return;
+
+    cwdPicker.openBtn.addEventListener('click', openCwdPickerModal);
+    cwdPicker.cancelBtn?.addEventListener('click', closeCwdPickerModal);
+    cwdPicker.selectBtn?.addEventListener('click', applyCwdPickerSelection);
+    cwdPicker.homeBtn?.addEventListener('click', async () => {
+      await loadCwdPickerDirectory('');
+    });
+    cwdPicker.upBtn?.addEventListener('click', async () => {
+      if (!cwdPicker.parentPath) return;
+      await loadCwdPickerDirectory(cwdPicker.parentPath);
+    });
+
+    cwdPicker.modalEl.addEventListener('click', (event) => {
+      if (event.target === cwdPicker.modalEl) {
+        closeCwdPickerModal();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && cwdPicker.modalEl && !cwdPicker.modalEl.hidden) {
+        closeCwdPickerModal();
+      }
+    });
   }
 
   function clearAllHighlightLines() {
@@ -930,6 +1056,7 @@ export function initEditor(router) {
     setupEditorResizer();
     setupMarkdownResizer();
     setupSidebarHandle();
+    setupCwdPickerEventListeners();
     setHighlightInputVisible(false);
 
     // File management
@@ -1271,7 +1398,7 @@ export function initEditor(router) {
       slideIndex = 0;
       fileIndex = 0;
       document.getElementById('editorDeckName').textContent = deck.title || '無題のデッキ';
-      document.getElementById('editorTerminalCwd').value = deck.terminal.cwd || '';
+      document.getElementById('editorTerminalCwd').value = normalizeRelativeDirectory(deck.terminal.cwd || '');
 
       initMonaco();
       renderFileTabs();

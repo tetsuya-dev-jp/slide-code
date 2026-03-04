@@ -1,366 +1,68 @@
 /**
  * CodeStage Server
- * - Express REST API for deck CRUD (port 3000)
- * - WebSocket server for terminal PTY (port 3001)
+ * - Express REST API for deck CRUD
+ * - WebSocket server for terminal PTY
  */
-import express from 'express';
 import cors from 'cors';
-import { WebSocketServer } from 'ws';
-import pty from 'node-pty';
-import os from 'os';
+import express from 'express';
 import fs from 'fs';
 import path from 'path';
-import crypto from 'crypto';
-import { fileURLToPath } from 'url';
+import pty from 'node-pty';
+import { WebSocketServer } from 'ws';
+import { DeckStorage } from './deck-storage.js';
+import { loadRuntimeConfig } from './runtime-config.js';
+import { createSampleDeckPayload, SAMPLE_DECK_ID } from './sample-deck.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const DECKS_DIR = path.join(__dirname, '..', 'decks');
-const PROJECT_ROOT = path.join(__dirname, '..');
-
-const DEFAULT_FILE = {
-    name: 'main.py',
-    language: 'python',
-    code: '',
-};
-
-// Ensure decks directory exists
-if (!fs.existsSync(DECKS_DIR)) {
-    fs.mkdirSync(DECKS_DIR, { recursive: true });
+function normalizeDeckId(deckId) {
+    if (typeof deckId !== 'string') return '';
+    const normalized = deckId.trim();
+    return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : '';
 }
 
-// ============================
-// REST API Server
-// ============================
+function normalizeRequestedPath(rawPath) {
+    if (typeof rawPath !== 'string') return '';
+    const trimmed = rawPath.trim().replace(/\\/g, '/');
+    if (!trimmed) return '';
 
-const app = express();
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
-
-/** Read a deck file */
-function readDeck(filename) {
-    const filePath = path.join(DECKS_DIR, filename);
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw);
-}
-
-/** Write a deck file */
-function writeDeck(id, data) {
-    const filePath = path.join(DECKS_DIR, `${id}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-/** List all deck files */
-function listDeckFiles() {
-    return fs.readdirSync(DECKS_DIR).filter(f => f.endsWith('.json'));
-}
-
-function normalizeString(value, fallback = '') {
-    return typeof value === 'string' ? value : fallback;
-}
-
-function normalizeNonEmptyString(value, fallback) {
-    if (typeof value !== 'string') return fallback;
-    const trimmed = value.trim();
-    return trimmed || fallback;
-}
-
-function makeUniqueFilename(rawName, usedNames, fallbackBase = 'file', fallbackExt = '.txt') {
-    const fallback = `${fallbackBase}${fallbackExt}`;
-    const name = normalizeNonEmptyString(rawName, fallback);
-    const dot = name.lastIndexOf('.');
-    const base = dot > 0 ? name.slice(0, dot) : name;
-    const ext = dot > 0 ? name.slice(dot) : '';
-
-    let candidate = name;
-    let index = 2;
-    while (usedNames.has(candidate)) {
-        candidate = `${base || fallbackBase}-${index}${ext}`;
-        index++;
-    }
-    usedNames.add(candidate);
-    return candidate;
-}
-
-function inferLanguageFromFilename(filename) {
-    const lower = filename.toLowerCase();
-    if (lower.endsWith('.py')) return 'python';
-    if (lower.endsWith('.js')) return 'javascript';
-    if (lower.endsWith('.ts')) return 'typescript';
-    if (lower.endsWith('.sh')) return 'bash';
-    if (lower.endsWith('.md')) return 'markdown';
-    if (lower.endsWith('.json')) return 'json';
-    return 'plaintext';
-}
-
-function normalizeFiles(files) {
-    const source = Array.isArray(files) ? files : [];
-    const usedNames = new Set();
-    const normalized = [];
-
-    source.forEach((entry, index) => {
-        if (!entry || typeof entry !== 'object') return;
-
-        const fallbackName = index === 0 ? DEFAULT_FILE.name : `file${index + 1}.txt`;
-        const name = makeUniqueFilename(entry.name, usedNames, fallbackName.replace(/\..*$/, ''), fallbackName.includes('.') ? fallbackName.slice(fallbackName.lastIndexOf('.')) : '.txt');
-        const language = normalizeNonEmptyString(entry.language, inferLanguageFromFilename(name));
-        const code = normalizeString(entry.code, '');
-
-        normalized.push({ name, language, code });
-    });
-
-    if (normalized.length === 0) {
-        normalized.push({ ...DEFAULT_FILE });
+    const compact = trimmed.replace(/^\/+/, '');
+    const segments = compact.split('/').filter(Boolean);
+    if (segments.some(segment => segment === '..')) {
+        throw new Error('invalid-path');
     }
 
-    return normalized;
+    return segments.join('/');
 }
 
-function lineCountOfFile(file) {
-    const code = normalizeString(file?.code, '');
-    return Math.max(code.split('\n').length, 1);
+function toPosixRelative(baseDir, targetDir) {
+    const relative = path.relative(baseDir, targetDir);
+    if (!relative || relative === '.') return '';
+    return relative.split(path.sep).join('/');
 }
 
-function normalizeLineRange(lineRange, maxLine) {
-    const max = Math.max(maxLine, 1);
+function resolvePathWithinBase(baseDir, rawPath) {
+    const normalizedPath = normalizeRequestedPath(rawPath);
+    const resolved = normalizedPath
+        ? path.resolve(baseDir, ...normalizedPath.split('/'))
+        : baseDir;
 
-    let start = Number.parseInt(Array.isArray(lineRange) ? lineRange[0] : undefined, 10);
-    if (!Number.isFinite(start) || start < 1) start = 1;
-
-    let end = Number.parseInt(Array.isArray(lineRange) ? lineRange[1] : undefined, 10);
-    if (!Number.isFinite(end) || end < start) end = start;
-
-    start = Math.min(start, max);
-    end = Math.min(end, max);
-
-    return [start, end];
-}
-
-function normalizeHighlightLines(highlightLines, start, end) {
-    if (!Array.isArray(highlightLines)) return [];
-    const values = new Set();
-
-    highlightLines.forEach((value) => {
-        const line = Number.parseInt(value, 10);
-        if (!Number.isFinite(line)) return;
-        if (line < start || line > end) return;
-        values.add(line);
-    });
-
-    return Array.from(values).sort((a, b) => a - b);
-}
-
-function normalizeTerminalConfig(terminal) {
-    const cwd = normalizeString(terminal?.cwd, '').trim();
-    return { cwd };
-}
-
-function normalizeSlides(slides, files) {
-    const source = Array.isArray(slides) ? slides : [];
-    const fileNames = new Set(files.map(file => file.name));
-    const fallbackFileRef = files[0]?.name || DEFAULT_FILE.name;
-    const linesByFile = new Map(files.map(file => [file.name, lineCountOfFile(file)]));
-
-    const normalized = source.map((entry, index) => {
-        const title = normalizeNonEmptyString(entry?.title, `スライド ${index + 1}`);
-        const requestedFileRef = normalizeString(entry?.fileRef, fallbackFileRef);
-        const fileRef = fileNames.has(requestedFileRef) ? requestedFileRef : fallbackFileRef;
-        const maxLine = linesByFile.get(fileRef) || 1;
-        const lineRange = normalizeLineRange(entry?.lineRange, maxLine);
-        const highlightLines = normalizeHighlightLines(entry?.highlightLines, lineRange[0], lineRange[1]);
-        const markdown = normalizeString(entry?.markdown, '');
-
-        return {
-            title,
-            fileRef,
-            lineRange,
-            highlightLines,
-            markdown,
-        };
-    });
-
-    if (normalized.length === 0) {
-        normalized.push({
-            title: 'スライド 1',
-            fileRef: fallbackFileRef,
-            lineRange: [1, 1],
-            highlightLines: [],
-            markdown: '',
-        });
+    const relative = path.relative(baseDir, resolved);
+    const escapesBase = relative.startsWith('..') || path.isAbsolute(relative);
+    if (escapesBase) {
+        throw new Error('path-outside-base');
     }
 
-    return normalized;
+    if (!fs.existsSync(resolved)) {
+        throw new Error('path-not-found');
+    }
+
+    if (!fs.statSync(resolved).isDirectory()) {
+        throw new Error('not-a-directory');
+    }
+
+    return resolved;
 }
 
-function normalizeDeckPayload(payload = {}) {
-    const source = payload && typeof payload === 'object' ? payload : {};
-    const files = normalizeFiles(source.files);
-    const slides = normalizeSlides(source.slides, files);
-    const terminal = normalizeTerminalConfig(source.terminal);
-
-    return {
-        title: normalizeNonEmptyString(source.title, '無題のデッキ'),
-        description: normalizeString(source.description, ''),
-        files,
-        slides,
-        terminal,
-    };
-}
-
-// GET /api/decks — list all decks (metadata only)
-app.get('/api/decks', (_req, res) => {
-    try {
-        const files = listDeckFiles();
-        const decks = files.map(f => {
-            try {
-                const deck = readDeck(f);
-                const normalizedPayload = normalizeDeckPayload(deck);
-                return {
-                    id: normalizeNonEmptyString(deck.id, f.replace(/\.json$/, '')),
-                    title: normalizedPayload.title,
-                    description: normalizedPayload.description,
-                    slideCount: normalizedPayload.slides.length,
-                    createdAt: normalizeNonEmptyString(deck.createdAt, ''),
-                    updatedAt: normalizeNonEmptyString(deck.updatedAt, normalizeNonEmptyString(deck.createdAt, '')),
-                };
-            } catch {
-                return null;
-            }
-        }).filter(Boolean);
-        res.json(decks);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// GET /api/decks/:id — get full deck
-app.get('/api/decks/:id', (req, res) => {
-    try {
-        const filePath = path.join(DECKS_DIR, `${req.params.id}.json`);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'Deck not found' });
-        }
-        const deck = readDeck(`${req.params.id}.json`);
-        const normalizedPayload = normalizeDeckPayload(deck);
-        const normalizedDeck = {
-            ...deck,
-            id: normalizeNonEmptyString(deck.id, req.params.id),
-            title: normalizedPayload.title,
-            description: normalizedPayload.description,
-            files: normalizedPayload.files,
-            slides: normalizedPayload.slides,
-            terminal: normalizedPayload.terminal,
-            createdAt: normalizeNonEmptyString(deck.createdAt, new Date().toISOString()),
-            updatedAt: normalizeNonEmptyString(deck.updatedAt, normalizeNonEmptyString(deck.createdAt, new Date().toISOString())),
-        };
-        res.json(normalizedDeck);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// POST /api/decks — create a new deck
-app.post('/api/decks', (req, res) => {
-    try {
-        const now = new Date().toISOString();
-        const normalizedPayload = normalizeDeckPayload(req.body);
-        const deck = {
-            id: crypto.randomUUID(),
-            title: normalizedPayload.title,
-            description: normalizedPayload.description,
-            createdAt: now,
-            updatedAt: now,
-            files: normalizedPayload.files,
-            slides: normalizedPayload.slides,
-            terminal: normalizedPayload.terminal,
-        };
-        writeDeck(deck.id, deck);
-        res.status(201).json(deck);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// PUT /api/decks/:id — update a deck
-app.put('/api/decks/:id', (req, res) => {
-    try {
-        const filePath = path.join(DECKS_DIR, `${req.params.id}.json`);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'Deck not found' });
-        }
-        const existing = readDeck(`${req.params.id}.json`);
-        const input = req.body && typeof req.body === 'object' ? req.body : {};
-        const merged = {
-            ...existing,
-            title: input.title ?? existing.title,
-            description: input.description ?? existing.description,
-            files: input.files ?? existing.files,
-            slides: input.slides ?? existing.slides,
-            terminal: input.terminal ?? existing.terminal,
-        };
-        const normalizedPayload = normalizeDeckPayload(merged);
-        const updated = {
-            ...existing,
-            title: normalizedPayload.title,
-            description: normalizedPayload.description,
-            files: normalizedPayload.files,
-            slides: normalizedPayload.slides,
-            terminal: normalizedPayload.terminal,
-            updatedAt: new Date().toISOString(),
-        };
-        writeDeck(req.params.id, updated);
-        res.json(updated);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// DELETE /api/decks/:id — delete a deck
-app.delete('/api/decks/:id', (req, res) => {
-    try {
-        const filePath = path.join(DECKS_DIR, `${req.params.id}.json`);
-        if (!fs.existsSync(filePath)) {
-            return res.status(404).json({ error: 'Deck not found' });
-        }
-        fs.unlinkSync(filePath);
-        res.json({ ok: true });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-const API_PORT = 3000;
-app.listen(API_PORT, () => {
-    console.log(`API server listening on http://localhost:${API_PORT}`);
-});
-
-// ============================
-// Terminal WebSocket Server
-// ============================
-
-const WS_PORT = Number.parseInt(process.env.TERMINAL_WS_PORT || '3001', 10);
-const shell = os.platform() === 'win32' ? 'powershell.exe' : (process.env.SHELL || '/bin/bash');
-const terminalCwd = process.env.TERMINAL_CWD || PROJECT_ROOT;
-const terminalEnabled = process.env.TERMINAL_ENABLED
-    ? process.env.TERMINAL_ENABLED === 'true'
-    : process.env.NODE_ENV !== 'production';
-const terminalWsToken = process.env.TERMINAL_WS_TOKEN || '';
-const defaultAllowedOrigins = [
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:4173',
-    'http://127.0.0.1:4173',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000',
-];
-const allowedOrigins = new Set(
-    (process.env.TERMINAL_WS_ALLOWED_ORIGINS
-        ? process.env.TERMINAL_WS_ALLOWED_ORIGINS.split(',').map(origin => origin.trim()).filter(Boolean)
-        : defaultAllowedOrigins)
-);
-const hasExplicitOriginConfig = Boolean(process.env.TERMINAL_WS_ALLOWED_ORIGINS);
-
-function isAllowedOrigin(origin) {
+function isAllowedOrigin(origin, allowedOrigins, hasExplicitOriginConfig) {
     if (!origin) return false;
     if (allowedOrigins.has(origin)) return true;
 
@@ -376,9 +78,9 @@ function isAllowedOrigin(origin) {
     return false;
 }
 
-function readWsParamsFromRequest(req) {
+function readWsParamsFromRequest(req, wsPort) {
     try {
-        const host = req.headers.host || `localhost:${WS_PORT}`;
+        const host = req.headers.host || `localhost:${wsPort}`;
         const url = new URL(req.url || '/', `ws://${host}`);
         return {
             token: url.searchParams.get('token') || '',
@@ -389,65 +91,176 @@ function readWsParamsFromRequest(req) {
     }
 }
 
-function normalizeDeckId(deckId) {
-    const normalized = normalizeNonEmptyString(deckId, '');
-    if (!normalized) return '';
-    return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : '';
-}
-
-function resolveDeckTerminalCwd(deckId, baseCwd) {
+function resolveDeckTerminalCwd(storage, deckId, baseCwd) {
     const safeDeckId = normalizeDeckId(deckId);
     if (!safeDeckId) return baseCwd;
 
-    const deckPath = path.join(DECKS_DIR, `${safeDeckId}.json`);
-    if (!fs.existsSync(deckPath)) return baseCwd;
-
     try {
-        const deck = readDeck(`${safeDeckId}.json`);
-        const { terminal } = normalizeDeckPayload(deck);
-        const requestedCwd = terminal.cwd;
+        const deck = storage.readDeck(safeDeckId);
+        const requestedCwd = typeof deck.terminal?.cwd === 'string'
+            ? deck.terminal.cwd.trim()
+            : '';
         if (!requestedCwd) return baseCwd;
 
-        const resolvedCwd = path.resolve(baseCwd, requestedCwd);
-        const relative = path.relative(baseCwd, resolvedCwd);
-        const escapesBase = relative.startsWith('..') || path.isAbsolute(relative);
-        if (escapesBase) return baseCwd;
-
-        if (!fs.existsSync(resolvedCwd)) return baseCwd;
-        const stat = fs.statSync(resolvedCwd);
-        if (!stat.isDirectory()) return baseCwd;
-
-        return resolvedCwd;
+        return resolvePathWithinBase(baseCwd, requestedCwd);
     } catch {
         return baseCwd;
     }
 }
 
-if (terminalEnabled) {
-    const wss = new WebSocketServer({ port: WS_PORT });
-    console.log(`Terminal server listening on ws://localhost:${WS_PORT}`);
+const runtimeConfig = loadRuntimeConfig();
+const storage = new DeckStorage(runtimeConfig.decksDir);
+storage.ensureReady();
+
+if (storage.isEmpty()) {
+    storage.createDeckWithId(SAMPLE_DECK_ID, createSampleDeckPayload());
+}
+
+const app = express();
+app.use(cors());
+app.use(express.json({ limit: '10mb' }));
+
+app.get('/api/decks', (_req, res) => {
+    try {
+        res.json(storage.listDecksMeta());
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/decks/:id', (req, res) => {
+    try {
+        const deck = storage.readDeck(req.params.id);
+        res.json(deck);
+    } catch (err) {
+        if (err.message === 'invalid-deck-id') {
+            return res.status(400).json({ error: 'Invalid deck id' });
+        }
+        if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
+            return res.status(404).json({ error: 'Deck not found' });
+        }
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/decks', (req, res) => {
+    try {
+        const deck = storage.createDeck(req.body);
+        res.status(201).json(deck);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.put('/api/decks/:id', (req, res) => {
+    try {
+        const deck = storage.updateDeck(req.params.id, req.body);
+        res.json(deck);
+    } catch (err) {
+        if (err.message === 'invalid-deck-id') {
+            return res.status(400).json({ error: 'Invalid deck id' });
+        }
+        if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
+            return res.status(404).json({ error: 'Deck not found' });
+        }
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.delete('/api/decks/:id', (req, res) => {
+    try {
+        storage.deleteDeck(req.params.id);
+        res.json({ ok: true });
+    } catch (err) {
+        if (err.message === 'invalid-deck-id') {
+            return res.status(400).json({ error: 'Invalid deck id' });
+        }
+        if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
+            return res.status(404).json({ error: 'Deck not found' });
+        }
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/fs/dirs', (req, res) => {
+    const requestedPath = Array.isArray(req.query.path)
+        ? req.query.path[0]
+        : req.query.path;
+
+    try {
+        const baseCwd = fs.existsSync(runtimeConfig.terminal.baseCwd)
+            ? runtimeConfig.terminal.baseCwd
+            : runtimeConfig.homeDir;
+        const currentDir = resolvePathWithinBase(baseCwd, requestedPath || '');
+        const parentDir = currentDir === baseCwd ? null : path.dirname(currentDir);
+
+        const directories = fs.readdirSync(currentDir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map(entry => ({
+                name: entry.name,
+                path: toPosixRelative(baseCwd, path.join(currentDir, entry.name)),
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name));
+
+        res.json({
+            currentPath: toPosixRelative(baseCwd, currentDir),
+            parentPath: parentDir ? toPosixRelative(baseCwd, parentDir) : null,
+            directories,
+        });
+    } catch (err) {
+        if (['invalid-path', 'path-outside-base', 'path-not-found', 'not-a-directory'].includes(err.message)) {
+            return res.status(400).json({ error: 'Invalid directory path' });
+        }
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+const apiServer = app.listen(runtimeConfig.apiPort, () => {
+    console.log(`API server listening on http://localhost:${runtimeConfig.apiPort}`);
+    console.log(`Deck storage: ${runtimeConfig.decksDir}`);
+    console.log(`Config file: ${runtimeConfig.configFilePath}`);
+});
+
+apiServer.on('error', (err) => {
+    console.error(`API server failed to start: ${err.message}`);
+});
+
+if (runtimeConfig.terminal.enabled) {
+    const allowedOrigins = new Set(runtimeConfig.terminal.allowedOrigins);
+    const wss = new WebSocketServer({ port: runtimeConfig.terminal.wsPort });
+    wss.on('listening', () => {
+        console.log(`Terminal server listening on ws://localhost:${runtimeConfig.terminal.wsPort}`);
+    });
+    wss.on('error', (err) => {
+        console.error(`Terminal server failed to start: ${err.message}`);
+    });
 
     wss.on('connection', (ws, req) => {
         const origin = req.headers.origin;
-        if (!isAllowedOrigin(origin)) {
+        const allowOrigin = isAllowedOrigin(
+            origin,
+            allowedOrigins,
+            runtimeConfig.terminal.hasExplicitOriginConfig,
+        );
+
+        if (!allowOrigin) {
             ws.close(1008, 'Origin not allowed');
             return;
         }
 
-        const wsParams = readWsParamsFromRequest(req);
-
-        if (terminalWsToken) {
-            if (wsParams.token !== terminalWsToken) {
-                ws.close(1008, 'Unauthorized');
-                return;
-            }
+        const wsParams = readWsParamsFromRequest(req, runtimeConfig.terminal.wsPort);
+        const tokenRequired = runtimeConfig.terminal.wsToken;
+        if (tokenRequired && wsParams.token !== tokenRequired) {
+            ws.close(1008, 'Unauthorized');
+            return;
         }
 
-        console.log('Client connected — spawning PTY');
+        const baseCwd = fs.existsSync(runtimeConfig.terminal.baseCwd)
+            ? runtimeConfig.terminal.baseCwd
+            : (runtimeConfig.homeDir || process.cwd());
+        const cwd = resolveDeckTerminalCwd(storage, wsParams.deckId, baseCwd);
 
-        const baseCwd = fs.existsSync(terminalCwd) ? terminalCwd : (process.env.HOME || process.cwd());
-        const cwd = resolveDeckTerminalCwd(wsParams.deckId, baseCwd);
-        const ptyProcess = pty.spawn(shell, [], {
+        const ptyProcess = pty.spawn(runtimeConfig.terminal.shell, [], {
             name: 'xterm-256color',
             cols: 80,
             rows: 24,
@@ -455,34 +268,34 @@ if (terminalEnabled) {
             env: { ...process.env, TERM: 'xterm-256color' },
         });
 
-        // PTY → Browser
         ptyProcess.onData((data) => {
             try {
                 ws.send(JSON.stringify({ type: 'output', data }));
-            } catch (_) { /* client disconnected */ }
+            } catch {
+                // Ignore client disconnect race.
+            }
         });
 
-        // Browser → PTY
         ws.on('message', (raw) => {
             try {
                 const msg = JSON.parse(raw.toString());
-                switch (msg.type) {
-                    case 'input':
-                        ptyProcess.write(msg.data);
-                        break;
-                    case 'resize':
-                        ptyProcess.resize(
-                            Math.max(msg.cols, 1),
-                            Math.max(msg.rows, 1),
-                        );
-                        break;
+                if (msg.type === 'input') {
+                    ptyProcess.write(msg.data);
+                    return;
                 }
-            } catch (_) { /* ignore malformed messages */ }
+
+                if (msg.type === 'resize') {
+                    ptyProcess.resize(
+                        Math.max(msg.cols, 1),
+                        Math.max(msg.rows, 1),
+                    );
+                }
+            } catch {
+                // Ignore malformed messages.
+            }
         });
 
-        // Cleanup
         ws.on('close', () => {
-            console.log('Client disconnected — killing PTY');
             ptyProcess.kill();
         });
 

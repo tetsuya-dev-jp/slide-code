@@ -1085,6 +1085,77 @@ html, body {
   margin-top: var(--space-lg);
 }
 
+.cwd-picker-dialog {
+  max-width: 560px;
+}
+
+.cwd-picker-current {
+  margin: 0 0 var(--space-md);
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.cwd-picker-toolbar {
+  display: flex;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+}
+
+.cwd-picker-list {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+}
+
+.cwd-picker-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding: 9px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  text-align: left;
+  cursor: pointer;
+}
+
+.cwd-picker-item:last-child {
+  border-bottom: 0;
+}
+
+.cwd-picker-item:hover {
+  background: var(--bg-secondary);
+}
+
+.cwd-picker-item-name {
+  font-size: 13px;
+}
+
+.cwd-picker-item-path {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.cwd-picker-empty {
+  margin: 0;
+  padding: 18px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  text-align: center;
+}
+
 /* --- Animations --- */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -1453,6 +1524,16 @@ body.resizing-v {
   min-width: 0;
 }
 
+.editor-cwd-control {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.editor-cwd-picker-btn {
+  flex-shrink: 0;
+}
+
 /* Read-only deck name in editor toolbar */
 .editor-deck-name {
   font-size: 14px;
@@ -1472,6 +1553,7 @@ body.resizing-v {
 }
 
 .editor-deck-cwd {
+  flex: 1;
   width: 100%;
   padding: 5px 10px;
   border: 1px solid var(--border-default);

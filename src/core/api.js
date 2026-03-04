@@ -48,3 +48,17 @@ export async function deleteDeck(id) {
     if (!res.ok) throw new Error('Failed to delete deck');
     return res.json();
 }
+
+/** List directories under terminal base cwd */
+export async function listDirectories(relativePath = '') {
+    const params = new URLSearchParams();
+    if (typeof relativePath === 'string' && relativePath.trim()) {
+        params.set('path', relativePath.trim());
+    }
+
+    const query = params.toString();
+    const endpoint = query ? `${BASE}/fs/dirs?${query}` : `${BASE}/fs/dirs`;
+    const res = await fetch(endpoint);
+    if (!res.ok) throw new Error('Failed to list directories');
+    return res.json();
+}
