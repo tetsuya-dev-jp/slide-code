@@ -611,8 +611,6 @@ export function initEditor(router) {
   function applyDeckMetaFromForm() {
     if (!deck) return;
 
-    deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
-    deck.description = document.getElementById('editorDeckDesc').value || '';
     deck.terminal = {
       cwd: document.getElementById('editorTerminalCwd').value.trim(),
     };
@@ -1032,8 +1030,6 @@ export function initEditor(router) {
       if (!Number.isFinite(start) || !Number.isFinite(end)) return;
       removeHighlightRange(start, end);
     });
-    document.getElementById('editorDeckTitle').addEventListener('input', () => markDirty());
-    document.getElementById('editorDeckDesc').addEventListener('input', () => markDirty());
     document.getElementById('editorTerminalCwd').addEventListener('input', () => markDirty());
     document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
     document.getElementById('editorFileName').addEventListener('input', () => markDirty());
@@ -1274,8 +1270,7 @@ export function initEditor(router) {
       }
       slideIndex = 0;
       fileIndex = 0;
-      document.getElementById('editorDeckTitle').value = deck.title || '';
-      document.getElementById('editorDeckDesc').value = deck.description || '';
+      document.getElementById('editorDeckName').textContent = deck.title || '無題のデッキ';
       document.getElementById('editorTerminalCwd').value = deck.terminal.cwd || '';
 
       initMonaco();

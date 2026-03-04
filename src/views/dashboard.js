@@ -94,14 +94,73 @@ export function initDashboard(router) {
     };
   }
 
-  // New deck button
-  document.getElementById('newDeckBtn').addEventListener('click', async () => {
-    try {
-      const deck = await api.createDeck({ title: '新しいデッキ' });
-      router.navigate(`/deck/${deck.id}/edit`);
-    } catch {
-      showToast('デッキの作成に失敗しました');
+  // --------------- Deck Modal ---------------
+  const modalEl      = document.getElementById('deckModal');
+  const modalTitle   = document.getElementById('deckModalTitle');
+  const modalForm    = document.getElementById('deckModalForm');
+  const modalName    = document.getElementById('deckModalName');
+  const modalDesc    = document.getElementById('deckModalDesc');
+  const modalSubmit  = document.getElementById('deckModalSubmit');
+  const modalCancel  = document.getElementById('deckModalCancel');
+
+  /** @type {string|null} deck id when editing, null for create */
+  let editingDeckId = null;
+
+  function openModal(mode, deckData) {
+    editingDeckId = mode === 'edit' ? deckData.id : null;
+    modalTitle.textContent = mode === 'edit' ? 'デッキ情報を編集' : '新規デッキ';
+    modalSubmit.textContent = mode === 'edit' ? '保存' : '作成';
+    modalName.value = deckData?.title || '';
+    modalDesc.value = deckData?.description || '';
+    modalName.classList.remove('modal-input-error');
+    modalEl.hidden = false;
+    modalName.focus();
+  }
+
+  function closeModal() {
+    modalEl.hidden = true;
+    editingDeckId = null;
+    modalForm.reset();
+  }
+
+  modalCancel.addEventListener('click', closeModal);
+  modalEl.addEventListener('click', (e) => {
+    if (e.target === modalEl) closeModal();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modalEl.hidden) closeModal();
+  });
+
+  modalForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const title = modalName.value.trim();
+    if (!title) {
+      modalName.classList.add('modal-input-error');
+      modalName.focus();
+      return;
     }
+    modalName.classList.remove('modal-input-error');
+    const description = modalDesc.value.trim();
+
+    try {
+      if (editingDeckId) {
+        await api.updateDeck(editingDeckId, { title, description });
+        showToast('デッキ情報を更新しました');
+        closeModal();
+        show();
+      } else {
+        const deck = await api.createDeck({ title, description });
+        closeModal();
+        router.navigate(`/deck/${deck.id}/edit`);
+      }
+    } catch {
+      showToast(editingDeckId ? '更新に失敗しました' : '作成に失敗しました');
+    }
+  });
+
+  // New deck button → open create modal
+  document.getElementById('newDeckBtn').addEventListener('click', () => {
+    openModal('create', {});
   });
 
   // Import button
@@ -201,7 +260,14 @@ export function initDashboard(router) {
       btn.addEventListener('click', () => router.navigate(`/deck/${btn.dataset.id}`));
     });
     grid.querySelectorAll('.deck-edit').forEach(btn => {
-      btn.addEventListener('click', () => router.navigate(`/deck/${btn.dataset.id}/edit`));
+      btn.addEventListener('click', async () => {
+        try {
+          const deck = await api.getDeck(btn.dataset.id);
+          openModal('edit', deck);
+        } catch {
+          showToast('デッキ情報の取得に失敗しました');
+        }
+      });
     });
     grid.querySelectorAll('.deck-export').forEach(btn => {
       btn.addEventListener('click', () => exportDeck(btn.dataset.id));

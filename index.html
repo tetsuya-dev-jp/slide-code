@@ -203,9 +203,14 @@
         <!-- Editor toolbar -->
         <div class="editor-toolbar">
           <div class="editor-toolbar-left">
-            <input type="text" class="editor-deck-title" id="editorDeckTitle" placeholder="デッキタイトル" />
-            <input type="text" class="editor-deck-desc" id="editorDeckDesc" placeholder="デッキの説明（任意）" />
-            <input type="text" class="editor-deck-desc editor-deck-terminal" id="editorTerminalCwd" placeholder="シェル開始ディレクトリ（例: examples/bubble-sort）" />
+            <span class="editor-deck-name" id="editorDeckName"></span>
+            <div class="editor-toolbar-field editor-toolbar-field-cwd">
+              <label for="editorTerminalCwd">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+                作業ディレクトリ
+              </label>
+              <input type="text" class="editor-deck-cwd" id="editorTerminalCwd" placeholder="例: examples/bubble-sort" />
+            </div>
           </div>
           <div class="editor-toolbar-right">
             <button class="btn btn-secondary" id="editorPreviewBtn">
@@ -353,6 +358,27 @@
             </section>
           </aside>
         </div>
+      </div>
+    </div>
+
+    <!-- Deck create/edit modal -->
+    <div class="modal-overlay" id="deckModal" hidden>
+      <div class="modal-dialog">
+        <h3 class="modal-title" id="deckModalTitle">新規デッキ</h3>
+        <form id="deckModalForm" autocomplete="off">
+          <div class="modal-field">
+            <label for="deckModalName">タイトル <span class="modal-required">*</span></label>
+            <input type="text" id="deckModalName" placeholder="デッキのタイトルを入力" required />
+          </div>
+          <div class="modal-field">
+            <label for="deckModalDesc">説明 <span class="modal-optional">任意</span></label>
+            <input type="text" id="deckModalDesc" placeholder="デッキの説明（省略可）" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="deckModalCancel">キャンセル</button>
+            <button type="submit" class="btn btn-primary" id="deckModalSubmit">作成</button>
+          </div>
+        </form>
       </div>
     </div>
 

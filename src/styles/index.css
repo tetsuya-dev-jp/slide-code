@@ -996,6 +996,95 @@ html, body {
   transform: translateX(-50%) translateY(0);
 }
 
+/* --- Modal --- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-overlay);
+  animation: fadeIn 0.15s ease;
+}
+
+.modal-overlay[hidden] {
+  display: none !important;
+}
+
+.modal-dialog {
+  width: 100%;
+  max-width: 440px;
+  margin: var(--space-lg);
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  animation: slideIn 0.18s ease;
+}
+
+.modal-title {
+  margin: 0 0 var(--space-lg);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: var(--space-md);
+}
+
+.modal-field label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-required {
+  color: var(--accent-danger);
+  font-weight: 700;
+}
+
+.modal-optional {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--text-tertiary);
+}
+
+.modal-field input[type="text"] {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  font-family: var(--font-sans);
+}
+
+.modal-field input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.modal-field input[type="text"].modal-input-error {
+  border-color: var(--accent-danger);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-lg);
+}
+
 /* --- Animations --- */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
@@ -1321,10 +1410,47 @@ body.resizing-v {
 
 .editor-toolbar-left {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 16px;
   flex: 1;
   min-width: 0;
+}
+
+/* Toolbar field groups */
+.editor-toolbar-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.editor-toolbar-field label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  letter-spacing: 0.04em;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.editor-toolbar-field label svg {
+  opacity: 0.7;
+}
+
+.editor-toolbar-field-cwd {
+  flex: 0 1 320px;
+  min-width: 0;
+}
+
+/* Read-only deck name in editor toolbar */
+.editor-deck-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 360px;
 }
 
 .editor-toolbar-right {
@@ -1334,47 +1460,21 @@ body.resizing-v {
   flex-shrink: 0;
 }
 
-.editor-deck-title {
+.editor-deck-cwd {
   width: 100%;
-  max-width: 560px;
-  padding: 8px 12px;
+  padding: 5px 10px;
   border: 1px solid var(--border-default);
   border-radius: 6px;
-  background: var(--bg-elevated);
-  color: var(--text-primary);
-  font-size: 14px;
-  font-weight: 600;
-  font-family: 'Inter', sans-serif;
-}
-
-.editor-deck-title:focus {
-  outline: none;
-  border-color: var(--accent-primary);
   background: var(--bg-primary);
-}
-
-.editor-deck-desc {
-  width: 100%;
-  max-width: 560px;
-  padding: 7px 12px;
-  border: 1px solid var(--border-default);
-  border-radius: 6px;
-  background: var(--bg-elevated);
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-family: 'Inter', sans-serif;
-}
-
-.editor-deck-desc:focus {
-  outline: none;
-  border-color: var(--accent-primary);
-  background: var(--bg-primary);
-  color: var(--text-primary);
-}
-
-.editor-deck-terminal {
-  font-family: var(--font-mono);
   color: var(--text-tertiary);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.editor-deck-cwd:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
 }
 
 .editor-body {
@@ -1526,11 +1626,11 @@ body.resizing-v {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--border-subtle);
   font-size: 11px;
   font-weight: 700;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -1546,7 +1646,8 @@ body.resizing-v {
 }
 
 .editor-panel-settings {
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .editor-slide-list {
@@ -1833,12 +1934,12 @@ body.resizing-v {
 .editor-fields {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
 .editor-fields-meta,
 .editor-fields-markdown {
-  padding: 12px;
+  padding: 14px;
   min-height: 0;
   overflow: auto;
 }
@@ -1897,14 +1998,13 @@ body.resizing-v {
 
 .editor-field label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
 }
 
 .editor-field input[type="text"] {
-  padding: 8px 10px;
+  padding: 7px 10px;
   border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--bg-primary);
@@ -1920,8 +2020,10 @@ body.resizing-v {
 
 .editor-field-hint {
   margin-top: 2px;
-  font-size: 11px;
+  font-size: 10px;
+  line-height: 1.5;
   color: var(--text-tertiary);
+  opacity: 0.8;
 }
 
 .editor-summary-row,
@@ -1956,7 +2058,7 @@ body.resizing-v {
 
 .editor-selection-summary {
   flex: 1;
-  padding: 7px 10px;
+  padding: 6px 10px;
   border: 1px solid var(--border-default);
   border-radius: 6px;
   background: var(--bg-secondary);
@@ -2052,12 +2154,12 @@ body.resizing-v {
 
 .editor-select {
   width: 100%;
-  padding: 8px 12px;
+  padding: 7px 12px;
   font-size: 13px;
   font-family: var(--font-sans);
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text-primary);
   cursor: pointer;
   appearance: none;
@@ -2080,12 +2182,12 @@ body.resizing-v {
 
 .editor-line-input {
   width: 72px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   font-size: 13px;
   font-family: var(--font-mono);
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  border-radius: 8px;
+  border-radius: 6px;
   color: var(--text-primary);
   text-align: center;
 }
@@ -2393,6 +2495,11 @@ body.resizing-v {
 }
 
 @media (max-width: 860px) {
+  .editor-toolbar-field-cwd {
+    max-width: none;
+    flex: 1;
+  }
+
   .editor-container {
     height: auto;
     min-height: calc(100vh - var(--toolbar-height));
