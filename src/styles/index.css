@@ -1798,6 +1798,22 @@ body.resizing-v {
   border-color: rgba(183, 255, 26, 0.5);
 }
 
+[data-theme="light"] .editor-slide-item.active {
+  background: rgba(122, 169, 26, 0.2);
+  border-color: rgba(122, 169, 26, 0.75);
+  box-shadow: inset 3px 0 0 var(--accent-primary);
+}
+
+[data-theme="light"] .editor-slide-item.active .editor-slide-meta {
+  color: #3f5a15;
+}
+
+[data-theme="light"] .editor-slide-item.active .editor-slide-num .lang-icon-text {
+  background: #ffffff;
+  color: #3f5a15;
+  border: 1px solid rgba(122, 169, 26, 0.45);
+}
+
 .editor-slide-item {
   cursor: grab;
 }
