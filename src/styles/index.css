@@ -181,7 +181,6 @@
   color: var(--text-secondary);
   cursor: pointer;
   transition: all var(--transition-fast);
-  margin-right: var(--space-sm);
 }
 
 .theme-toggle:hover {
@@ -1036,6 +1035,21 @@ html, body {
   flex-direction: column;
   gap: 5px;
   margin-bottom: var(--space-md);
+}
+
+.modal-input-with-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-input-with-btn input[type="text"] {
+  flex: 1;
+  width: 100%;
+}
+
+.modal-picker-btn {
+  flex-shrink: 0;
 }
 
 .modal-hint {

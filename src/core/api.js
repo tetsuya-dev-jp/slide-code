@@ -78,3 +78,35 @@ export async function listDirectories(relativePath = '') {
     if (!res.ok) await throwApiError(res, 'Failed to list directories');
     return res.json();
 }
+
+/** List absolute directories for config picker */
+export async function listSystemDirectories(pathValue = '') {
+    const params = new URLSearchParams();
+    if (typeof pathValue === 'string' && pathValue.trim()) {
+        params.set('path', pathValue.trim());
+    }
+
+    const query = params.toString();
+    const endpoint = query ? `${BASE}/fs/system-dirs?${query}` : `${BASE}/fs/system-dirs`;
+    const res = await fetch(endpoint);
+    if (!res.ok) await throwApiError(res, 'Failed to list system directories');
+    return res.json();
+}
+
+/** Get current app config */
+export async function getAppConfig() {
+    const res = await fetch(`${BASE}/config`);
+    if (!res.ok) await throwApiError(res, 'Failed to load app config');
+    return res.json();
+}
+
+/** Update app config */
+export async function updateAppConfig(data) {
+    const res = await fetch(`${BASE}/config`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to update app config');
+    return res.json();
+}

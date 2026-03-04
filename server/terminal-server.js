@@ -10,6 +10,14 @@ import path from 'path';
 import pty from 'node-pty';
 import { WebSocketServer } from 'ws';
 import { DeckStorage } from './deck-storage.js';
+import {
+    readRawConfigFile,
+    resolvePathWithinBase,
+    resolveSystemPath,
+    sanitizeConfigValue,
+    toPosixRelative,
+    writeRawConfigFile,
+} from './path-config-utils.js';
 import { loadRuntimeConfig } from './runtime-config.js';
 import { createSampleDeckPayload, SAMPLE_DECK_ID } from './sample-deck.js';
 
@@ -19,48 +27,6 @@ function normalizeDeckId(deckId) {
     return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : '';
 }
 
-function normalizeRequestedPath(rawPath) {
-    if (typeof rawPath !== 'string') return '';
-    const trimmed = rawPath.trim().replace(/\\/g, '/');
-    if (!trimmed) return '';
-
-    const compact = trimmed.replace(/^\/+/, '');
-    const segments = compact.split('/').filter(Boolean);
-    if (segments.some(segment => segment === '..')) {
-        throw new Error('invalid-path');
-    }
-
-    return segments.join('/');
-}
-
-function toPosixRelative(baseDir, targetDir) {
-    const relative = path.relative(baseDir, targetDir);
-    if (!relative || relative === '.') return '';
-    return relative.split(path.sep).join('/');
-}
-
-function resolvePathWithinBase(baseDir, rawPath) {
-    const normalizedPath = normalizeRequestedPath(rawPath);
-    const resolved = normalizedPath
-        ? path.resolve(baseDir, ...normalizedPath.split('/'))
-        : baseDir;
-
-    const relative = path.relative(baseDir, resolved);
-    const escapesBase = relative.startsWith('..') || path.isAbsolute(relative);
-    if (escapesBase) {
-        throw new Error('path-outside-base');
-    }
-
-    if (!fs.existsSync(resolved)) {
-        throw new Error('path-not-found');
-    }
-
-    if (!fs.statSync(resolved).isDirectory()) {
-        throw new Error('not-a-directory');
-    }
-
-    return resolved;
-}
 
 function isAllowedOrigin(origin, allowedOrigins, hasExplicitOriginConfig) {
     if (!origin) return false;
@@ -108,9 +74,15 @@ function resolveDeckTerminalCwd(storage, deckId, baseCwd) {
     }
 }
 
-const runtimeConfig = loadRuntimeConfig();
-const storage = new DeckStorage(runtimeConfig.decksDir);
+let runtimeConfig = loadRuntimeConfig();
+let storage = new DeckStorage(runtimeConfig.decksDir);
 storage.ensureReady();
+
+function applyLatestRuntimeConfig() {
+    runtimeConfig = loadRuntimeConfig();
+    storage = new DeckStorage(runtimeConfig.decksDir);
+    storage.ensureReady();
+}
 
 if (storage.isEmpty()) {
     storage.createDeckWithId(SAMPLE_DECK_ID, createSampleDeckPayload());
@@ -119,6 +91,53 @@ if (storage.isEmpty()) {
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+app.get('/api/config', (_req, res) => {
+    res.json({
+        configFilePath: runtimeConfig.configFilePath,
+        decksDir: runtimeConfig.decksDir,
+        terminalBaseCwd: runtimeConfig.terminal.baseCwd,
+        terminalShell: runtimeConfig.terminal.shell,
+    });
+});
+
+app.put('/api/config', (req, res) => {
+    const payload = req.body && typeof req.body === 'object' ? req.body : {};
+    const decksDir = sanitizeConfigValue(payload.decksDir);
+    const terminalBaseCwd = sanitizeConfigValue(payload.terminalBaseCwd);
+    const terminalShell = sanitizeConfigValue(payload.terminalShell, { allowEmpty: true });
+
+    if (!decksDir || !terminalBaseCwd) {
+        return res.status(400).json({ error: 'Invalid config value' });
+    }
+
+    try {
+        const currentRawConfig = readRawConfigFile(runtimeConfig.configFilePath);
+        const currentRawTerminal = currentRawConfig.terminal && typeof currentRawConfig.terminal === 'object'
+            ? currentRawConfig.terminal
+            : {};
+
+        writeRawConfigFile(runtimeConfig.configFilePath, {
+            ...currentRawConfig,
+            decksDir,
+            terminal: {
+                ...currentRawTerminal,
+                baseCwd: terminalBaseCwd,
+                shell: terminalShell,
+            },
+        });
+
+        applyLatestRuntimeConfig();
+        return res.json({
+            configFilePath: runtimeConfig.configFilePath,
+            decksDir: runtimeConfig.decksDir,
+            terminalBaseCwd: runtimeConfig.terminal.baseCwd,
+            terminalShell: runtimeConfig.terminal.shell,
+        });
+    } catch (err) {
+        return res.status(500).json({ error: err.message });
+    }
+});
 
 app.get('/api/decks', (_req, res) => {
     try {
@@ -218,6 +237,39 @@ app.get('/api/fs/dirs', (req, res) => {
         });
     } catch (err) {
         if (['invalid-path', 'path-outside-base', 'path-not-found', 'not-a-directory'].includes(err.message)) {
+            return res.status(400).json({ error: 'Invalid directory path' });
+        }
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/fs/system-dirs', (req, res) => {
+    const requestedPath = Array.isArray(req.query.path)
+        ? req.query.path[0]
+        : req.query.path;
+
+    try {
+        const homeDir = runtimeConfig.homeDir || process.cwd();
+        const currentDir = resolveSystemPath(requestedPath, homeDir);
+        const rootDir = path.parse(currentDir).root;
+        const parentDir = currentDir === rootDir ? null : path.dirname(currentDir);
+
+        const directories = fs.readdirSync(currentDir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map(entry => ({
+                name: entry.name,
+                path: path.join(currentDir, entry.name),
+            }))
+            .sort((left, right) => left.name.localeCompare(right.name));
+
+        res.json({
+            currentPath: currentDir,
+            parentPath: parentDir,
+            homePath: homeDir,
+            directories,
+        });
+    } catch (err) {
+        if (['path-not-found', 'not-a-directory'].includes(err.message)) {
             return res.status(400).json({ error: 'Invalid directory path' });
         }
         return res.status(500).json({ error: err.message });

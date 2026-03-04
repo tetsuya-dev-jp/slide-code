@@ -5,6 +5,7 @@
 
 import * as api from '../core/api.js';
 import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
+import { initDashboardConfigModal } from './dashboard-config-modal.js';
 
 const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -25,6 +26,8 @@ function createDeckFolderSlug(seed) {
 }
 
 export function initDashboard(router) {
+  initDashboardConfigModal({ onSaved: show });
+
   function normalizeImportedDeck(data, filename) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new Error('invalid-deck');

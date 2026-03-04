@@ -45,12 +45,18 @@ const presentationToolbar = [
   document.getElementById('slideTitle'),
 ];
 
+const dashboardToolbar = [
+  document.getElementById('dashboardConfigBtn'),
+];
+
 function showView(name) {
   Object.entries(viewEls).forEach(([key, el]) => {
     el.style.display = key === name ? '' : 'none';
   });
   const isPresentation = name === 'presentation';
+  const isDashboard = name === 'dashboard';
   presentationToolbar.forEach(el => el.style.display = isPresentation ? '' : 'none');
+  dashboardToolbar.forEach(el => el.style.display = isDashboard ? '' : 'none');
 }
 
 // ============================
