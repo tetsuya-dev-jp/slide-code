@@ -918,11 +918,7 @@ export function initEditor(router) {
     const minMainWidth = 420;
     const splitterSize = 8;
 
-    const clampWidth = (rawWidth) => {
-      if (window.matchMedia('(max-width: 1080px)').matches) {
-        return Math.max(rawWidth, minNarrativeWidth);
-      }
-
+    const getMainAndNarrativeSpace = () => {
       const bodyWidth = bodyEl.getBoundingClientRect().width;
       const collapsed = bodyEl.classList.contains('sidebar-collapsed');
       const sidebarWidth = collapsed ? 0 : sidebarEl.getBoundingClientRect().width;
@@ -931,11 +927,29 @@ export function initEditor(router) {
       const gap = parseFloat(getComputedStyle(bodyEl).columnGap) || 0;
       const gapCount = collapsed ? 3 : 4;
       const totalGap = gap * gapCount;
+      return bodyWidth - sidebarWidth - leftSplitterWidth - rightSplitterWidth - totalGap;
+    };
+
+    const clampWidth = (rawWidth) => {
+      if (window.matchMedia('(max-width: 1080px)').matches) {
+        return Math.max(rawWidth, minNarrativeWidth);
+      }
+
+      const available = getMainAndNarrativeSpace();
       const maxNarrativeWidth = Math.max(
         minNarrativeWidth,
-        bodyWidth - sidebarWidth - leftSplitterWidth - minMainWidth - rightSplitterWidth - totalGap,
+        available - minMainWidth,
       );
       return Math.min(Math.max(rawWidth, minNarrativeWidth), maxNarrativeWidth);
+    };
+
+    const getBalancedNarrativeWidth = () => {
+      if (window.matchMedia('(max-width: 1080px)').matches) {
+        return minNarrativeWidth;
+      }
+
+      const available = getMainAndNarrativeSpace();
+      return available / 2;
     };
 
     const applyWidth = (width, persist = false) => {
@@ -949,6 +963,8 @@ export function initEditor(router) {
     const savedWidth = parseInt(localStorage.getItem(STORAGE_KEY), 10);
     if (Number.isFinite(savedWidth)) {
       bodyEl.style.setProperty('--editor-narrative-width', `${savedWidth}px`);
+    } else {
+      applyWidth(getBalancedNarrativeWidth());
     }
 
     let dragging = false;
@@ -1204,9 +1220,9 @@ export function initEditor(router) {
     const debouncedCodePreview = debounce(updateCodePreview, 300);
     const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
 
+    setupSidebarHandle();
     setupEditorResizer();
     setupMarkdownResizer();
-    setupSidebarHandle();
     setupDeckSettingsModalEventListeners();
     setupCwdPickerEventListeners();
     setHighlightInputVisible(false);
