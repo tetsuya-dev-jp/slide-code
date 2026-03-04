@@ -6,6 +6,24 @@
 import * as api from '../core/api.js';
 import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
 
+const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function normalizeDeckFolderName(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s+/g, '-');
+}
+
+function createDeckFolderSlug(seed) {
+  const base = normalizeDeckFolderName(seed)
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^[-_]+|[-_]+$/g, '');
+
+  if (base) return base;
+  return `deck-${Date.now().toString(36)}`;
+}
+
 export function initDashboard(router) {
   function normalizeImportedDeck(data, filename) {
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -99,20 +117,28 @@ export function initDashboard(router) {
   const modalTitle   = document.getElementById('deckModalTitle');
   const modalForm    = document.getElementById('deckModalForm');
   const modalName    = document.getElementById('deckModalName');
+  const modalFolder  = document.getElementById('deckModalFolder');
   const modalDesc    = document.getElementById('deckModalDesc');
   const modalSubmit  = document.getElementById('deckModalSubmit');
   const modalCancel  = document.getElementById('deckModalCancel');
 
   /** @type {string|null} deck id when editing, null for create */
   let editingDeckId = null;
+  let autoSyncFolderName = true;
 
   function openModal(mode, deckData) {
     editingDeckId = mode === 'edit' ? deckData.id : null;
+    autoSyncFolderName = mode !== 'edit';
     modalTitle.textContent = mode === 'edit' ? 'デッキ情報を編集' : '新規デッキ';
     modalSubmit.textContent = mode === 'edit' ? '保存' : '作成';
-    modalName.value = deckData?.title || '';
+    const currentTitle = deckData?.title || '';
+    modalName.value = currentTitle;
+    modalFolder.value = mode === 'edit'
+      ? (deckData?.id || '')
+      : createDeckFolderSlug(currentTitle || 'deck');
     modalDesc.value = deckData?.description || '';
     modalName.classList.remove('modal-input-error');
+    modalFolder.classList.remove('modal-input-error');
     modalEl.hidden = false;
     modalName.focus();
   }
@@ -120,8 +146,21 @@ export function initDashboard(router) {
   function closeModal() {
     modalEl.hidden = true;
     editingDeckId = null;
+    autoSyncFolderName = true;
     modalForm.reset();
   }
+
+  modalName.addEventListener('input', () => {
+    modalName.classList.remove('modal-input-error');
+    if (!editingDeckId && autoSyncFolderName) {
+      modalFolder.value = createDeckFolderSlug(modalName.value || 'deck');
+    }
+  });
+
+  modalFolder.addEventListener('input', () => {
+    modalFolder.classList.remove('modal-input-error');
+    if (!editingDeckId) autoSyncFolderName = false;
+  });
 
   modalCancel.addEventListener('click', closeModal);
   modalEl.addEventListener('click', (e) => {
@@ -140,20 +179,49 @@ export function initDashboard(router) {
       return;
     }
     modalName.classList.remove('modal-input-error');
+
+    const folderName = normalizeDeckFolderName(modalFolder.value);
+    if (!DECK_FOLDER_PATTERN.test(folderName)) {
+      modalFolder.classList.add('modal-input-error');
+      modalFolder.focus();
+      return;
+    }
+    modalFolder.classList.remove('modal-input-error');
+
     const description = modalDesc.value.trim();
 
     try {
       if (editingDeckId) {
-        await api.updateDeck(editingDeckId, { title, description });
-        showToast('デッキ情報を更新しました');
+        const updated = await api.updateDeck(editingDeckId, {
+          id: folderName,
+          title,
+          description,
+        });
+        showToast(updated.id !== editingDeckId ? 'デッキ情報とフォルダ名を更新しました' : 'デッキ情報を更新しました');
         closeModal();
         show();
       } else {
-        const deck = await api.createDeck({ title, description });
+        const deck = await api.createDeck({
+          id: folderName,
+          title,
+          description,
+        });
         closeModal();
         router.navigate(`/deck/${deck.id}/edit`);
       }
-    } catch {
+    } catch (err) {
+      if (err?.status === 409) {
+        showToast('そのフォルダ名は既に使用されています');
+        modalFolder.classList.add('modal-input-error');
+        modalFolder.focus();
+        return;
+      }
+      if (err?.status === 400) {
+        showToast('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
+        modalFolder.classList.add('modal-input-error');
+        modalFolder.focus();
+        return;
+      }
       showToast(editingDeckId ? '更新に失敗しました' : '作成に失敗しました');
     }
   });

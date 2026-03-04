@@ -35,6 +35,12 @@ function toDeckManifest(deck) {
     };
 }
 
+function makeDeckExistsError() {
+    const err = new Error('deck-already-exists');
+    err.code = 'EEXIST';
+    return err;
+}
+
 export class DeckStorage {
     constructor(decksDir) {
         this.decksDir = decksDir;
@@ -68,6 +74,11 @@ export class DeckStorage {
 
     getDeckJsonPath(deckId) {
         return path.join(this.getDeckDir(deckId), 'deck.json');
+    }
+
+    hasDeck(deckId) {
+        const safeDeckId = assertValidDeckId(deckId);
+        return fs.existsSync(this.getDeckJsonPath(safeDeckId));
     }
 
     readDeck(deckId) {
@@ -166,9 +177,15 @@ export class DeckStorage {
 
     createDeck(payload = {}) {
         const normalizedPayload = normalizeDeckPayload(payload);
+        const requestedId = typeof payload?.id === 'string' ? payload.id.trim() : '';
+        const resolvedId = requestedId ? assertValidDeckId(requestedId) : crypto.randomUUID();
+        if (this.hasDeck(resolvedId)) {
+            throw makeDeckExistsError();
+        }
+
         const now = new Date().toISOString();
         const deck = {
-            id: crypto.randomUUID(),
+            id: resolvedId,
             title: normalizedPayload.title,
             description: normalizedPayload.description,
             createdAt: now,
@@ -183,6 +200,10 @@ export class DeckStorage {
 
     createDeckWithId(deckId, payload = {}) {
         const safeDeckId = assertValidDeckId(deckId);
+        if (this.hasDeck(safeDeckId)) {
+            throw makeDeckExistsError();
+        }
+
         const normalizedPayload = normalizeDeckPayload(payload);
         const now = new Date().toISOString();
         const deck = {
@@ -203,6 +224,12 @@ export class DeckStorage {
         const safeDeckId = assertValidDeckId(deckId);
         const existing = this.readDeck(safeDeckId);
         const input = partialPayload && typeof partialPayload === 'object' ? partialPayload : {};
+        const requestedId = typeof input.id === 'string' ? input.id.trim() : '';
+        const nextDeckId = requestedId ? assertValidDeckId(requestedId) : safeDeckId;
+        if (nextDeckId !== safeDeckId && this.hasDeck(nextDeckId)) {
+            throw makeDeckExistsError();
+        }
+
         const merged = {
             ...existing,
             title: input.title ?? existing.title,
@@ -215,7 +242,7 @@ export class DeckStorage {
 
         const updated = {
             ...existing,
-            id: safeDeckId,
+            id: nextDeckId,
             title: normalizedPayload.title,
             description: normalizedPayload.description,
             files: normalizedPayload.files,
@@ -224,6 +251,12 @@ export class DeckStorage {
             updatedAt: new Date().toISOString(),
         };
         this.writeDeck(updated);
+
+        if (nextDeckId !== safeDeckId) {
+            const oldDeckDir = this.getDeckDir(safeDeckId);
+            fs.rmSync(oldDeckDir, { recursive: true, force: true });
+        }
+
         return updated;
     }
 

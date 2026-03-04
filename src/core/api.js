@@ -4,17 +4,33 @@
 
 const BASE = '/api';
 
+async function throwApiError(res, fallbackMessage) {
+    let message = fallbackMessage;
+    try {
+        const payload = await res.json();
+        if (payload && typeof payload.error === 'string' && payload.error.trim()) {
+            message = payload.error.trim();
+        }
+    } catch {
+        // Ignore JSON parse errors and keep fallback message.
+    }
+
+    const err = new Error(message);
+    err.status = res.status;
+    throw err;
+}
+
 /** List all decks (metadata only) */
 export async function listDecks() {
     const res = await fetch(`${BASE}/decks`);
-    if (!res.ok) throw new Error('Failed to list decks');
+    if (!res.ok) await throwApiError(res, 'Failed to list decks');
     return res.json();
 }
 
 /** Get a full deck by ID */
 export async function getDeck(id) {
     const res = await fetch(`${BASE}/decks/${id}`);
-    if (!res.ok) throw new Error('Deck not found');
+    if (!res.ok) await throwApiError(res, 'Deck not found');
     return res.json();
 }
 
@@ -25,7 +41,7 @@ export async function createDeck(data = {}) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to create deck');
+    if (!res.ok) await throwApiError(res, 'Failed to create deck');
     return res.json();
 }
 
@@ -36,7 +52,7 @@ export async function updateDeck(id, data) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
     });
-    if (!res.ok) throw new Error('Failed to update deck');
+    if (!res.ok) await throwApiError(res, 'Failed to update deck');
     return res.json();
 }
 
@@ -45,7 +61,7 @@ export async function deleteDeck(id) {
     const res = await fetch(`${BASE}/decks/${id}`, {
         method: 'DELETE',
     });
-    if (!res.ok) throw new Error('Failed to delete deck');
+    if (!res.ok) await throwApiError(res, 'Failed to delete deck');
     return res.json();
 }
 
@@ -59,6 +75,6 @@ export async function listDirectories(relativePath = '') {
     const query = params.toString();
     const endpoint = query ? `${BASE}/fs/dirs?${query}` : `${BASE}/fs/dirs`;
     const res = await fetch(endpoint);
-    if (!res.ok) throw new Error('Failed to list directories');
+    if (!res.ok) await throwApiError(res, 'Failed to list directories');
     return res.json();
 }

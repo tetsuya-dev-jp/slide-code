@@ -148,6 +148,12 @@ app.post('/api/decks', (req, res) => {
         const deck = storage.createDeck(req.body);
         res.status(201).json(deck);
     } catch (err) {
+        if (err.message === 'invalid-deck-id') {
+            return res.status(400).json({ error: 'Invalid deck id' });
+        }
+        if (err.code === 'EEXIST' || err.message === 'deck-already-exists') {
+            return res.status(409).json({ error: 'Deck folder already exists' });
+        }
         res.status(500).json({ error: err.message });
     }
 });
@@ -159,6 +165,9 @@ app.put('/api/decks/:id', (req, res) => {
     } catch (err) {
         if (err.message === 'invalid-deck-id') {
             return res.status(400).json({ error: 'Invalid deck id' });
+        }
+        if (err.code === 'EEXIST' || err.message === 'deck-already-exists') {
+            return res.status(409).json({ error: 'Deck folder already exists' });
         }
         if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
             return res.status(404).json({ error: 'Deck not found' });

@@ -1038,6 +1038,12 @@ html, body {
   margin-bottom: var(--space-md);
 }
 
+.modal-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
 .modal-field label {
   font-size: 12px;
   font-weight: 600;

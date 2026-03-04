@@ -218,6 +218,10 @@
             </div>
           </div>
           <div class="editor-toolbar-right">
+            <button class="btn btn-secondary" id="editorDeckSettingsBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+              設定
+            </button>
             <button class="btn btn-secondary" id="editorPreviewBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               プレビュー
@@ -376,12 +380,42 @@
             <input type="text" id="deckModalName" placeholder="デッキのタイトルを入力" required />
           </div>
           <div class="modal-field">
+            <label for="deckModalFolder">フォルダ名 <span class="modal-required">*</span></label>
+            <input type="text" id="deckModalFolder" placeholder="例: bubble-sort-intro" required />
+            <p class="modal-hint">英数字・ハイフン・アンダースコアのみ</p>
+          </div>
+          <div class="modal-field">
             <label for="deckModalDesc">説明 <span class="modal-optional">任意</span></label>
             <input type="text" id="deckModalDesc" placeholder="デッキの説明（省略可）" />
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="deckModalCancel">キャンセル</button>
             <button type="submit" class="btn btn-primary" id="deckModalSubmit">作成</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="editorDeckSettingsModal" hidden>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorDeckSettingsTitle">
+        <h3 class="modal-title" id="editorDeckSettingsTitle">デッキ設定</h3>
+        <form id="editorDeckSettingsForm" autocomplete="off">
+          <div class="modal-field">
+            <label for="editorDeckSettingsName">タイトル <span class="modal-required">*</span></label>
+            <input type="text" id="editorDeckSettingsName" placeholder="デッキのタイトルを入力" required />
+          </div>
+          <div class="modal-field">
+            <label for="editorDeckSettingsFolder">フォルダ名 <span class="modal-required">*</span></label>
+            <input type="text" id="editorDeckSettingsFolder" placeholder="例: bubble-sort-intro" required />
+            <p class="modal-hint">英数字・ハイフン・アンダースコアのみ</p>
+          </div>
+          <div class="modal-field">
+            <label for="editorDeckSettingsDesc">説明 <span class="modal-optional">任意</span></label>
+            <input type="text" id="editorDeckSettingsDesc" placeholder="デッキの説明（省略可）" />
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="editorDeckSettingsCancel">キャンセル</button>
+            <button type="submit" class="btn btn-primary" id="editorDeckSettingsSubmit">反映</button>
           </div>
         </form>
       </div>

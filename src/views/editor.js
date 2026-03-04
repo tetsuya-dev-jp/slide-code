@@ -10,6 +10,13 @@ import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
 import { detectLanguage, monacoLangId } from '../utils/lang-detect.js';
 
+const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+function normalizeDeckFolderName(value) {
+  if (typeof value !== 'string') return '';
+  return value.trim().replace(/\s+/g, '-');
+}
+
 // Configure Monaco workers for Vite
 self.MonacoEnvironment = {
   getWorker(_, label) {
@@ -62,6 +69,7 @@ export function initEditor(router) {
   }
 
   let deck = null;
+  let persistedDeckId = null;
   let slideIndex = 0;
   let fileIndex = 0;
   let monacoEditor = null;
@@ -70,6 +78,17 @@ export function initEditor(router) {
   let loading = false;
 
   const mdPreviewPane = new MarkdownPane(document.getElementById('editorMarkdownPreview'));
+  const deckSettingsModal = {
+    modalEl: document.getElementById('editorDeckSettingsModal'),
+    formEl: document.getElementById('editorDeckSettingsForm'),
+    titleEl: document.getElementById('editorDeckSettingsName'),
+    folderEl: document.getElementById('editorDeckSettingsFolder'),
+    descEl: document.getElementById('editorDeckSettingsDesc'),
+    cancelBtn: document.getElementById('editorDeckSettingsCancel'),
+    submitBtn: document.getElementById('editorDeckSettingsSubmit'),
+    openBtn: document.getElementById('editorDeckSettingsBtn'),
+  };
+
   const cwdPicker = {
     modalEl: document.getElementById('cwdPickerModal'),
     currentEl: document.getElementById('cwdPickerCurrent'),
@@ -628,6 +647,123 @@ export function initEditor(router) {
     };
   }
 
+  function setEditorDeckName(name) {
+    document.getElementById('editorDeckName').textContent = name || '無題のデッキ';
+  }
+
+  function openDeckSettingsModal() {
+    if (!deck || !deckSettingsModal.modalEl) return;
+    deckSettingsModal.titleEl.value = deck.title || '';
+    deckSettingsModal.folderEl.value = deck.id || '';
+    deckSettingsModal.descEl.value = deck.description || '';
+    deckSettingsModal.titleEl.classList.remove('modal-input-error');
+    deckSettingsModal.folderEl.classList.remove('modal-input-error');
+    deckSettingsModal.modalEl.hidden = false;
+    deckSettingsModal.titleEl.focus();
+  }
+
+  function closeDeckSettingsModal() {
+    if (!deckSettingsModal.modalEl) return;
+    deckSettingsModal.modalEl.hidden = true;
+    deckSettingsModal.formEl?.reset();
+  }
+
+  function applyDeckSettingsFromModal() {
+    if (!deck) return false;
+
+    const nextTitle = deckSettingsModal.titleEl.value.trim();
+    if (!nextTitle) {
+      deckSettingsModal.titleEl.classList.add('modal-input-error');
+      deckSettingsModal.titleEl.focus();
+      return false;
+    }
+    deckSettingsModal.titleEl.classList.remove('modal-input-error');
+
+    const nextFolderName = normalizeDeckFolderName(deckSettingsModal.folderEl.value);
+    if (!DECK_FOLDER_PATTERN.test(nextFolderName)) {
+      deckSettingsModal.folderEl.classList.add('modal-input-error');
+      deckSettingsModal.folderEl.focus();
+      return false;
+    }
+    deckSettingsModal.folderEl.classList.remove('modal-input-error');
+
+    const nextDescription = deckSettingsModal.descEl.value.trim();
+    const changed = deck.title !== nextTitle
+      || deck.description !== nextDescription
+      || deck.id !== nextFolderName;
+
+    deck.title = nextTitle;
+    deck.description = nextDescription;
+    deck.id = nextFolderName;
+    setEditorDeckName(deck.title);
+
+    if (changed) markDirty();
+    return true;
+  }
+
+  function setupDeckSettingsModalEventListeners() {
+    if (!deckSettingsModal.modalEl || !deckSettingsModal.openBtn || !deckSettingsModal.formEl) return;
+
+    deckSettingsModal.openBtn.addEventListener('click', openDeckSettingsModal);
+    deckSettingsModal.cancelBtn?.addEventListener('click', closeDeckSettingsModal);
+
+    deckSettingsModal.titleEl?.addEventListener('input', () => {
+      deckSettingsModal.titleEl.classList.remove('modal-input-error');
+    });
+
+    deckSettingsModal.folderEl?.addEventListener('input', () => {
+      deckSettingsModal.folderEl.classList.remove('modal-input-error');
+    });
+
+    deckSettingsModal.modalEl.addEventListener('click', (event) => {
+      if (event.target === deckSettingsModal.modalEl) {
+        closeDeckSettingsModal();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && deckSettingsModal.modalEl && !deckSettingsModal.modalEl.hidden) {
+        closeDeckSettingsModal();
+      }
+    });
+
+    deckSettingsModal.formEl.addEventListener('submit', (event) => {
+      event.preventDefault();
+      if (!applyDeckSettingsFromModal()) return;
+      closeDeckSettingsModal();
+      showToast('デッキ設定を反映しました');
+    });
+  }
+
+  function replaceHash(path) {
+    const nextHash = `#${path}`;
+    if (window.location.hash === nextHash) return;
+    window.history.replaceState(window.history.state, '', nextHash);
+  }
+
+  async function persistDeckToServer() {
+    if (!deck) throw new Error('deck-not-loaded');
+
+    saveCurrentSlide();
+    saveCurrentFile();
+    applyDeckMetaFromForm();
+
+    const currentDeckId = persistedDeckId || deck.id;
+    const saved = await api.updateDeck(currentDeckId, deck);
+    const renamed = saved.id !== currentDeckId;
+    deck = saved;
+    persistedDeckId = saved.id;
+
+    setEditorDeckName(deck.title);
+    document.getElementById('editorTerminalCwd').value = normalizeRelativeDirectory(deck.terminal?.cwd || '');
+
+    if (renamed) {
+      replaceHash(`/deck/${deck.id}/edit`);
+    }
+
+    return { renamed };
+  }
+
   function normalizeRelativeDirectory(rawValue) {
     if (typeof rawValue !== 'string') return '';
     const compact = rawValue.trim().replace(/\\/g, '/').replace(/^\/+/, '');
@@ -1056,6 +1192,7 @@ export function initEditor(router) {
     setupEditorResizer();
     setupMarkdownResizer();
     setupSidebarHandle();
+    setupDeckSettingsModalEventListeners();
     setupCwdPickerEventListeners();
     setHighlightInputVisible(false);
 
@@ -1181,28 +1318,50 @@ export function initEditor(router) {
 
     // Save deck
     document.getElementById('editorSaveBtn').addEventListener('click', async () => {
-      saveCurrentSlide();
-      saveCurrentFile();
-      applyDeckMetaFromForm();
       try {
-        await api.updateDeck(deck.id, deck);
+        await persistDeckToServer();
         clearDirty();
         showToast('保存しました');
         renderSlideList();
-      } catch {
+      } catch (err) {
+        if (err?.status === 409) {
+          showToast('そのフォルダ名は既に使用されています');
+          openDeckSettingsModal();
+          deckSettingsModal.folderEl?.classList.add('modal-input-error');
+          deckSettingsModal.folderEl?.focus();
+          return;
+        }
+        if (err?.status === 400) {
+          showToast('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
+          openDeckSettingsModal();
+          deckSettingsModal.folderEl?.classList.add('modal-input-error');
+          deckSettingsModal.folderEl?.focus();
+          return;
+        }
         showToast('保存に失敗しました');
       }
     });
 
     // Preview button (auto-save before navigating)
     document.getElementById('editorPreviewBtn').addEventListener('click', async () => {
-      saveCurrentSlide();
-      saveCurrentFile();
-      applyDeckMetaFromForm();
       try {
-        await api.updateDeck(deck.id, deck);
+        await persistDeckToServer();
         clearDirty();
-      } catch {
+      } catch (err) {
+        if (err?.status === 409) {
+          showToast('そのフォルダ名は既に使用されています');
+          openDeckSettingsModal();
+          deckSettingsModal.folderEl?.classList.add('modal-input-error');
+          deckSettingsModal.folderEl?.focus();
+          return;
+        }
+        if (err?.status === 400) {
+          showToast('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
+          openDeckSettingsModal();
+          deckSettingsModal.folderEl?.classList.add('modal-input-error');
+          deckSettingsModal.folderEl?.focus();
+          return;
+        }
         showToast('保存に失敗したため、プレビューに移動できませんでした');
         return;
       }
@@ -1374,6 +1533,7 @@ export function initEditor(router) {
 
   async function show(deckId) {
     clearDirty();
+    persistedDeckId = null;
     try {
       loading = true;
       deck = await api.getDeck(deckId);
@@ -1395,9 +1555,10 @@ export function initEditor(router) {
       if (typeof deck.terminal.cwd !== 'string') {
         deck.terminal.cwd = '';
       }
+      persistedDeckId = deck.id;
       slideIndex = 0;
       fileIndex = 0;
-      document.getElementById('editorDeckName').textContent = deck.title || '無題のデッキ';
+      setEditorDeckName(deck.title);
       document.getElementById('editorTerminalCwd').value = normalizeRelativeDirectory(deck.terminal.cwd || '');
 
       initMonaco();
