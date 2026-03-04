@@ -207,18 +207,6 @@
         <div class="editor-toolbar">
           <div class="editor-toolbar-left">
             <span class="editor-deck-name" id="editorDeckName"></span>
-            <div class="editor-toolbar-field editor-toolbar-field-cwd">
-              <label for="editorTerminalCwd">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-                作業ディレクトリ
-              </label>
-              <div class="editor-cwd-control">
-                <input type="text" class="editor-deck-cwd" id="editorTerminalCwd" placeholder="例: projects/my-app" />
-                <button class="btn-icon editor-cwd-picker-btn" id="editorPickTerminalCwdBtn" title="フォルダを選択" aria-label="作業ディレクトリを選択">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                </button>
-              </div>
-            </div>
           </div>
           <div class="editor-toolbar-right">
             <button class="btn btn-secondary" id="editorDeckSettingsBtn">
@@ -467,6 +455,16 @@
           <div class="modal-field">
             <label for="editorDeckSettingsDesc">説明 <span class="modal-optional">任意</span></label>
             <input type="text" id="editorDeckSettingsDesc" placeholder="デッキの説明（省略可）" />
+          </div>
+          <div class="modal-field">
+            <label for="editorDeckSettingsCwd">作業ディレクトリ <span class="modal-optional">任意</span></label>
+            <div class="modal-input-with-btn">
+              <input type="text" id="editorDeckSettingsCwd" placeholder="例: projects/my-app" />
+              <button type="button" class="btn-icon modal-picker-btn" id="editorDeckSettingsPickCwdBtn" title="フォルダを選択" aria-label="作業ディレクトリを選択">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              </button>
+            </div>
+            <p class="modal-hint">`~` 基準の相対パス（例: `projects/my-app`）</p>
           </div>
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="editorDeckSettingsCancel">キャンセル</button>

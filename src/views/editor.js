@@ -84,6 +84,8 @@ export function initEditor(router) {
     titleEl: document.getElementById('editorDeckSettingsName'),
     folderEl: document.getElementById('editorDeckSettingsFolder'),
     descEl: document.getElementById('editorDeckSettingsDesc'),
+    cwdEl: document.getElementById('editorDeckSettingsCwd'),
+    pickCwdBtn: document.getElementById('editorDeckSettingsPickCwdBtn'),
     cancelBtn: document.getElementById('editorDeckSettingsCancel'),
     submitBtn: document.getElementById('editorDeckSettingsSubmit'),
     openBtn: document.getElementById('editorDeckSettingsBtn'),
@@ -97,9 +99,9 @@ export function initEditor(router) {
     upBtn: document.getElementById('cwdPickerUpBtn'),
     cancelBtn: document.getElementById('cwdPickerCancel'),
     selectBtn: document.getElementById('cwdPickerSelect'),
-    openBtn: document.getElementById('editorPickTerminalCwdBtn'),
     currentPath: '',
     parentPath: null,
+    targetInputEl: null,
   };
 
   // --- Dirty state ---
@@ -643,7 +645,7 @@ export function initEditor(router) {
     if (!deck) return;
 
     deck.terminal = {
-      cwd: normalizeRelativeDirectory(document.getElementById('editorTerminalCwd').value),
+      cwd: normalizeRelativeDirectory(deck.terminal?.cwd || ''),
     };
   }
 
@@ -656,6 +658,7 @@ export function initEditor(router) {
     deckSettingsModal.titleEl.value = deck.title || '';
     deckSettingsModal.folderEl.value = deck.id || '';
     deckSettingsModal.descEl.value = deck.description || '';
+    deckSettingsModal.cwdEl.value = normalizeRelativeDirectory(deck.terminal?.cwd || '');
     deckSettingsModal.titleEl.classList.remove('modal-input-error');
     deckSettingsModal.folderEl.classList.remove('modal-input-error');
     deckSettingsModal.modalEl.hidden = false;
@@ -688,13 +691,19 @@ export function initEditor(router) {
     deckSettingsModal.folderEl.classList.remove('modal-input-error');
 
     const nextDescription = deckSettingsModal.descEl.value.trim();
+    const nextCwd = normalizeRelativeDirectory(deckSettingsModal.cwdEl.value);
+    const currentCwd = normalizeRelativeDirectory(deck.terminal?.cwd || '');
     const changed = deck.title !== nextTitle
       || deck.description !== nextDescription
-      || deck.id !== nextFolderName;
+      || deck.id !== nextFolderName
+      || currentCwd !== nextCwd;
 
     deck.title = nextTitle;
     deck.description = nextDescription;
     deck.id = nextFolderName;
+    deck.terminal = {
+      cwd: nextCwd,
+    };
     setEditorDeckName(deck.title);
 
     if (changed) markDirty();
@@ -706,6 +715,9 @@ export function initEditor(router) {
 
     deckSettingsModal.openBtn.addEventListener('click', openDeckSettingsModal);
     deckSettingsModal.cancelBtn?.addEventListener('click', closeDeckSettingsModal);
+    deckSettingsModal.pickCwdBtn?.addEventListener('click', () => {
+      openCwdPickerModal(deckSettingsModal.cwdEl);
+    });
 
     deckSettingsModal.titleEl?.addEventListener('input', () => {
       deckSettingsModal.titleEl.classList.remove('modal-input-error');
@@ -755,7 +767,6 @@ export function initEditor(router) {
     persistedDeckId = saved.id;
 
     setEditorDeckName(deck.title);
-    document.getElementById('editorTerminalCwd').value = normalizeRelativeDirectory(deck.terminal?.cwd || '');
 
     if (renamed) {
       replaceHash(`/deck/${deck.id}/edit`);
@@ -829,32 +840,36 @@ export function initEditor(router) {
     }
   }
 
-  function openCwdPickerModal() {
+  function openCwdPickerModal(targetInputEl = deckSettingsModal.cwdEl) {
     if (!cwdPicker.modalEl) return;
+    cwdPicker.targetInputEl = targetInputEl || deckSettingsModal.cwdEl;
     cwdPicker.modalEl.hidden = false;
-    const initialPath = normalizeRelativeDirectory(document.getElementById('editorTerminalCwd').value);
+    const initialPath = normalizeRelativeDirectory(cwdPicker.targetInputEl?.value || '');
     loadCwdPickerDirectory(initialPath);
   }
 
   function closeCwdPickerModal() {
     if (!cwdPicker.modalEl) return;
     cwdPicker.modalEl.hidden = true;
+    cwdPicker.targetInputEl = null;
   }
 
   function applyCwdPickerSelection() {
-    const input = document.getElementById('editorTerminalCwd');
+    const input = cwdPicker.targetInputEl || deckSettingsModal.cwdEl;
+    if (!input) {
+      closeCwdPickerModal();
+      return;
+    }
     const nextValue = normalizeRelativeDirectory(cwdPicker.currentPath || '');
     if (input.value !== nextValue) {
       input.value = nextValue;
-      markDirty();
     }
     closeCwdPickerModal();
   }
 
   function setupCwdPickerEventListeners() {
-    if (!cwdPicker.modalEl || !cwdPicker.openBtn) return;
+    if (!cwdPicker.modalEl) return;
 
-    cwdPicker.openBtn.addEventListener('click', openCwdPickerModal);
     cwdPicker.cancelBtn?.addEventListener('click', closeCwdPickerModal);
     cwdPicker.selectBtn?.addEventListener('click', applyCwdPickerSelection);
     cwdPicker.homeBtn?.addEventListener('click', async () => {
@@ -1294,7 +1309,6 @@ export function initEditor(router) {
       if (!Number.isFinite(start) || !Number.isFinite(end)) return;
       removeHighlightRange(start, end);
     });
-    document.getElementById('editorTerminalCwd').addEventListener('input', () => markDirty());
     document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
     document.getElementById('editorFileName').addEventListener('input', () => markDirty());
     document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
@@ -1559,7 +1573,6 @@ export function initEditor(router) {
       slideIndex = 0;
       fileIndex = 0;
       setEditorDeckName(deck.title);
-      document.getElementById('editorTerminalCwd').value = normalizeRelativeDirectory(deck.terminal.cwd || '');
 
       initMonaco();
       renderFileTabs();
