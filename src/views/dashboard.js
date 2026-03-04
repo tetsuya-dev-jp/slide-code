@@ -17,6 +17,9 @@ export function initDashboard(router) {
       ? data.title.trim()
       : fallbackTitle;
     const description = typeof data.description === 'string' ? data.description : '';
+    const terminalCwd = typeof data.terminal?.cwd === 'string'
+      ? data.terminal.cwd.trim()
+      : '';
 
     const normalizedFiles = Array.isArray(data.files)
       ? data.files
@@ -85,6 +88,9 @@ export function initDashboard(router) {
       description,
       files: normalizedFiles,
       slides: normalizedSlides,
+      terminal: {
+        cwd: terminalCwd,
+      },
     };
   }
 

@@ -39,7 +39,7 @@ export function initPresentation(router) {
     );
     shellPane = new ShellPane(
       document.getElementById('shellBody'),
-      { isDark: theme.isDark },
+      { isDark: theme.isDark, deckId: currentDeckId || '' },
     );
     markdownPane = new MarkdownPane(document.getElementById('markdownBody'));
 
@@ -255,11 +255,12 @@ export function initPresentation(router) {
   }
 
   async function show(deckId) {
-    init();
     currentDeckId = deckId;
+    init();
     try {
       const deck = await api.getDeck(deckId);
       presentationDeck = deck;
+      if (shellPane) shellPane.setDeckId(deckId);
       slideManager.load(deck.slides);
     } catch {
       currentDeckId = null;

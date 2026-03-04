@@ -64,13 +64,23 @@ function defaultWsUrl() {
     return `${protocol}//${host}:${port}`;
 }
 
-function withAuthToken(wsUrl) {
+function buildWsUrl(wsUrl, deckId = '') {
     const token = import.meta.env?.VITE_TERMINAL_WS_TOKEN;
-    if (!token) return wsUrl;
 
     try {
         const url = new URL(wsUrl, window.location.href);
-        url.searchParams.set('token', token);
+        if (token) {
+            url.searchParams.set('token', token);
+        } else {
+            url.searchParams.delete('token');
+        }
+
+        if (deckId) {
+            url.searchParams.set('deckId', deckId);
+        } else {
+            url.searchParams.delete('deckId');
+        }
+
         return url.toString();
     } catch {
         return wsUrl;
@@ -80,7 +90,9 @@ function withAuthToken(wsUrl) {
 export class ShellPane {
     constructor(shellBodyEl, options = {}) {
         this.shellBody = shellBodyEl;
-        this.wsUrl = withAuthToken(options.wsUrl || defaultWsUrl());
+        this.baseWsUrl = options.wsUrl || defaultWsUrl();
+        this.deckId = typeof options.deckId === 'string' ? options.deckId : '';
+        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
         this.isDark = options.isDark !== false;
 
         this.terminal = null;
@@ -90,6 +102,15 @@ export class ShellPane {
         this._resizeObserver = null;
 
         this._init();
+    }
+
+    setDeckId(deckId) {
+        const nextDeckId = typeof deckId === 'string' ? deckId.trim() : '';
+        if (nextDeckId === this.deckId) return;
+
+        this.deckId = nextDeckId;
+        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
+        this._connect();
     }
 
     _init() {
@@ -142,13 +163,16 @@ export class ShellPane {
     }
 
     _connect() {
-        if (this.ws) {
-            this.ws.close();
+        const prevWs = this.ws;
+        const ws = new WebSocket(this.wsUrl);
+        this.ws = ws;
+
+        if (prevWs) {
+            prevWs.close();
         }
 
-        this.ws = new WebSocket(this.wsUrl);
-
-        this.ws.onopen = () => {
+        ws.onopen = () => {
+            if (this.ws !== ws) return;
             this.connected = true;
             // Send initial size
             const dims = this.fitAddon.proposeDimensions();
@@ -157,7 +181,8 @@ export class ShellPane {
             }
         };
 
-        this.ws.onmessage = (event) => {
+        ws.onmessage = (event) => {
+            if (this.ws !== ws) return;
             try {
                 const msg = JSON.parse(event.data);
                 if (msg.type === 'output') {
@@ -166,12 +191,14 @@ export class ShellPane {
             } catch (_) { /* ignore */ }
         };
 
-        this.ws.onclose = () => {
+        ws.onclose = () => {
+            if (this.ws !== ws) return;
             this.connected = false;
             this.terminal.write('\r\n\x1b[90m[接続が切れました — リロードで再接続]\x1b[0m\r\n');
         };
 
-        this.ws.onerror = () => {
+        ws.onerror = () => {
+            if (this.ws !== ws) return;
             this.connected = false;
         };
     }

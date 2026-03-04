@@ -150,6 +150,11 @@ function normalizeHighlightLines(highlightLines, start, end) {
     return Array.from(values).sort((a, b) => a - b);
 }
 
+function normalizeTerminalConfig(terminal) {
+    const cwd = normalizeString(terminal?.cwd, '').trim();
+    return { cwd };
+}
+
 function normalizeSlides(slides, files) {
     const source = Array.isArray(slides) ? slides : [];
     const fileNames = new Set(files.map(file => file.name));
@@ -191,12 +196,14 @@ function normalizeDeckPayload(payload = {}) {
     const source = payload && typeof payload === 'object' ? payload : {};
     const files = normalizeFiles(source.files);
     const slides = normalizeSlides(source.slides, files);
+    const terminal = normalizeTerminalConfig(source.terminal);
 
     return {
         title: normalizeNonEmptyString(source.title, '無題のデッキ'),
         description: normalizeString(source.description, ''),
         files,
         slides,
+        terminal,
     };
 }
 
@@ -242,6 +249,7 @@ app.get('/api/decks/:id', (req, res) => {
             description: normalizedPayload.description,
             files: normalizedPayload.files,
             slides: normalizedPayload.slides,
+            terminal: normalizedPayload.terminal,
             createdAt: normalizeNonEmptyString(deck.createdAt, new Date().toISOString()),
             updatedAt: normalizeNonEmptyString(deck.updatedAt, normalizeNonEmptyString(deck.createdAt, new Date().toISOString())),
         };
@@ -264,6 +272,7 @@ app.post('/api/decks', (req, res) => {
             updatedAt: now,
             files: normalizedPayload.files,
             slides: normalizedPayload.slides,
+            terminal: normalizedPayload.terminal,
         };
         writeDeck(deck.id, deck);
         res.status(201).json(deck);
@@ -287,6 +296,7 @@ app.put('/api/decks/:id', (req, res) => {
             description: input.description ?? existing.description,
             files: input.files ?? existing.files,
             slides: input.slides ?? existing.slides,
+            terminal: input.terminal ?? existing.terminal,
         };
         const normalizedPayload = normalizeDeckPayload(merged);
         const updated = {
@@ -295,6 +305,7 @@ app.put('/api/decks/:id', (req, res) => {
             description: normalizedPayload.description,
             files: normalizedPayload.files,
             slides: normalizedPayload.slides,
+            terminal: normalizedPayload.terminal,
             updatedAt: new Date().toISOString(),
         };
         writeDeck(req.params.id, updated);
@@ -365,13 +376,50 @@ function isAllowedOrigin(origin) {
     return false;
 }
 
-function readTokenFromRequest(req) {
+function readWsParamsFromRequest(req) {
     try {
         const host = req.headers.host || `localhost:${WS_PORT}`;
         const url = new URL(req.url || '/', `ws://${host}`);
-        return url.searchParams.get('token') || '';
+        return {
+            token: url.searchParams.get('token') || '',
+            deckId: url.searchParams.get('deckId') || '',
+        };
     } catch {
-        return '';
+        return { token: '', deckId: '' };
+    }
+}
+
+function normalizeDeckId(deckId) {
+    const normalized = normalizeNonEmptyString(deckId, '');
+    if (!normalized) return '';
+    return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : '';
+}
+
+function resolveDeckTerminalCwd(deckId, baseCwd) {
+    const safeDeckId = normalizeDeckId(deckId);
+    if (!safeDeckId) return baseCwd;
+
+    const deckPath = path.join(DECKS_DIR, `${safeDeckId}.json`);
+    if (!fs.existsSync(deckPath)) return baseCwd;
+
+    try {
+        const deck = readDeck(`${safeDeckId}.json`);
+        const { terminal } = normalizeDeckPayload(deck);
+        const requestedCwd = terminal.cwd;
+        if (!requestedCwd) return baseCwd;
+
+        const resolvedCwd = path.resolve(baseCwd, requestedCwd);
+        const relative = path.relative(baseCwd, resolvedCwd);
+        const escapesBase = relative.startsWith('..') || path.isAbsolute(relative);
+        if (escapesBase) return baseCwd;
+
+        if (!fs.existsSync(resolvedCwd)) return baseCwd;
+        const stat = fs.statSync(resolvedCwd);
+        if (!stat.isDirectory()) return baseCwd;
+
+        return resolvedCwd;
+    } catch {
+        return baseCwd;
     }
 }
 
@@ -386,9 +434,10 @@ if (terminalEnabled) {
             return;
         }
 
+        const wsParams = readWsParamsFromRequest(req);
+
         if (terminalWsToken) {
-            const providedToken = readTokenFromRequest(req);
-            if (providedToken !== terminalWsToken) {
+            if (wsParams.token !== terminalWsToken) {
                 ws.close(1008, 'Unauthorized');
                 return;
             }
@@ -396,7 +445,8 @@ if (terminalEnabled) {
 
         console.log('Client connected — spawning PTY');
 
-        const cwd = fs.existsSync(terminalCwd) ? terminalCwd : (process.env.HOME || process.cwd());
+        const baseCwd = fs.existsSync(terminalCwd) ? terminalCwd : (process.env.HOME || process.cwd());
+        const cwd = resolveDeckTerminalCwd(wsParams.deckId, baseCwd);
         const ptyProcess = pty.spawn(shell, [], {
             name: 'xterm-256color',
             cols: 80,

@@ -608,6 +608,16 @@ export function initEditor(router) {
     mdPreviewPane.render(md);
   }
 
+  function applyDeckMetaFromForm() {
+    if (!deck) return;
+
+    deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
+    deck.description = document.getElementById('editorDeckDesc').value || '';
+    deck.terminal = {
+      cwd: document.getElementById('editorTerminalCwd').value.trim(),
+    };
+  }
+
   function clearAllHighlightLines() {
     setHighlightInput([]);
     updateCodePreview({ saveFile: false, reveal: false });
@@ -1024,6 +1034,7 @@ export function initEditor(router) {
     });
     document.getElementById('editorDeckTitle').addEventListener('input', () => markDirty());
     document.getElementById('editorDeckDesc').addEventListener('input', () => markDirty());
+    document.getElementById('editorTerminalCwd').addEventListener('input', () => markDirty());
     document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
     document.getElementById('editorFileName').addEventListener('input', () => markDirty());
     document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
@@ -1049,8 +1060,7 @@ export function initEditor(router) {
     document.getElementById('editorSaveBtn').addEventListener('click', async () => {
       saveCurrentSlide();
       saveCurrentFile();
-      deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
-      deck.description = document.getElementById('editorDeckDesc').value || '';
+      applyDeckMetaFromForm();
       try {
         await api.updateDeck(deck.id, deck);
         clearDirty();
@@ -1065,13 +1075,13 @@ export function initEditor(router) {
     document.getElementById('editorPreviewBtn').addEventListener('click', async () => {
       saveCurrentSlide();
       saveCurrentFile();
-      deck.title = document.getElementById('editorDeckTitle').value || '無題のデッキ';
-      deck.description = document.getElementById('editorDeckDesc').value || '';
+      applyDeckMetaFromForm();
       try {
         await api.updateDeck(deck.id, deck);
         clearDirty();
       } catch {
-        // save failed, but still navigate
+        showToast('保存に失敗したため、プレビューに移動できませんでした');
+        return;
       }
       if (deck) router.navigate(`/deck/${deck.id}`);
     });
@@ -1256,10 +1266,17 @@ export function initEditor(router) {
           markdown: '',
         }];
       }
+      if (!deck.terminal || typeof deck.terminal !== 'object') {
+        deck.terminal = { cwd: '' };
+      }
+      if (typeof deck.terminal.cwd !== 'string') {
+        deck.terminal.cwd = '';
+      }
       slideIndex = 0;
       fileIndex = 0;
       document.getElementById('editorDeckTitle').value = deck.title || '';
       document.getElementById('editorDeckDesc').value = deck.description || '';
+      document.getElementById('editorTerminalCwd').value = deck.terminal.cwd || '';
 
       initMonaco();
       renderFileTabs();

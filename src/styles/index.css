@@ -1372,6 +1372,11 @@ body.resizing-v {
   color: var(--text-primary);
 }
 
+.editor-deck-terminal {
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+}
+
 .editor-body {
   display: grid;
   grid-template-columns: minmax(220px, var(--editor-sidebar-width)) var(--editor-splitter-size) minmax(0, 1fr) var(--editor-splitter-size) minmax(280px, var(--editor-narrative-width));
