@@ -1322,6 +1322,9 @@ body.resizing-v {
   background: var(--bg-secondary);
   border: 1px solid var(--border-default);
   border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   overflow: hidden;
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -1334,6 +1337,9 @@ body.resizing-v {
 }
 
 .deck-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
   padding: 20px;
 }
 
@@ -1356,11 +1362,16 @@ body.resizing-v {
   overflow: hidden;
 }
 
+.deck-card-desc:empty {
+  display: none;
+}
+
 .deck-card-meta {
   display: flex;
   gap: 12px;
   font-size: 12px;
   color: var(--text-tertiary);
+  margin-top: auto;
 }
 
 .deck-card-actions {
