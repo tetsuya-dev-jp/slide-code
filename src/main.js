@@ -1,5 +1,5 @@
 /**
- * CodeStage — Main Application Entry Point
+ * SlideCode — Main Application Entry Point
  * Wires together router, views, and theme
  */
 

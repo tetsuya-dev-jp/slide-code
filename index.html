@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CodeStage — コードスライドショー</title>
+  <title>SlideCode — コードスライドショー</title>
   <meta name="description" content="コード・実行結果・解説を1画面でスライド形式で学べるツール" />
   <script>
     (() => {
       try {
-        const stored = localStorage.getItem('codestage-theme');
+        const stored = localStorage.getItem('slidecode-theme');
         const initial = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
         document.documentElement.setAttribute('data-theme', initial);
       } catch {
@@ -51,8 +51,8 @@
       <div class="toolbar-left">
         <h1 class="logo">
           <a href="#/" class="logo-link">
-            <img src="/logo.svg" alt="CodeStage Logo" class="logo-img" />
-            <span class="logo-text">CodeStage</span>
+            <img src="/logo.svg" alt="SlideCode Logo" class="logo-img" />
+            <span class="logo-text">SlideCode</span>
           </a>
         </h1>
         <span class="slide-title" id="slideTitle"></span>
@@ -368,7 +368,7 @@
           <div class="modal-field">
             <label for="appConfigDecksDir">デッキ保存ディレクトリ <span class="modal-required">*</span></label>
             <div class="modal-input-with-btn">
-              <input type="text" id="appConfigDecksDir" placeholder="例: ~/.local/share/codestage/decks" required />
+              <input type="text" id="appConfigDecksDir" placeholder="例: ~/.local/share/slidecode/decks" required />
               <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigDecksDirBtn" title="ディレクトリを選択" aria-label="デッキ保存ディレクトリを選択">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               </button>

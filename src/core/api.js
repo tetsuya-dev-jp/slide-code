@@ -1,5 +1,5 @@
 /**
- * API Client for CodeStage deck management
+ * API Client for SlideCode deck management
  */
 
 const BASE = '/api';

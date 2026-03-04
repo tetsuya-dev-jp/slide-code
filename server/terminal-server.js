@@ -1,5 +1,5 @@
 /**
- * CodeStage Server
+ * SlideCode Server
  * - Express REST API for deck CRUD
  * - WebSocket server for terminal PTY
  */

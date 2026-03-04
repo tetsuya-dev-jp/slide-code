@@ -244,7 +244,7 @@ export class LayoutManager {
      * Save to localStorage
      */
     save() {
-        localStorage.setItem('codestage-layout', JSON.stringify({
+        localStorage.setItem('slidecode-layout', JSON.stringify({
             layoutId: this.currentLayoutId,
             paneOrder: this.paneOrder,
         }));
@@ -255,7 +255,7 @@ export class LayoutManager {
      */
     restore() {
         try {
-            const data = JSON.parse(localStorage.getItem('codestage-layout'));
+            const data = JSON.parse(localStorage.getItem('slidecode-layout'));
             if (data && LAYOUTS[data.layoutId]) {
                 this.currentLayoutId = data.layoutId;
             }

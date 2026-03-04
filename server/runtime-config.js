@@ -2,7 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-const APP_NAME = 'codestage';
+const APP_NAME = 'slidecode';
+const LEGACY_APP_NAME = 'codestage';
 
 const DEFAULT_LOCAL_ALLOWED_ORIGINS = [
     'http://localhost:5173',
@@ -85,6 +86,30 @@ function readJsonFile(filePath, fallbackValue) {
     }
 }
 
+function migrateLegacyDirectory(fromDir, toDir) {
+    if (APP_NAME === LEGACY_APP_NAME) return;
+    if (fs.existsSync(toDir)) return;
+    if (!fs.existsSync(fromDir)) return;
+
+    try {
+        fs.renameSync(fromDir, toDir);
+    } catch (err) {
+        console.error(`Failed to migrate directory from ${fromDir} to ${toDir}`);
+        console.error(err);
+    }
+}
+
+function migrateLegacyAppPaths(xdgConfigHome, xdgDataHome) {
+    migrateLegacyDirectory(
+        path.join(xdgConfigHome, LEGACY_APP_NAME),
+        path.join(xdgConfigHome, APP_NAME),
+    );
+    migrateLegacyDirectory(
+        path.join(xdgDataHome, LEGACY_APP_NAME),
+        path.join(xdgDataHome, APP_NAME),
+    );
+}
+
 function createDefaultConfigTemplate(defaultDecksDir) {
     return {
         decksDir: defaultDecksDir,
@@ -135,6 +160,8 @@ export function loadRuntimeConfig() {
     const homeDir = resolveHomeDir();
     const xdgConfigHome = resolveXdgBaseDir(process.env.XDG_CONFIG_HOME, path.join(homeDir, '.config'), homeDir);
     const xdgDataHome = resolveXdgBaseDir(process.env.XDG_DATA_HOME, path.join(homeDir, '.local', 'share'), homeDir);
+
+    migrateLegacyAppPaths(xdgConfigHome, xdgDataHome);
 
     const configDir = path.join(xdgConfigHome, APP_NAME);
     const configFilePath = path.join(configDir, 'config.json');

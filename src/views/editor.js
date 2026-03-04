@@ -38,7 +38,7 @@ self.MonacoEnvironment = {
 
 export function initEditor(router) {
   const MONACO_THEME = {
-    dark: 'codestage-dark',
+    dark: 'slidecode-dark',
     light: 'vs',
   };
 
@@ -913,7 +913,7 @@ export function initEditor(router) {
     const resizerEl = document.getElementById('editorMainNarrativeResizer');
     if (!bodyEl || !sidebarEl || !resizerEl) return;
 
-    const STORAGE_KEY = 'codestage-editor-narrative-width';
+    const STORAGE_KEY = 'slidecode-editor-narrative-width';
     const minNarrativeWidth = 260;
     const minMainWidth = 420;
     const splitterSize = 8;
@@ -1018,8 +1018,8 @@ export function initEditor(router) {
     const sidebarHandleBtn = document.getElementById('editorSidebarHandle');
     if (!bodyEl || !sidebarEl || !sidebarResizerEl || !sidebarHandleBtn) return;
 
-    const WIDTH_KEY = 'codestage-editor-sidebar-width';
-    const COLLAPSED_KEY = 'codestage-editor-sidebar-collapsed';
+    const WIDTH_KEY = 'slidecode-editor-sidebar-width';
+    const COLLAPSED_KEY = 'slidecode-editor-sidebar-collapsed';
     const minSidebarWidth = 220;
     const minMainWidth = 420;
     const splitterSize = 8;
@@ -1149,7 +1149,7 @@ export function initEditor(router) {
     const resizerEl = document.getElementById('editorMarkdownResizer');
     if (!containerEl || !resizerEl) return;
 
-    const STORAGE_KEY = 'codestage-editor-markdown-input-height';
+    const STORAGE_KEY = 'slidecode-editor-markdown-input-height';
     const minInputHeight = 140;
     const minPreviewHeight = 140;
     const splitterSize = 8;

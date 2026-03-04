@@ -9,14 +9,14 @@ const HLJS_THEMES = {
 };
 
 function getPreferred() {
-  const stored = localStorage.getItem('codestage-theme');
+  const stored = localStorage.getItem('slidecode-theme');
   if (stored) return stored;
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 function apply(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('codestage-theme', theme);
+  localStorage.setItem('slidecode-theme', theme);
 
   const hljsLink = document.getElementById('hljs-theme');
   if (hljsLink) hljsLink.href = HLJS_THEMES[theme] || HLJS_THEMES.dark;
