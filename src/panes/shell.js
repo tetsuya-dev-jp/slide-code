@@ -113,6 +113,11 @@ export class ShellPane {
         this._connect();
     }
 
+    reconnect() {
+        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
+        this._connect();
+    }
+
     _init() {
         // Clear any existing content
         this.shellBody.innerHTML = '';

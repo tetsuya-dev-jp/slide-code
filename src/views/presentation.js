@@ -255,12 +255,18 @@ export function initPresentation(router) {
   }
 
   async function show(deckId) {
+    const previousDeckId = currentDeckId;
     currentDeckId = deckId;
     init();
     try {
       const deck = await api.getDeck(deckId);
       presentationDeck = deck;
-      if (shellPane) shellPane.setDeckId(deckId);
+      if (shellPane) {
+        shellPane.setDeckId(deckId);
+        if (previousDeckId === deckId) {
+          shellPane.reconnect();
+        }
+      }
       slideManager.load(deck.slides);
     } catch {
       currentDeckId = null;
