@@ -775,6 +775,28 @@ export function initEditor(router) {
     return { renamed };
   }
 
+  function focusDeckFolderSettingWithError(message) {
+    showToast(message);
+    openDeckSettingsModal();
+    if (!deckSettingsModal.folderEl) return;
+    deckSettingsModal.folderEl.classList.add('modal-input-error');
+    deckSettingsModal.folderEl.focus();
+  }
+
+  function handlePersistDeckError(err, fallbackMessage) {
+    if (err?.status === 409) {
+      focusDeckFolderSettingWithError('そのフォルダ名は既に使用されています');
+      return;
+    }
+
+    if (err?.status === 400) {
+      focusDeckFolderSettingWithError('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
+      return;
+    }
+
+    showToast(fallbackMessage);
+  }
+
   function normalizeRelativeDirectory(rawValue) {
     if (typeof rawValue !== 'string') return '';
     const compact = rawValue.trim().replace(/\\/g, '/').replace(/^\/+/, '');
@@ -1354,21 +1376,7 @@ export function initEditor(router) {
         showToast('保存しました');
         renderSlideList();
       } catch (err) {
-        if (err?.status === 409) {
-          showToast('そのフォルダ名は既に使用されています');
-          openDeckSettingsModal();
-          deckSettingsModal.folderEl?.classList.add('modal-input-error');
-          deckSettingsModal.folderEl?.focus();
-          return;
-        }
-        if (err?.status === 400) {
-          showToast('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
-          openDeckSettingsModal();
-          deckSettingsModal.folderEl?.classList.add('modal-input-error');
-          deckSettingsModal.folderEl?.focus();
-          return;
-        }
-        showToast('保存に失敗しました');
+        handlePersistDeckError(err, '保存に失敗しました');
       }
     });
 
@@ -1378,21 +1386,7 @@ export function initEditor(router) {
         await persistDeckToServer();
         clearDirty();
       } catch (err) {
-        if (err?.status === 409) {
-          showToast('そのフォルダ名は既に使用されています');
-          openDeckSettingsModal();
-          deckSettingsModal.folderEl?.classList.add('modal-input-error');
-          deckSettingsModal.folderEl?.focus();
-          return;
-        }
-        if (err?.status === 400) {
-          showToast('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
-          openDeckSettingsModal();
-          deckSettingsModal.folderEl?.classList.add('modal-input-error');
-          deckSettingsModal.folderEl?.focus();
-          return;
-        }
-        showToast('保存に失敗したため、プレビューに移動できませんでした');
+        handlePersistDeckError(err, '保存に失敗したため、プレビューに移動できませんでした');
         return;
       }
       if (deck) router.navigate(`/deck/${deck.id}`);

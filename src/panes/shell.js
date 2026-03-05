@@ -109,11 +109,14 @@ export class ShellPane {
         if (nextDeckId === this.deckId) return;
 
         this.deckId = nextDeckId;
-        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
-        this._connect();
+        this._refreshConnection();
     }
 
     reconnect() {
+        this._refreshConnection();
+    }
+
+    _refreshConnection() {
         this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
         this._connect();
     }

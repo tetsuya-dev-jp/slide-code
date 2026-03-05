@@ -254,6 +254,17 @@ export function initPresentation(router) {
     });
   }
 
+  function syncShellDeckSession(previousDeckId, nextDeckId) {
+    if (!shellPane) return;
+
+    if (previousDeckId === nextDeckId) {
+      shellPane.reconnect();
+      return;
+    }
+
+    shellPane.setDeckId(nextDeckId);
+  }
+
   async function show(deckId) {
     const previousDeckId = currentDeckId;
     currentDeckId = deckId;
@@ -261,12 +272,7 @@ export function initPresentation(router) {
     try {
       const deck = await api.getDeck(deckId);
       presentationDeck = deck;
-      if (shellPane) {
-        shellPane.setDeckId(deckId);
-        if (previousDeckId === deckId) {
-          shellPane.reconnect();
-        }
-      }
+      syncShellDeckSession(previousDeckId, deckId);
       slideManager.load(deck.slides);
     } catch {
       currentDeckId = null;
