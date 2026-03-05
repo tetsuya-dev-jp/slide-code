@@ -65,6 +65,17 @@ export async function deleteDeck(id) {
     return res.json();
 }
 
+/** Duplicate a deck */
+export async function duplicateDeck(id, data = {}) {
+    const res = await fetch(`${BASE}/decks/${id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to duplicate deck');
+    return res.json();
+}
+
 /** List directories under terminal base cwd */
 export async function listDirectories(relativePath = '') {
     const params = new URLSearchParams();

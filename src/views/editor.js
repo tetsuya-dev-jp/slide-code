@@ -77,6 +77,13 @@ export function initEditor(router) {
   let monacoDecorations = [];
   let dirty = false;
   let loading = false;
+  let changeVersion = 0;
+  let autosaveTimer = null;
+  let saveQueue = Promise.resolve();
+
+  const AUTOSAVE_DELAY_MS = 1500;
+  const saveButtonEl = document.getElementById('editorSaveBtn');
+  const saveStatusEl = document.getElementById('editorSaveStatus');
 
   const mdPreviewPane = new MarkdownPane(document.getElementById('editorMarkdownPreview'));
   const deckSettingsModal = {
@@ -110,15 +117,124 @@ export function initEditor(router) {
 
   // --- Dirty state ---
 
-  function markDirty() {
-    if (dirty || loading) return;
-    dirty = true;
-    document.getElementById('editorSaveBtn').classList.add('has-changes');
+  function setSaveStatus(state) {
+    if (!saveStatusEl) return;
+
+    saveStatusEl.dataset.state = state;
+    if (state === 'pending') {
+      saveStatusEl.textContent = '未保存の変更';
+      return;
+    }
+    if (state === 'saving') {
+      saveStatusEl.textContent = '保存中...';
+      return;
+    }
+    if (state === 'error') {
+      saveStatusEl.textContent = '保存エラー';
+      return;
+    }
+    saveStatusEl.textContent = '保存済み';
   }
 
-  function clearDirty() {
+  function clearAutosaveTimer() {
+    if (!autosaveTimer) return;
+    window.clearTimeout(autosaveTimer);
+    autosaveTimer = null;
+  }
+
+  function scheduleAutosave() {
+    if (!deck || loading) return;
+    clearAutosaveTimer();
+    autosaveTimer = window.setTimeout(() => {
+      autosaveTimer = null;
+      requestPersistDeck({
+        source: 'auto',
+        fallbackMessage: '自動保存に失敗しました',
+        notifyOnSuccess: false,
+        surfaceErrors: false,
+      }).catch(() => {
+        // Keep editor state and let status indicator communicate the failure.
+      });
+    }, AUTOSAVE_DELAY_MS);
+  }
+
+  function enqueueSaveTask(task) {
+    const queued = saveQueue.then(() => task(), () => task());
+    saveQueue = queued.catch(() => {});
+    return queued;
+  }
+
+  function markDirty() {
+    if (loading) return;
+    changeVersion += 1;
+    if (!dirty) {
+      dirty = true;
+      saveButtonEl?.classList.add('has-changes');
+    }
+    setSaveStatus('pending');
+    scheduleAutosave();
+  }
+
+  function clearDirty(savedVersion = null) {
+    if (savedVersion !== null && savedVersion !== changeVersion) {
+      return false;
+    }
     dirty = false;
-    document.getElementById('editorSaveBtn').classList.remove('has-changes');
+    saveButtonEl?.classList.remove('has-changes');
+    return true;
+  }
+
+  function requestPersistDeck({
+    source = 'manual',
+    fallbackMessage = '保存に失敗しました',
+    notifyOnSuccess = false,
+    surfaceErrors = true,
+  } = {}) {
+    clearAutosaveTimer();
+
+    return enqueueSaveTask(async () => {
+      if (!deck) return { saved: false, skipped: true };
+
+      if (!dirty) {
+        if (source !== 'auto') {
+          setSaveStatus('saved');
+        }
+        if (notifyOnSuccess) {
+          showToast('保存済みです');
+        }
+        return { saved: false, skipped: true };
+      }
+
+      const saveVersion = changeVersion;
+      setSaveStatus('saving');
+
+      try {
+        await persistDeckToServer();
+        const unchangedSinceSaveStarted = clearDirty(saveVersion);
+        renderSlideList();
+
+        if (unchangedSinceSaveStarted) {
+          setSaveStatus('saved');
+          if (notifyOnSuccess) {
+            showToast('保存しました');
+          }
+          return { saved: true, skipped: false };
+        }
+
+        setSaveStatus('pending');
+        scheduleAutosave();
+        if (notifyOnSuccess) {
+          showToast('保存中に変更があったため、再保存します');
+        }
+        return { saved: false, skipped: false };
+      } catch (err) {
+        setSaveStatus('error');
+        if (surfaceErrors) {
+          handlePersistDeckError(err, fallbackMessage);
+        }
+        throw err;
+      }
+    });
   }
 
   window.addEventListener('beforeunload', (e) => {
@@ -1398,22 +1514,27 @@ export function initEditor(router) {
     // Save deck
     document.getElementById('editorSaveBtn').addEventListener('click', async () => {
       try {
-        await persistDeckToServer();
-        clearDirty();
-        showToast('保存しました');
-        renderSlideList();
-      } catch (err) {
-        handlePersistDeckError(err, '保存に失敗しました');
+        await requestPersistDeck({
+          source: 'manual',
+          fallbackMessage: '保存に失敗しました',
+          notifyOnSuccess: true,
+          surfaceErrors: true,
+        });
+      } catch {
+        // Errors are surfaced by requestPersistDeck.
       }
     });
 
     // Preview button (auto-save before navigating)
     document.getElementById('editorPreviewBtn').addEventListener('click', async () => {
       try {
-        await persistDeckToServer();
-        clearDirty();
-      } catch (err) {
-        handlePersistDeckError(err, '保存に失敗したため、プレビューに移動できませんでした');
+        await requestPersistDeck({
+          source: 'preview',
+          fallbackMessage: '保存に失敗したため、プレビューに移動できませんでした',
+          notifyOnSuccess: false,
+          surfaceErrors: true,
+        });
+      } catch {
         return;
       }
       if (deck) router.navigate(`/deck/${deck.id}`);
@@ -1583,7 +1704,10 @@ export function initEditor(router) {
   setupEventListeners();
 
   async function show(deckId) {
+    clearAutosaveTimer();
     clearDirty();
+    changeVersion = 0;
+    setSaveStatus('saved');
     persistedDeckId = null;
     try {
       loading = true;
@@ -1617,10 +1741,13 @@ export function initEditor(router) {
       renderSlideList();
       loadSlide(0);
       clearDirty();
+      changeVersion = 0;
+      setSaveStatus('saved');
       requestAnimationFrame(() => {
         window.dispatchEvent(new Event('resize'));
       });
     } catch {
+      setSaveStatus('error');
       showToast('デッキの読み込みに失敗しました');
       router.navigate('/');
     } finally {

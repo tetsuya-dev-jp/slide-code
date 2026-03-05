@@ -41,6 +41,26 @@ function makeDeckExistsError() {
     return err;
 }
 
+function normalizeDeckIdSeed(seed, fallback = 'deck') {
+    const safeSeed = normalizeNonEmptyString(seed, fallback)
+        .replace(/\s+/g, '-')
+        .replace(/[^a-zA-Z0-9_-]/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^[-_]+|[-_]+$/g, '');
+    return safeSeed || fallback;
+}
+
+function formatCopyTitle(sourceTitle, index = 1) {
+    const normalizedTitle = normalizeNonEmptyString(sourceTitle, '無題のデッキ')
+        .replace(/\s*\(コピー(?:\s+\d+)?\)\s*$/, '')
+        .trim();
+    const baseTitle = normalizedTitle || '無題のデッキ';
+    if (index <= 1) {
+        return `${baseTitle} (コピー)`;
+    }
+    return `${baseTitle} (コピー ${index})`;
+}
+
 export class DeckStorage {
     constructor(decksDir) {
         this.decksDir = decksDir;
@@ -218,6 +238,77 @@ export class DeckStorage {
         };
         this.writeDeck(deck);
         return deck;
+    }
+
+    resolveUniqueDeckId(seed, fallback = 'deck') {
+        const baseId = assertValidDeckId(normalizeDeckIdSeed(seed, fallback));
+        if (!this.hasDeck(baseId)) {
+            return baseId;
+        }
+
+        let index = 2;
+        while (true) {
+            const candidate = `${baseId}-${index}`;
+            if (!this.hasDeck(candidate)) {
+                return candidate;
+            }
+            index += 1;
+        }
+    }
+
+    resolveUniqueCopyTitle(sourceTitle) {
+        const existingTitles = new Set(
+            this.listDecksMeta()
+                .map(deck => normalizeNonEmptyString(deck?.title, ''))
+                .filter(Boolean),
+        );
+
+        let copyIndex = 1;
+        while (true) {
+            const candidate = formatCopyTitle(sourceTitle, copyIndex);
+            if (!existingTitles.has(candidate)) {
+                return candidate;
+            }
+            copyIndex += 1;
+        }
+    }
+
+    duplicateDeck(deckId, payload = {}) {
+        const safeDeckId = assertValidDeckId(deckId);
+        const sourceDeck = this.readDeck(safeDeckId);
+        const input = payload && typeof payload === 'object' ? payload : {};
+        const requestedId = typeof input.id === 'string' ? input.id.trim() : '';
+        const nextDeckId = requestedId
+            ? assertValidDeckId(requestedId)
+            : this.resolveUniqueDeckId(`${safeDeckId}-copy`, 'deck-copy');
+
+        if (this.hasDeck(nextDeckId)) {
+            throw makeDeckExistsError();
+        }
+
+        const requestedTitle = normalizeNonEmptyString(input.title, '');
+        const now = new Date().toISOString();
+        const normalizedPayload = normalizeDeckPayload({
+            title: requestedTitle || this.resolveUniqueCopyTitle(sourceDeck.title),
+            description: sourceDeck.description,
+            files: sourceDeck.files,
+            slides: sourceDeck.slides,
+            terminal: sourceDeck.terminal,
+        });
+
+        const duplicatedDeck = {
+            id: nextDeckId,
+            title: normalizedPayload.title,
+            description: normalizedPayload.description,
+            createdAt: now,
+            updatedAt: now,
+            files: normalizedPayload.files,
+            slides: normalizedPayload.slides,
+            terminal: normalizedPayload.terminal,
+        };
+
+        this.writeDeck(duplicatedDeck);
+        return duplicatedDeck;
     }
 
     updateDeck(deckId, partialPayload = {}) {

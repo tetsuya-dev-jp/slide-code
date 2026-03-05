@@ -283,6 +283,24 @@ export function initDashboard(router) {
     }
   }
 
+  async function handleDuplicateDeck(id) {
+    try {
+      const duplicated = await api.duplicateDeck(id);
+      showToast(`「${duplicated.title}」を複製しました`);
+      show();
+    } catch (err) {
+      if (err?.status === 404) {
+        showToast('複製元のデッキが見つかりません');
+        return;
+      }
+      if (err?.status === 409) {
+        showToast('複製先のフォルダ名が衝突しました。再試行してください');
+        return;
+      }
+      showToast('複製に失敗しました');
+    }
+  }
+
   async function handleDeleteDeck(id) {
     if (!confirm('このデッキを削除しますか？')) return;
     try {
@@ -322,6 +340,9 @@ export function initDashboard(router) {
           <button class="btn-icon deck-edit" data-id="${deck.id}" title="編集" aria-label="デッキ「${escapeHtml(deck.title)}」を編集">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
           </button>
+          <button class="btn-icon deck-duplicate" data-id="${deck.id}" title="複製" aria-label="デッキ「${escapeHtml(deck.title)}」を複製">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          </button>
           <button class="btn-icon deck-export" data-id="${deck.id}" title="エクスポート" aria-label="デッキ「${escapeHtml(deck.title)}」をエクスポート">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           </button>
@@ -357,6 +378,9 @@ export function initDashboard(router) {
           showToast('デッキ情報の取得に失敗しました');
         }
       });
+    });
+    grid.querySelectorAll('.deck-duplicate').forEach(btn => {
+      btn.addEventListener('click', () => handleDuplicateDeck(btn.dataset.id));
     });
     grid.querySelectorAll('.deck-export').forEach(btn => {
       btn.addEventListener('click', () => exportDeck(btn.dataset.id));
