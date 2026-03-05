@@ -41,7 +41,12 @@ export function initPresentation(router) {
       document.getElementById('shellBody'),
       { isDark: theme.isDark, deckId: currentDeckId || '' },
     );
-    markdownPane = new MarkdownPane(document.getElementById('markdownBody'));
+    markdownPane = new MarkdownPane(document.getElementById('markdownBody'), {
+      resolveAssetUrl: (assetPath) => {
+        if (!currentDeckId) return `asset://${assetPath}`;
+        return api.getDeckAssetUrl(currentDeckId, assetPath);
+      },
+    });
 
     setupSlideChangeHandler();
     setupNavigation();

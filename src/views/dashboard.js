@@ -1,12 +1,10 @@
-/**
- * Dashboard View
- * Displays deck list with CRUD operations
- */
-
 import * as api from '../core/api.js';
 import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
+import { initDashboardExportModal } from './dashboard-export-modal.js';
+import { normalizeImportedDeck } from './deck-import-normalize.js';
+import { applyTemplateButtonState, collectSavedTemplateDeckIds, parseTemplateSelection } from './dashboard-template-state.js';
 
 const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -28,109 +26,55 @@ function createDeckFolderSlug(seed) {
 
 export function initDashboard(router) {
   initDashboardConfigModal({ onSaved: show });
-
-  function normalizeImportedDeck(data, filename) {
-    if (!data || typeof data !== 'object' || Array.isArray(data)) {
-      throw new Error('invalid-deck');
-    }
-
-    const fallbackTitle = filename.replace(/\.json$/i, '') || 'インポートしたデッキ';
-    const title = typeof data.title === 'string' && data.title.trim()
-      ? data.title.trim()
-      : fallbackTitle;
-    const description = typeof data.description === 'string' ? data.description : '';
-    const terminalCwd = typeof data.terminal?.cwd === 'string'
-      ? data.terminal.cwd.trim()
-      : '';
-
-    const normalizedFiles = Array.isArray(data.files)
-      ? data.files
-        .filter(file => file && typeof file === 'object')
-        .map((file, index) => {
-          const fallbackName = index === 0 ? 'main.py' : `file${index + 1}.txt`;
-          return {
-            name: typeof file.name === 'string' && file.name.trim() ? file.name.trim() : fallbackName,
-            language: typeof file.language === 'string' && file.language.trim() ? file.language.trim() : 'plaintext',
-            code: typeof file.code === 'string' ? file.code : '',
-          };
-        })
-      : [];
-
-    if (normalizedFiles.length === 0) {
-      normalizedFiles.push({ name: 'main.py', language: 'python', code: '' });
-    }
-
-    const fileNames = new Set(normalizedFiles.map(file => file.name));
-    const fallbackFileRef = normalizedFiles[0].name;
-
-    const normalizeLineRange = (lineRange) => {
-      let start = parseInt(Array.isArray(lineRange) ? lineRange[0] : undefined, 10);
-      let end = parseInt(Array.isArray(lineRange) ? lineRange[1] : undefined, 10);
-      if (!Number.isFinite(start) || start < 1) start = 1;
-      if (!Number.isFinite(end) || end < start) end = start;
-      return [start, end];
-    };
-
-    const normalizedSlides = Array.isArray(data.slides)
-      ? data.slides
-        .filter(slide => slide && typeof slide === 'object')
-        .map((slide, index) => {
-          const fileRef = typeof slide.fileRef === 'string' && fileNames.has(slide.fileRef)
-            ? slide.fileRef
-            : fallbackFileRef;
-          const lineRange = normalizeLineRange(slide.lineRange);
-          const highlightLines = Array.isArray(slide.highlightLines)
-            ? slide.highlightLines
-              .map(line => parseInt(line, 10))
-              .filter(line => Number.isFinite(line) && line >= lineRange[0] && line <= lineRange[1])
-            : [];
-
-          return {
-            title: typeof slide.title === 'string' && slide.title.trim() ? slide.title.trim() : `スライド ${index + 1}`,
-            fileRef,
-            lineRange,
-            highlightLines,
-            markdown: typeof slide.markdown === 'string' ? slide.markdown : '',
-          };
-        })
-      : [];
-
-    if (normalizedSlides.length === 0) {
-      normalizedSlides.push({
-        title: 'スライド 1',
-        fileRef: fallbackFileRef,
-        lineRange: [1, 1],
-        highlightLines: [],
-        markdown: '',
-      });
-    }
-
-    return {
-      title,
-      description,
-      files: normalizedFiles,
-      slides: normalizedSlides,
-      terminal: {
-        cwd: terminalCwd,
-      },
-    };
-  }
-
-  // --------------- Deck Modal ---------------
+  const { openExportModal } = initDashboardExportModal();
   const modalEl      = document.getElementById('deckModal');
   const modalTitle   = document.getElementById('deckModalTitle');
   const modalForm    = document.getElementById('deckModalForm');
   const modalName    = document.getElementById('deckModalName');
   const modalFolder  = document.getElementById('deckModalFolder');
   const modalDesc    = document.getElementById('deckModalDesc');
+  const modalTemplateField = document.getElementById('deckModalTemplateField');
+  const modalTemplate = document.getElementById('deckModalTemplate');
   const modalSubmit  = document.getElementById('deckModalSubmit');
   const modalCancel  = document.getElementById('deckModalCancel');
 
-  /** @type {string|null} deck id when editing, null for create */
   let editingDeckId = null;
   let autoSyncFolderName = true;
   let modalTriggerEl = null;
+  let savedTemplateDeckIds = new Set();
 
+  async function loadTemplateOptions() {
+    if (!modalTemplate) return;
+    const baseOption = document.createElement('option');
+    baseOption.value = '';
+    baseOption.textContent = '空のデッキから作成';
+    modalTemplate.innerHTML = '';
+    modalTemplate.appendChild(baseOption);
+
+    try {
+      const templates = await api.listTemplates();
+      const localTemplates = Array.isArray(templates?.local) ? templates.local : [];
+      const sharedTemplates = Array.isArray(templates?.shared) ? templates.shared : [];
+
+      const appendGroup = (label, source, items) => {
+        if (!items.length) return;
+        const groupEl = document.createElement('optgroup');
+        groupEl.label = label;
+        items.forEach((template) => {
+          const optionEl = document.createElement('option');
+          optionEl.value = `${source}:${template.id}`;
+          optionEl.textContent = template.title || template.id;
+          groupEl.appendChild(optionEl);
+        });
+        modalTemplate.appendChild(groupEl);
+      };
+
+      appendGroup('ローカルテンプレート', 'local', localTemplates);
+      appendGroup('共有テンプレート', 'shared', sharedTemplates);
+    } catch {
+      showToast('テンプレート一覧の取得に失敗しました');
+    }
+  }
   function openModal(mode, deckData, triggerEl = document.activeElement) {
     modalTriggerEl = triggerEl instanceof HTMLElement ? triggerEl : null;
     editingDeckId = mode === 'edit' ? deckData.id : null;
@@ -143,6 +87,15 @@ export function initDashboard(router) {
       ? (deckData?.id || '')
       : createDeckFolderSlug(currentTitle || 'deck');
     modalDesc.value = deckData?.description || '';
+    if (modalTemplateField) {
+      modalTemplateField.hidden = mode === 'edit';
+    }
+    if (modalTemplate) {
+      modalTemplate.value = '';
+      if (mode !== 'edit') {
+        loadTemplateOptions();
+      }
+    }
     modalName.classList.remove('modal-input-error');
     modalFolder.classList.remove('modal-input-error');
     modalEl.hidden = false;
@@ -184,7 +137,6 @@ export function initDashboard(router) {
     }
     trapFocusInModal(e, modalEl);
   });
-
   modalForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const title = modalName.value.trim();
@@ -204,6 +156,7 @@ export function initDashboard(router) {
     modalFolder.classList.remove('modal-input-error');
 
     const description = modalDesc.value.trim();
+    const selectedTemplate = parseTemplateSelection(modalTemplate?.value || '');
 
     try {
       if (editingDeckId) {
@@ -216,11 +169,18 @@ export function initDashboard(router) {
         closeModal({ restore: false });
         show();
       } else {
-        const deck = await api.createDeck({
-          id: folderName,
-          title,
-          description,
-        });
+        const deck = selectedTemplate
+          ? await api.createDeckFromTemplate({
+            ...selectedTemplate,
+            id: folderName,
+            title,
+            description,
+          })
+          : await api.createDeck({
+            id: folderName,
+            title,
+            description,
+          });
         closeModal({ restore: false });
         router.navigate(`/deck/${deck.id}/edit`);
       }
@@ -241,12 +201,10 @@ export function initDashboard(router) {
     }
   });
 
-  // New deck button → open create modal
   document.getElementById('newDeckBtn').addEventListener('click', (event) => {
     openModal('create', {}, event.currentTarget);
   });
 
-  // Import button
   document.getElementById('importBtn').addEventListener('click', () => {
     document.getElementById('importFileInput').click();
   });
@@ -266,23 +224,6 @@ export function initDashboard(router) {
     }
     e.target.value = '';
   });
-
-  async function exportDeck(id) {
-    try {
-      const deck = await api.getDeck(id);
-      const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${deck.title || 'deck'}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      showToast('エクスポートしました');
-    } catch {
-      showToast('エクスポートに失敗しました');
-    }
-  }
-
   async function handleDuplicateDeck(id) {
     try {
       const duplicated = await api.duplicateDeck(id);
@@ -312,6 +253,41 @@ export function initDashboard(router) {
     }
   }
 
+  async function handleToggleTemplate(id) {
+    if (savedTemplateDeckIds.has(id)) {
+      try {
+        const deleted = await api.deleteTemplatesFromDeck(id);
+        savedTemplateDeckIds.delete(id);
+        const removedCount = Number.isFinite(deleted?.removedCount) ? deleted.removedCount : 0;
+        showToast(removedCount > 0 ? 'テンプレートを削除しました' : 'テンプレートは既にありません');
+        return false;
+      } catch (err) {
+        if (err?.status === 404) {
+          savedTemplateDeckIds.delete(id);
+          showToast('テンプレートは既にありません');
+          return false;
+        }
+        showToast('テンプレート削除に失敗しました');
+        return true;
+      }
+    }
+
+    try {
+      const template = await api.saveTemplateFromDeck(id);
+      savedTemplateDeckIds.add(id);
+      showToast(`テンプレート「${template.title}」を保存しました`);
+      return true;
+    } catch (err) {
+      if (err?.status === 409) {
+        savedTemplateDeckIds.add(id);
+        showToast('このデッキは既にテンプレート保存済みです');
+        return true;
+      }
+      showToast('テンプレート保存に失敗しました');
+      return false;
+    }
+  }
+
   function renderDeckGrid(decks) {
     const grid = document.getElementById('deckGrid');
     if (decks.length === 0) {
@@ -323,7 +299,9 @@ export function initDashboard(router) {
       return;
     }
 
-    grid.innerHTML = decks.map(deck => `
+    grid.innerHTML = decks.map(deck => {
+      const templateSaved = savedTemplateDeckIds.has(deck.id);
+      return `
       <div class="deck-card" data-id="${deck.id}" role="button" tabindex="0" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
         <div class="deck-card-body">
           <h3 class="deck-card-title">${escapeHtml(deck.title)}</h3>
@@ -343,6 +321,9 @@ export function initDashboard(router) {
           <button class="btn-icon deck-duplicate" data-id="${deck.id}" title="複製" aria-label="デッキ「${escapeHtml(deck.title)}」を複製">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           </button>
+          <button class="btn-icon deck-template ${templateSaved ? 'is-saved' : ''}" data-id="${deck.id}" data-title="${escapeHtml(deck.title)}" title="${templateSaved ? 'テンプレート保存済み（クリックで削除）' : 'テンプレート保存'}" aria-label="${templateSaved ? `デッキ「${escapeHtml(deck.title)}」のテンプレートを削除` : `デッキ「${escapeHtml(deck.title)}」をテンプレートとして保存`}" aria-pressed="${templateSaved ? 'true' : 'false'}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+          </button>
           <button class="btn-icon deck-export" data-id="${deck.id}" title="エクスポート" aria-label="デッキ「${escapeHtml(deck.title)}」をエクスポート">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           </button>
@@ -351,7 +332,8 @@ export function initDashboard(router) {
           </button>
         </div>
       </div>
-    `).join('');
+    `;
+    }).join('');
 
     grid.querySelectorAll('.deck-card').forEach(card => {
       card.addEventListener('click', (event) => {
@@ -382,8 +364,14 @@ export function initDashboard(router) {
     grid.querySelectorAll('.deck-duplicate').forEach(btn => {
       btn.addEventListener('click', () => handleDuplicateDeck(btn.dataset.id));
     });
+    grid.querySelectorAll('.deck-template').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const nextSaved = await handleToggleTemplate(btn.dataset.id);
+        applyTemplateButtonState(btn, nextSaved);
+      });
+    });
     grid.querySelectorAll('.deck-export').forEach(btn => {
-      btn.addEventListener('click', () => exportDeck(btn.dataset.id));
+      btn.addEventListener('click', () => openExportModal(btn.dataset.id, btn));
     });
     grid.querySelectorAll('.deck-delete').forEach(btn => {
       btn.addEventListener('click', () => handleDeleteDeck(btn.dataset.id));
@@ -394,7 +382,11 @@ export function initDashboard(router) {
     const grid = document.getElementById('deckGrid');
     grid.innerHTML = '<div class="deck-loading">読み込み中...</div>';
     try {
-      const decks = await api.listDecks();
+      const [decks, templates] = await Promise.all([
+        api.listDecks(),
+        api.listTemplates().catch(() => null),
+      ]);
+      savedTemplateDeckIds = collectSavedTemplateDeckIds(templates);
       renderDeckGrid(decks);
     } catch (err) {
       grid.innerHTML = '<div class="deck-error">デッキの読み込みに失敗しました</div>';

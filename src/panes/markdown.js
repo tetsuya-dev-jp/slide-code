@@ -81,14 +81,31 @@ function processKaTeX(html) {
 }
 
 export class MarkdownPane {
-    constructor(markdownBodyEl) {
+    constructor(markdownBodyEl, { resolveAssetUrl } = {}) {
         this.markdownBody = markdownBodyEl;
         this.mermaidId = 0;
+        this.resolveAssetUrl = typeof resolveAssetUrl === 'function' ? resolveAssetUrl : null;
 
         // Configure marked
         marked.setOptions({
             gfm: true,
             breaks: true,
+        });
+    }
+
+    resolveAssetLinks(markdownText) {
+        if (!this.resolveAssetUrl || typeof markdownText !== 'string' || !markdownText.includes('asset://')) {
+            return markdownText;
+        }
+
+        return markdownText.replace(/asset:\/\/([^\s)"'`<>]+)/g, (match, assetPath) => {
+            try {
+                const resolved = this.resolveAssetUrl(assetPath);
+                if (typeof resolved !== 'string' || !resolved) return match;
+                return resolved;
+            } catch {
+                return match;
+            }
         });
     }
 
@@ -109,8 +126,9 @@ export class MarkdownPane {
         }
 
         // Pre-process: Extract mermaid code blocks before marked parses them
+        const markdownWithResolvedAssets = this.resolveAssetLinks(md);
         const mermaidBlocks = [];
-        const mdProcessed = md.replace(/```mermaid\n([\s\S]*?)```/g, (match, code) => {
+        const mdProcessed = markdownWithResolvedAssets.replace(/```mermaid\n([\s\S]*?)```/g, (match, code) => {
             const id = `mermaid-${this.mermaidId++}`;
             mermaidBlocks.push({ id, code: code.trim() });
             return `<div class="mermaid" id="${id}"></div>`;

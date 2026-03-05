@@ -19,11 +19,15 @@ export function initDashboardConfigModal({ onSaved } = {}) {
   const modalEl = document.getElementById('appConfigModal');
   const formEl = document.getElementById('appConfigForm');
   const decksDirEl = document.getElementById('appConfigDecksDir');
+  const templatesDirEl = document.getElementById('appConfigTemplatesDir');
+  const sharedTemplatesDirEl = document.getElementById('appConfigSharedTemplatesDir');
   const baseCwdEl = document.getElementById('appConfigTerminalBaseCwd');
   const shellEl = document.getElementById('appConfigTerminalShell');
   const pathEl = document.getElementById('appConfigFilePath');
   const cancelBtn = document.getElementById('appConfigCancel');
   const pickDecksDirBtn = document.getElementById('pickAppConfigDecksDirBtn');
+  const pickTemplatesDirBtn = document.getElementById('pickAppConfigTemplatesDirBtn');
+  const pickSharedTemplatesDirBtn = document.getElementById('pickAppConfigSharedTemplatesDirBtn');
   const pickBaseCwdBtn = document.getElementById('pickAppConfigTerminalBaseCwdBtn');
 
   const picker = {
@@ -40,7 +44,7 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     targetInput: null,
   };
 
-  if (!openBtn || !modalEl || !formEl || !decksDirEl || !baseCwdEl || !shellEl || !pathEl || !cancelBtn) {
+  if (!openBtn || !modalEl || !formEl || !decksDirEl || !templatesDirEl || !sharedTemplatesDirEl || !baseCwdEl || !shellEl || !pathEl || !cancelBtn) {
     return;
   }
 
@@ -50,6 +54,7 @@ export function initDashboardConfigModal({ onSaved } = {}) {
   function closeModal({ restore = true } = {}) {
     modalEl.hidden = true;
     decksDirEl.classList.remove('modal-input-error');
+    templatesDirEl.classList.remove('modal-input-error');
     baseCwdEl.classList.remove('modal-input-error');
     if (restore) {
       restoreFocus(configModalTriggerEl);
@@ -148,10 +153,13 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     try {
       const config = await api.getAppConfig();
       decksDirEl.value = config.decksDir || '';
+      templatesDirEl.value = config.templatesDir || '';
+      sharedTemplatesDirEl.value = config.sharedTemplatesDir || '';
       baseCwdEl.value = config.terminalBaseCwd || '';
       shellEl.value = config.terminalShell || '';
       pathEl.textContent = config.configFilePath || '';
       decksDirEl.classList.remove('modal-input-error');
+      templatesDirEl.classList.remove('modal-input-error');
       baseCwdEl.classList.remove('modal-input-error');
       modalEl.hidden = false;
       decksDirEl.focus();
@@ -168,21 +176,27 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     event.preventDefault();
 
     const decksDir = decksDirEl.value.trim();
+    const templatesDir = templatesDirEl.value.trim();
+    const sharedTemplatesDir = sharedTemplatesDirEl.value.trim();
     const terminalBaseCwd = baseCwdEl.value.trim();
     const terminalShell = shellEl.value.trim();
 
     const invalidDecksDir = !decksDir;
+    const invalidTemplatesDir = !templatesDir;
     const invalidBaseCwd = !terminalBaseCwd;
     decksDirEl.classList.toggle('modal-input-error', invalidDecksDir);
+    templatesDirEl.classList.toggle('modal-input-error', invalidTemplatesDir);
     baseCwdEl.classList.toggle('modal-input-error', invalidBaseCwd);
-    if (invalidDecksDir || invalidBaseCwd) {
-      (invalidDecksDir ? decksDirEl : baseCwdEl).focus();
+    if (invalidDecksDir || invalidTemplatesDir || invalidBaseCwd) {
+      (invalidDecksDir ? decksDirEl : (invalidTemplatesDir ? templatesDirEl : baseCwdEl)).focus();
       return;
     }
 
     try {
       const config = await api.updateAppConfig({
         decksDir,
+        templatesDir,
+        sharedTemplatesDir,
         terminalBaseCwd,
         terminalShell,
       });
@@ -215,6 +229,14 @@ export function initDashboardConfigModal({ onSaved } = {}) {
 
   pickDecksDirBtn?.addEventListener('click', async () => {
     await openPickerModal(decksDirEl);
+  });
+
+  pickTemplatesDirBtn?.addEventListener('click', async () => {
+    await openPickerModal(templatesDirEl);
+  });
+
+  pickSharedTemplatesDirBtn?.addEventListener('click', async () => {
+    await openPickerModal(sharedTemplatesDirEl);
   });
 
   pickBaseCwdBtn?.addEventListener('click', async () => {

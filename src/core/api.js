@@ -76,6 +76,101 @@ export async function duplicateDeck(id, data = {}) {
     return res.json();
 }
 
+/** List available templates */
+export async function listTemplates() {
+    const res = await fetch(`${BASE}/templates`);
+    if (!res.ok) await throwApiError(res, 'Failed to list templates');
+    return res.json();
+}
+
+/** Create deck from template */
+export async function createDeckFromTemplate(data = {}) {
+    const res = await fetch(`${BASE}/decks/from-template`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to create deck from template');
+    return res.json();
+}
+
+/** Save deck as local template */
+export async function saveTemplateFromDeck(id, data = {}) {
+    const res = await fetch(`${BASE}/templates/from-deck/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to save template');
+    return res.json();
+}
+
+/** Delete local templates derived from a deck */
+export async function deleteTemplatesFromDeck(id) {
+    const res = await fetch(`${BASE}/templates/from-deck/${id}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to delete template');
+    return res.json();
+}
+
+/** List assets for a deck */
+export async function listDeckAssets(id) {
+    const res = await fetch(`${BASE}/decks/${id}/assets`);
+    if (!res.ok) await throwApiError(res, 'Failed to list assets');
+    const payload = await res.json();
+    return Array.isArray(payload?.assets) ? payload.assets : [];
+}
+
+/** Upload an asset to a deck */
+export async function uploadDeckAsset(id, data = {}) {
+    const res = await fetch(`${BASE}/decks/${id}/assets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to upload asset');
+    return res.json();
+}
+
+/** Delete an asset from a deck */
+export async function deleteDeckAsset(id, assetPath) {
+    const params = new URLSearchParams();
+    params.set('path', assetPath);
+    const res = await fetch(`${BASE}/decks/${id}/assets?${params.toString()}`, {
+        method: 'DELETE',
+    });
+    if (!res.ok) await throwApiError(res, 'Failed to delete asset');
+    return res.json();
+}
+
+/** Get resolvable URL for deck asset */
+export function getDeckAssetUrl(id, assetPath) {
+    const params = new URLSearchParams();
+    params.set('path', assetPath);
+    return `${BASE}/decks/${id}/assets/file?${params.toString()}`;
+}
+
+/** Build export URL for browser navigation */
+export function getDeckExportUrl(id, format) {
+    return `${BASE}/decks/${id}/export/${format}`;
+}
+
+/** Download export as blob */
+export async function downloadDeckExport(id, format) {
+    const endpoint = getDeckExportUrl(id, format);
+    const res = await fetch(endpoint);
+    if (!res.ok) await throwApiError(res, 'Failed to export deck');
+
+    const disposition = res.headers.get('content-disposition') || '';
+    const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+    const blob = await res.blob();
+    return {
+        blob,
+        filename: filenameMatch?.[1] || `deck.${format}`,
+    };
+}
+
 /** List directories under terminal base cwd */
 export async function listDirectories(relativePath = '') {
     const params = new URLSearchParams();

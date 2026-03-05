@@ -1,5 +1,7 @@
 import path from 'path';
 
+export const DECK_SCHEMA_VERSION = 2;
+
 export const DEFAULT_FILE = {
     name: 'main.py',
     language: 'python',
@@ -30,6 +32,10 @@ export function normalizeRelativePath(rawPath, fallbackPath) {
     }
 
     return normalizedSegments.join('/');
+}
+
+export function normalizeAssetPath(rawPath, fallbackPath = 'asset.bin') {
+    return normalizeRelativePath(rawPath, fallbackPath);
 }
 
 function makeUniqueRelativePath(rawPath, usedNames, fallbackPath) {
@@ -176,6 +182,35 @@ function normalizeSlides(slides, files) {
     return normalized;
 }
 
+function normalizeAssets(assets) {
+    const source = Array.isArray(assets) ? assets : [];
+    const usedPaths = new Set();
+
+    return source
+        .map((entry, index) => {
+            if (!entry || typeof entry !== 'object') return null;
+
+            const fallbackName = `asset-${index + 1}.bin`;
+            const assetPath = makeUniqueRelativePath(
+                entry.path || entry.name,
+                usedPaths,
+                fallbackName,
+            );
+            const mimeType = normalizeNonEmptyString(entry.mimeType, 'application/octet-stream');
+            const kind = normalizeNonEmptyString(entry.kind, 'file');
+            const sizeRaw = Number.parseInt(entry.size, 10);
+            const size = Number.isFinite(sizeRaw) && sizeRaw >= 0 ? sizeRaw : 0;
+
+            return {
+                path: assetPath,
+                mimeType,
+                kind,
+                size,
+            };
+        })
+        .filter(Boolean);
+}
+
 function normalizeTerminalConfig(terminal) {
     const compact = normalizeString(terminal?.cwd, '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
     const cwd = compact
@@ -192,12 +227,15 @@ export function normalizeDeckPayload(payload = {}) {
     const files = normalizeFiles(source.files);
     const slides = normalizeSlides(source.slides, files);
     const terminal = normalizeTerminalConfig(source.terminal);
+    const assets = normalizeAssets(source.assets);
 
     return {
+        schemaVersion: DECK_SCHEMA_VERSION,
         title: normalizeNonEmptyString(source.title, '無題のデッキ'),
         description: normalizeString(source.description, ''),
         files,
         slides,
         terminal,
+        assets,
     };
 }

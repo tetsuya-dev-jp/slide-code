@@ -2,14 +2,31 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import {
+    DECK_SCHEMA_VERSION,
     DEFAULT_FILE,
     inferLanguageFromFilename,
+    normalizeAssetPath,
     normalizeDeckPayload,
     normalizeNonEmptyString,
     normalizeRelativePath,
     normalizeString,
     resolvePathInsideRoot,
 } from './deck-normalize.js';
+import {
+    copyDeckAssetsDirectory,
+    copyDeckAssetsFromStorage,
+    deleteDeckAsset,
+    readDeckAsset,
+    resolveUniqueDeckAssetPath,
+    upsertDeckAsset,
+} from './deck-assets.js';
+import {
+    duplicateDeck as duplicateDeckOp,
+    removeLegacyDecks as removeLegacyDecksOp,
+    resolveUniqueCopyTitle as resolveUniqueCopyTitleOp,
+    resolveUniqueDeckId as resolveUniqueDeckIdOp,
+    updateDeck as updateDeckOp,
+} from './deck-storage-ops.js';
 
 function assertValidDeckId(deckId) {
     const normalized = normalizeNonEmptyString(deckId, '');
@@ -21,6 +38,7 @@ function assertValidDeckId(deckId) {
 
 function toDeckManifest(deck) {
     return {
+        schemaVersion: DECK_SCHEMA_VERSION,
         id: deck.id,
         title: deck.title,
         description: deck.description,
@@ -32,6 +50,12 @@ function toDeckManifest(deck) {
             language: file.language,
         })),
         slides: deck.slides,
+        assets: (deck.assets || []).map(asset => ({
+            path: asset.path,
+            mimeType: asset.mimeType,
+            kind: asset.kind,
+            size: asset.size,
+        })),
     };
 }
 
@@ -41,24 +65,10 @@ function makeDeckExistsError() {
     return err;
 }
 
-function normalizeDeckIdSeed(seed, fallback = 'deck') {
-    const safeSeed = normalizeNonEmptyString(seed, fallback)
-        .replace(/\s+/g, '-')
-        .replace(/[^a-zA-Z0-9_-]/g, '-')
-        .replace(/-+/g, '-')
-        .replace(/^[-_]+|[-_]+$/g, '');
-    return safeSeed || fallback;
-}
-
-function formatCopyTitle(sourceTitle, index = 1) {
-    const normalizedTitle = normalizeNonEmptyString(sourceTitle, '無題のデッキ')
-        .replace(/\s*\(コピー(?:\s+\d+)?\)\s*$/, '')
-        .trim();
-    const baseTitle = normalizedTitle || '無題のデッキ';
-    if (index <= 1) {
-        return `${baseTitle} (コピー)`;
-    }
-    return `${baseTitle} (コピー ${index})`;
+function makeNotFoundError(message) {
+    const err = new Error(message);
+    err.code = 'ENOENT';
+    return err;
 }
 
 export class DeckStorage {
@@ -77,8 +87,7 @@ export class DeckStorage {
             .map(entry => entry.name)
             .filter((deckId) => {
                 if (!/^[a-zA-Z0-9_-]+$/.test(deckId)) return false;
-                const deckJsonPath = path.join(this.decksDir, deckId, 'deck.json');
-                return fs.existsSync(deckJsonPath);
+                return fs.existsSync(path.join(this.decksDir, deckId, 'deck.json'));
             })
             .sort((a, b) => a.localeCompare(b));
     }
@@ -96,9 +105,24 @@ export class DeckStorage {
         return path.join(this.getDeckDir(deckId), 'deck.json');
     }
 
+    getDeckFilesDir(deckId) {
+        return path.join(this.getDeckDir(deckId), 'files');
+    }
+
+    getDeckAssetsDir(deckId) {
+        return path.join(this.getDeckDir(deckId), 'assets');
+    }
+
     hasDeck(deckId) {
         const safeDeckId = assertValidDeckId(deckId);
         return fs.existsSync(this.getDeckJsonPath(safeDeckId));
+    }
+
+    getAssetAbsolutePath(deckId, assetPath) {
+        const safeDeckId = assertValidDeckId(deckId);
+        const assetsDir = this.getDeckAssetsDir(safeDeckId);
+        const normalizedPath = normalizeAssetPath(assetPath, 'asset.bin');
+        return resolvePathInsideRoot(assetsDir, normalizedPath);
     }
 
     readDeck(deckId) {
@@ -106,13 +130,15 @@ export class DeckStorage {
         const deckDir = this.getDeckDir(safeDeckId);
         const deckJsonPath = this.getDeckJsonPath(safeDeckId);
         if (!fs.existsSync(deckJsonPath)) {
-            const err = new Error('deck-not-found');
-            err.code = 'ENOENT';
-            throw err;
+            throw makeNotFoundError('deck-not-found');
         }
 
         const raw = fs.readFileSync(deckJsonPath, 'utf-8');
         const manifest = JSON.parse(raw);
+        if (manifest?.schemaVersion !== DECK_SCHEMA_VERSION) {
+            throw new Error('unsupported-deck-schema');
+        }
+
         const sourceFiles = Array.isArray(manifest.files) ? manifest.files : [];
         const files = sourceFiles.map((file, index) => {
             const fallbackName = index === 0 ? DEFAULT_FILE.name : `file${index + 1}.txt`;
@@ -138,28 +164,47 @@ export class DeckStorage {
             files,
             slides: manifest.slides,
             terminal: manifest.terminal,
+            assets: manifest.assets,
+        });
+
+        const assets = normalizedPayload.assets.map((asset) => {
+            let exists = false;
+            try {
+                const assetPath = this.getAssetAbsolutePath(safeDeckId, asset.path);
+                exists = fs.existsSync(assetPath) && fs.statSync(assetPath).isFile();
+            } catch {
+                exists = false;
+            }
+            return { ...asset, exists };
         });
 
         return {
+            schemaVersion: DECK_SCHEMA_VERSION,
             id: normalizeNonEmptyString(manifest.id, safeDeckId),
             title: normalizedPayload.title,
             description: normalizedPayload.description,
             createdAt: normalizeNonEmptyString(manifest.createdAt, new Date().toISOString()),
-            updatedAt: normalizeNonEmptyString(manifest.updatedAt, normalizeNonEmptyString(manifest.createdAt, new Date().toISOString())),
+            updatedAt: normalizeNonEmptyString(
+                manifest.updatedAt,
+                normalizeNonEmptyString(manifest.createdAt, new Date().toISOString()),
+            ),
             files: normalizedPayload.files,
             slides: normalizedPayload.slides,
             terminal: normalizedPayload.terminal,
+            assets,
         };
     }
 
     writeDeck(deck) {
         const safeDeckId = assertValidDeckId(deck.id);
         const deckDir = this.getDeckDir(safeDeckId);
-        const filesDir = path.join(deckDir, 'files');
+        const filesDir = this.getDeckFilesDir(safeDeckId);
+        const assetsDir = this.getDeckAssetsDir(safeDeckId);
         fs.mkdirSync(deckDir, { recursive: true });
 
         fs.rmSync(filesDir, { recursive: true, force: true });
         fs.mkdirSync(filesDir, { recursive: true });
+        fs.mkdirSync(assetsDir, { recursive: true });
 
         deck.files.forEach((file) => {
             const filePath = resolvePathInsideRoot(filesDir, file.name);
@@ -199,12 +244,11 @@ export class DeckStorage {
         const normalizedPayload = normalizeDeckPayload(payload);
         const requestedId = typeof payload?.id === 'string' ? payload.id.trim() : '';
         const resolvedId = requestedId ? assertValidDeckId(requestedId) : crypto.randomUUID();
-        if (this.hasDeck(resolvedId)) {
-            throw makeDeckExistsError();
-        }
+        if (this.hasDeck(resolvedId)) throw makeDeckExistsError();
 
         const now = new Date().toISOString();
         const deck = {
+            schemaVersion: DECK_SCHEMA_VERSION,
             id: resolvedId,
             title: normalizedPayload.title,
             description: normalizedPayload.description,
@@ -213,6 +257,7 @@ export class DeckStorage {
             files: normalizedPayload.files,
             slides: normalizedPayload.slides,
             terminal: normalizedPayload.terminal,
+            assets: normalizedPayload.assets,
         };
         this.writeDeck(deck);
         return deck;
@@ -220,13 +265,12 @@ export class DeckStorage {
 
     createDeckWithId(deckId, payload = {}) {
         const safeDeckId = assertValidDeckId(deckId);
-        if (this.hasDeck(safeDeckId)) {
-            throw makeDeckExistsError();
-        }
+        if (this.hasDeck(safeDeckId)) throw makeDeckExistsError();
 
         const normalizedPayload = normalizeDeckPayload(payload);
         const now = new Date().toISOString();
         const deck = {
+            schemaVersion: DECK_SCHEMA_VERSION,
             id: safeDeckId,
             title: normalizedPayload.title,
             description: normalizedPayload.description,
@@ -235,130 +279,66 @@ export class DeckStorage {
             files: normalizedPayload.files,
             slides: normalizedPayload.slides,
             terminal: normalizedPayload.terminal,
+            assets: normalizedPayload.assets,
         };
         this.writeDeck(deck);
         return deck;
     }
 
     resolveUniqueDeckId(seed, fallback = 'deck') {
-        const baseId = assertValidDeckId(normalizeDeckIdSeed(seed, fallback));
-        if (!this.hasDeck(baseId)) {
-            return baseId;
-        }
-
-        let index = 2;
-        while (true) {
-            const candidate = `${baseId}-${index}`;
-            if (!this.hasDeck(candidate)) {
-                return candidate;
-            }
-            index += 1;
-        }
+        return resolveUniqueDeckIdOp(this, seed, fallback);
     }
 
     resolveUniqueCopyTitle(sourceTitle) {
-        const existingTitles = new Set(
-            this.listDecksMeta()
-                .map(deck => normalizeNonEmptyString(deck?.title, ''))
-                .filter(Boolean),
-        );
+        return resolveUniqueCopyTitleOp(this, sourceTitle);
+    }
 
-        let copyIndex = 1;
-        while (true) {
-            const candidate = formatCopyTitle(sourceTitle, copyIndex);
-            if (!existingTitles.has(candidate)) {
-                return candidate;
-            }
-            copyIndex += 1;
-        }
+    copyAssetsDirectory(sourceDeckId, targetDeckId) {
+        copyDeckAssetsDirectory(this, sourceDeckId, targetDeckId);
+    }
+
+    copyAssetsFromStorage(sourceStorage, sourceDeckId, targetDeckId) {
+        copyDeckAssetsFromStorage(this, sourceStorage, sourceDeckId, targetDeckId);
     }
 
     duplicateDeck(deckId, payload = {}) {
-        const safeDeckId = assertValidDeckId(deckId);
-        const sourceDeck = this.readDeck(safeDeckId);
-        const input = payload && typeof payload === 'object' ? payload : {};
-        const requestedId = typeof input.id === 'string' ? input.id.trim() : '';
-        const nextDeckId = requestedId
-            ? assertValidDeckId(requestedId)
-            : this.resolveUniqueDeckId(`${safeDeckId}-copy`, 'deck-copy');
-
-        if (this.hasDeck(nextDeckId)) {
-            throw makeDeckExistsError();
-        }
-
-        const requestedTitle = normalizeNonEmptyString(input.title, '');
-        const now = new Date().toISOString();
-        const normalizedPayload = normalizeDeckPayload({
-            title: requestedTitle || this.resolveUniqueCopyTitle(sourceDeck.title),
-            description: sourceDeck.description,
-            files: sourceDeck.files,
-            slides: sourceDeck.slides,
-            terminal: sourceDeck.terminal,
-        });
-
-        const duplicatedDeck = {
-            id: nextDeckId,
-            title: normalizedPayload.title,
-            description: normalizedPayload.description,
-            createdAt: now,
-            updatedAt: now,
-            files: normalizedPayload.files,
-            slides: normalizedPayload.slides,
-            terminal: normalizedPayload.terminal,
-        };
-
-        this.writeDeck(duplicatedDeck);
-        return duplicatedDeck;
+        return duplicateDeckOp(this, deckId, payload);
     }
 
     updateDeck(deckId, partialPayload = {}) {
-        const safeDeckId = assertValidDeckId(deckId);
-        const existing = this.readDeck(safeDeckId);
-        const input = partialPayload && typeof partialPayload === 'object' ? partialPayload : {};
-        const requestedId = typeof input.id === 'string' ? input.id.trim() : '';
-        const nextDeckId = requestedId ? assertValidDeckId(requestedId) : safeDeckId;
-        if (nextDeckId !== safeDeckId && this.hasDeck(nextDeckId)) {
-            throw makeDeckExistsError();
-        }
+        return updateDeckOp(this, deckId, partialPayload);
+    }
 
-        const merged = {
-            ...existing,
-            title: input.title ?? existing.title,
-            description: input.description ?? existing.description,
-            files: input.files ?? existing.files,
-            slides: input.slides ?? existing.slides,
-            terminal: input.terminal ?? existing.terminal,
-        };
-        const normalizedPayload = normalizeDeckPayload(merged);
+    resolveUniqueAssetPath(deckId, requestedPath) {
+        return resolveUniqueDeckAssetPath(this, deckId, requestedPath);
+    }
 
-        const updated = {
-            ...existing,
-            id: nextDeckId,
-            title: normalizedPayload.title,
-            description: normalizedPayload.description,
-            files: normalizedPayload.files,
-            slides: normalizedPayload.slides,
-            terminal: normalizedPayload.terminal,
-            updatedAt: new Date().toISOString(),
-        };
-        this.writeDeck(updated);
+    upsertAsset(deckId, payload = {}) {
+        return upsertDeckAsset(this, deckId, payload);
+    }
 
-        if (nextDeckId !== safeDeckId) {
-            const oldDeckDir = this.getDeckDir(safeDeckId);
-            fs.rmSync(oldDeckDir, { recursive: true, force: true });
-        }
+    listDeckAssets(deckId) {
+        return this.readDeck(deckId).assets;
+    }
 
-        return updated;
+    readAsset(deckId, assetPath) {
+        return readDeckAsset(this, deckId, assetPath);
+    }
+
+    deleteAsset(deckId, assetPath) {
+        deleteDeckAsset(this, deckId, assetPath);
     }
 
     deleteDeck(deckId) {
         const safeDeckId = assertValidDeckId(deckId);
         const deckDir = this.getDeckDir(safeDeckId);
         if (!fs.existsSync(deckDir)) {
-            const err = new Error('deck-not-found');
-            err.code = 'ENOENT';
-            throw err;
+            throw makeNotFoundError('deck-not-found');
         }
         fs.rmSync(deckDir, { recursive: true, force: true });
+    }
+
+    removeLegacyDecks() {
+        return removeLegacyDecksOp(this);
     }
 }

@@ -214,6 +214,10 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
               設定
             </button>
+            <button class="btn btn-secondary" id="editorAssetsBtn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"></path><path d="M4 17h16"></path><path d="M7 7v10"></path><path d="M17 7v10"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
+              素材
+            </button>
             <button class="btn btn-secondary" id="editorPreviewBtn">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               プレビュー
@@ -345,6 +349,7 @@
                   <label>マークダウン</label>
                   <textarea id="editorMarkdown" class="editor-textarea editor-markdown-textarea" placeholder="マークダウンで解説を入力..." spellcheck="false"></textarea>
                 </div>
+                <p class="editor-asset-warning" id="editorAssetWarning" hidden></p>
                 <div class="editor-markdown-resizer" id="editorMarkdownResizer" title="ドラッグして上下の比率を調整"></div>
                 <div class="editor-field editor-markdown-preview-field">
                   <label>プレビュー</label>
@@ -371,6 +376,24 @@
             <div class="modal-input-with-btn">
               <input type="text" id="appConfigDecksDir" placeholder="例: ~/.local/share/slidecode/decks" required />
               <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigDecksDirBtn" title="ディレクトリを選択" aria-label="デッキ保存ディレクトリを選択">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div class="modal-field">
+            <label for="appConfigTemplatesDir">テンプレート保存ディレクトリ <span class="modal-required">*</span></label>
+            <div class="modal-input-with-btn">
+              <input type="text" id="appConfigTemplatesDir" placeholder="例: ~/.local/share/slidecode/templates" required />
+              <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigTemplatesDirBtn" title="ディレクトリを選択" aria-label="テンプレート保存ディレクトリを選択">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              </button>
+            </div>
+          </div>
+          <div class="modal-field">
+            <label for="appConfigSharedTemplatesDir">共有テンプレートディレクトリ <span class="modal-optional">任意</span></label>
+            <div class="modal-input-with-btn">
+              <input type="text" id="appConfigSharedTemplatesDir" placeholder="例: /mnt/team-templates" />
+              <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigSharedTemplatesDirBtn" title="ディレクトリを選択" aria-label="共有テンプレートディレクトリを選択">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               </button>
             </div>
@@ -419,6 +442,13 @@
       <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckModalTitle">
         <h3 class="modal-title" id="deckModalTitle">新規デッキ</h3>
         <form id="deckModalForm" autocomplete="off">
+          <div class="modal-field" id="deckModalTemplateField">
+            <label for="deckModalTemplate">テンプレート <span class="modal-optional">任意</span></label>
+            <select id="deckModalTemplate" class="editor-select">
+              <option value="">空のデッキから作成</option>
+            </select>
+            <p class="modal-hint">ローカルと共有テンプレートを選択できます</p>
+          </div>
           <div class="modal-field">
             <label for="deckModalName">タイトル <span class="modal-required">*</span></label>
             <input type="text" id="deckModalName" placeholder="デッキのタイトルを入力" required />
@@ -435,6 +465,27 @@
           <div class="modal-actions">
             <button type="button" class="btn btn-secondary" id="deckModalCancel">キャンセル</button>
             <button type="submit" class="btn btn-primary" id="deckModalSubmit">作成</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="deckExportModal" hidden>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckExportTitle">
+        <h3 class="modal-title" id="deckExportTitle">エクスポート</h3>
+        <form id="deckExportForm" autocomplete="off">
+          <div class="modal-field">
+            <label for="deckExportFormat">形式</label>
+            <select id="deckExportFormat" class="editor-select">
+              <option value="json">JSON</option>
+              <option value="html">HTML</option>
+              <option value="pdf">PDF（印刷）</option>
+              <option value="zip">ZIP</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="deckExportCancel">キャンセル</button>
+            <button type="submit" class="btn btn-primary" id="deckExportSubmit">エクスポート</button>
           </div>
         </form>
       </div>
@@ -487,6 +538,30 @@
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" id="cwdPickerCancel">キャンセル</button>
           <button type="button" class="btn btn-primary" id="cwdPickerSelect">この場所を使う</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="editorAssetsModal" hidden>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorAssetsTitle">
+        <h3 class="modal-title" id="editorAssetsTitle">素材管理</h3>
+        <div class="modal-field">
+          <label>アップロード</label>
+          <div class="editor-inline-actions">
+            <button type="button" class="btn btn-secondary" id="editorAssetsUploadBtn">画像を追加</button>
+          </div>
+          <input type="file" id="editorAssetsFileInput" accept="image/*" hidden />
+        </div>
+        <div class="modal-field">
+          <label>素材一覧</label>
+          <div class="editor-assets-list" id="editorAssetsList"></div>
+        </div>
+        <div class="modal-field">
+          <label>参照切れ</label>
+          <p class="editor-asset-warning" id="editorAssetsBrokenRefs">参照切れはありません</p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="editorAssetsClose">閉じる</button>
         </div>
       </div>
     </div>

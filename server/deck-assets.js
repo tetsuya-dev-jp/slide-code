@@ -1,0 +1,152 @@
+import fs from 'fs';
+import path from 'path';
+import {
+    normalizeAssetPath,
+    normalizeNonEmptyString,
+    normalizeString,
+    resolvePathInsideRoot,
+} from './deck-normalize.js';
+
+function guessMimeTypeFromPath(assetPath) {
+    const ext = path.extname(assetPath).toLowerCase();
+    if (ext === '.png') return 'image/png';
+    if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+    if (ext === '.gif') return 'image/gif';
+    if (ext === '.svg') return 'image/svg+xml';
+    if (ext === '.webp') return 'image/webp';
+    if (ext === '.avif') return 'image/avif';
+    if (ext === '.pdf') return 'application/pdf';
+    if (ext === '.txt') return 'text/plain';
+    if (ext === '.json') return 'application/json';
+    return 'application/octet-stream';
+}
+
+function copyDirectoryRecursive(sourceDir, targetDir) {
+    if (!fs.existsSync(sourceDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        return;
+    }
+
+    if (typeof fs.cpSync === 'function') {
+        fs.cpSync(sourceDir, targetDir, { recursive: true, force: true });
+        return;
+    }
+
+    fs.mkdirSync(targetDir, { recursive: true });
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+    entries.forEach((entry) => {
+        const sourcePath = path.join(sourceDir, entry.name);
+        const targetPath = path.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            copyDirectoryRecursive(sourcePath, targetPath);
+            return;
+        }
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(sourcePath, targetPath);
+    });
+}
+
+export function copyDeckAssetsDirectory(storage, sourceDeckId, targetDeckId) {
+    const sourceAssetsDir = storage.getDeckAssetsDir(sourceDeckId);
+    const targetAssetsDir = storage.getDeckAssetsDir(targetDeckId);
+    fs.rmSync(targetAssetsDir, { recursive: true, force: true });
+    copyDirectoryRecursive(sourceAssetsDir, targetAssetsDir);
+}
+
+export function copyDeckAssetsFromStorage(storage, sourceStorage, sourceDeckId, targetDeckId) {
+    const sourceAssetsDir = sourceStorage.getDeckAssetsDir(sourceDeckId);
+    const targetAssetsDir = storage.getDeckAssetsDir(targetDeckId);
+    fs.rmSync(targetAssetsDir, { recursive: true, force: true });
+    copyDirectoryRecursive(sourceAssetsDir, targetAssetsDir);
+}
+
+export function resolveUniqueDeckAssetPath(storage, deckId, requestedPath) {
+    const normalized = normalizeAssetPath(requestedPath, 'asset.bin');
+    const assetsDir = storage.getDeckAssetsDir(deckId);
+    const ext = path.posix.extname(normalized);
+    const stem = ext ? normalized.slice(0, -ext.length) : normalized;
+
+    let candidate = normalized;
+    let index = 2;
+    while (true) {
+        const absolute = resolvePathInsideRoot(assetsDir, candidate);
+        if (!fs.existsSync(absolute)) return candidate;
+        candidate = `${stem}-${index}${ext}`;
+        index += 1;
+    }
+}
+
+export function upsertDeckAsset(storage, deckId, payload = {}) {
+    const existing = storage.readDeck(deckId);
+    const input = payload && typeof payload === 'object' ? payload : {};
+    const sourcePath = typeof input.path === 'string' ? input.path : (input.name || 'asset.bin');
+    const assetPath = resolveUniqueDeckAssetPath(storage, deckId, sourcePath);
+
+    const buffer = Buffer.isBuffer(input.buffer)
+        ? input.buffer
+        : Buffer.from(normalizeString(input.contentBase64, ''), 'base64');
+    if (buffer.length === 0) {
+        const err = new Error('invalid-asset-content');
+        err.code = 'EINVAL';
+        throw err;
+    }
+
+    const absolutePath = storage.getAssetAbsolutePath(deckId, assetPath);
+    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+    fs.writeFileSync(absolutePath, buffer);
+
+    const mimeType = normalizeNonEmptyString(input.mimeType, guessMimeTypeFromPath(assetPath));
+    const kind = normalizeNonEmptyString(input.kind, mimeType.startsWith('image/') ? 'image' : 'file');
+    const size = buffer.length;
+
+    const persistedAssets = (existing.assets || [])
+        .filter(asset => asset.path !== assetPath)
+        .map(({ exists, ...asset }) => asset);
+    persistedAssets.push({ path: assetPath, mimeType, kind, size });
+
+    storage.writeDeck({
+        ...existing,
+        assets: persistedAssets,
+        updatedAt: new Date().toISOString(),
+    });
+
+    return { path: assetPath, mimeType, kind, size, exists: true };
+}
+
+export function readDeckAsset(storage, deckId, assetPath) {
+    const deck = storage.readDeck(deckId);
+    const normalizedPath = normalizeAssetPath(assetPath, 'asset.bin');
+    const absolutePath = storage.getAssetAbsolutePath(deckId, normalizedPath);
+    if (!fs.existsSync(absolutePath) || !fs.statSync(absolutePath).isFile()) {
+        const err = new Error('asset-not-found');
+        err.code = 'ENOENT';
+        throw err;
+    }
+
+    const manifestAsset = (deck.assets || []).find(asset => asset.path === normalizedPath);
+    return {
+        path: normalizedPath,
+        buffer: fs.readFileSync(absolutePath),
+        mimeType: manifestAsset?.mimeType || guessMimeTypeFromPath(normalizedPath),
+        kind: manifestAsset?.kind || 'file',
+    };
+}
+
+export function deleteDeckAsset(storage, deckId, assetPath) {
+    const deck = storage.readDeck(deckId);
+    const normalizedPath = normalizeAssetPath(assetPath, 'asset.bin');
+    const absolutePath = storage.getAssetAbsolutePath(deckId, normalizedPath);
+
+    if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
+        fs.rmSync(absolutePath, { force: true });
+    }
+
+    const nextAssets = (deck.assets || [])
+        .filter(asset => asset.path !== normalizedPath)
+        .map(({ exists, ...asset }) => asset);
+    storage.writeDeck({
+        ...deck,
+        assets: nextAssets,
+        updatedAt: new Date().toISOString(),
+    });
+}

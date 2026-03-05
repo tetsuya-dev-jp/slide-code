@@ -1067,6 +1067,19 @@ html, body {
   gap: 6px;
 }
 
+.modal-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.modal-checkbox-label input[type="checkbox"] {
+  accent-color: var(--accent-primary);
+}
+
 .modal-required {
   color: var(--accent-danger);
   font-weight: 700;
@@ -1489,6 +1502,16 @@ body.resizing-v {
   padding: 8px 12px;
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-tertiary);
+}
+
+.deck-template.is-saved {
+  color: var(--accent-primary);
+  background: var(--bg-elevated);
+}
+
+.deck-template.is-saved svg path {
+  fill: currentColor;
+  stroke: currentColor;
 }
 
 .deck-loading,
@@ -2252,6 +2275,46 @@ body.resizing-v {
   flex: 1;
   min-height: 0;
   resize: none;
+}
+
+.editor-asset-warning {
+  margin: 0;
+  font-size: 12px;
+  color: var(--accent-danger);
+}
+
+.editor-assets-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-primary);
+}
+
+.editor-assets-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.editor-assets-item:last-child {
+  border-bottom: 0;
+}
+
+.editor-assets-item-path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.editor-assets-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-danger-icon {

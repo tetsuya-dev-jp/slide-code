@@ -43,6 +43,13 @@ function resolvePathSetting(rawPath, fallbackPath, homeDir) {
     return path.resolve(homeDir, expanded);
 }
 
+function resolveOptionalPathSetting(rawPath, homeDir) {
+    const expanded = expandHomePrefix(rawPath, homeDir);
+    if (!expanded) return '';
+    if (path.isAbsolute(expanded)) return expanded;
+    return path.resolve(homeDir, expanded);
+}
+
 function resolveShellSetting(rawShell, fallbackShell, homeDir) {
     const expanded = expandHomePrefix(rawShell, homeDir);
     if (!expanded) return fallbackShell;
@@ -110,9 +117,11 @@ function migrateLegacyAppPaths(xdgConfigHome, xdgDataHome) {
     );
 }
 
-function createDefaultConfigTemplate(defaultDecksDir) {
+function createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir) {
     return {
         decksDir: defaultDecksDir,
+        templatesDir: defaultTemplatesDir,
+        sharedTemplatesDir: '',
         terminal: {
             baseCwd: '~',
             shell: '',
@@ -127,10 +136,10 @@ function createDefaultConfigTemplate(defaultDecksDir) {
     };
 }
 
-function ensureConfigFile(configFilePath, defaultDecksDir) {
+function ensureConfigFile(configFilePath, defaultDecksDir, defaultTemplatesDir) {
     if (fs.existsSync(configFilePath)) return;
     fs.mkdirSync(path.dirname(configFilePath), { recursive: true });
-    const template = createDefaultConfigTemplate(defaultDecksDir);
+    const template = createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir);
     fs.writeFileSync(configFilePath, `${JSON.stringify(template, null, 2)}\n`, 'utf-8');
 }
 
@@ -166,7 +175,8 @@ export function loadRuntimeConfig() {
     const configDir = path.join(xdgConfigHome, APP_NAME);
     const configFilePath = path.join(configDir, 'config.json');
     const defaultDecksDir = path.join(xdgDataHome, APP_NAME, 'decks');
-    ensureConfigFile(configFilePath, defaultDecksDir);
+    const defaultTemplatesDir = path.join(xdgDataHome, APP_NAME, 'templates');
+    ensureConfigFile(configFilePath, defaultDecksDir, defaultTemplatesDir);
 
     const rawConfig = readJsonFile(configFilePath, {});
     const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
@@ -176,6 +186,17 @@ export function loadRuntimeConfig() {
     const decksDir = resolvePathSetting(
         process.env.DECKS_DIR || config.decksDir,
         defaultDecksDir,
+        homeDir,
+    );
+
+    const templatesDir = resolvePathSetting(
+        process.env.TEMPLATES_DIR || config.templatesDir,
+        defaultTemplatesDir,
+        homeDir,
+    );
+
+    const sharedTemplatesDir = resolveOptionalPathSetting(
+        process.env.SHARED_TEMPLATES_DIR || config.sharedTemplatesDir,
         homeDir,
     );
 
@@ -222,6 +243,8 @@ export function loadRuntimeConfig() {
         xdgDataHome,
         configFilePath,
         decksDir,
+        templatesDir,
+        sharedTemplatesDir,
         apiPort,
         terminal: {
             shell,

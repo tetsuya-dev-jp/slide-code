@@ -6,27 +6,25 @@
 import cors from 'cors';
 import express from 'express';
 import fs from 'fs';
-import path from 'path';
 import pty from 'node-pty';
 import { WebSocketServer } from 'ws';
 import { DeckStorage } from './deck-storage.js';
 import {
     readRawConfigFile,
     resolvePathWithinBase,
-    resolveSystemPath,
     sanitizeConfigValue,
-    toPosixRelative,
     writeRawConfigFile,
 } from './path-config-utils.js';
+import { registerFsRoutes } from './fs-routes.js';
 import { loadRuntimeConfig } from './runtime-config.js';
-import { createSampleDeckPayload, SAMPLE_DECK_ID } from './sample-deck.js';
+import { registerExtraRoutes } from './extra-routes.js';
+import { createSampleDeckAssets, createSampleDeckPayload, SAMPLE_DECK_ID } from './sample-deck.js';
 
 function normalizeDeckId(deckId) {
     if (typeof deckId !== 'string') return '';
     const normalized = deckId.trim();
     return /^[a-zA-Z0-9_-]+$/.test(normalized) ? normalized : '';
 }
-
 
 function isAllowedOrigin(origin, allowedOrigins, hasExplicitOriginConfig) {
     if (!origin) return false;
@@ -77,16 +75,44 @@ function resolveDeckTerminalCwd(storage, deckId, baseCwd) {
 let runtimeConfig = loadRuntimeConfig();
 let storage = new DeckStorage(runtimeConfig.decksDir);
 storage.ensureReady();
+let templateStorage = new DeckStorage(runtimeConfig.templatesDir);
+templateStorage.ensureReady();
+let sharedTemplateStorage = runtimeConfig.sharedTemplatesDir
+    ? new DeckStorage(runtimeConfig.sharedTemplatesDir)
+    : null;
+
+function ensureSampleDeck() {
+    if (!storage.hasDeck(SAMPLE_DECK_ID)) {
+        storage.createDeckWithId(SAMPLE_DECK_ID, createSampleDeckPayload());
+    }
+
+    const existingAssets = new Set(
+        storage.listDeckAssets(SAMPLE_DECK_ID).filter(asset => asset.exists).map(asset => asset.path),
+    );
+    createSampleDeckAssets().forEach((asset) => {
+        if (existingAssets.has(asset.path)) return;
+        storage.upsertAsset(SAMPLE_DECK_ID, {
+            path: asset.path,
+            mimeType: asset.mimeType,
+            kind: asset.kind,
+            buffer: asset.buffer,
+        });
+    });
+}
 
 function applyLatestRuntimeConfig() {
     runtimeConfig = loadRuntimeConfig();
     storage = new DeckStorage(runtimeConfig.decksDir);
     storage.ensureReady();
+    templateStorage = new DeckStorage(runtimeConfig.templatesDir);
+    templateStorage.ensureReady();
+    sharedTemplateStorage = runtimeConfig.sharedTemplatesDir
+        ? new DeckStorage(runtimeConfig.sharedTemplatesDir)
+        : null;
 }
 
-if (storage.isEmpty()) {
-    storage.createDeckWithId(SAMPLE_DECK_ID, createSampleDeckPayload());
-}
+storage.removeLegacyDecks();
+ensureSampleDeck();
 
 const app = express();
 app.use(cors());
@@ -96,6 +122,8 @@ app.get('/api/config', (_req, res) => {
     res.json({
         configFilePath: runtimeConfig.configFilePath,
         decksDir: runtimeConfig.decksDir,
+        templatesDir: runtimeConfig.templatesDir,
+        sharedTemplatesDir: runtimeConfig.sharedTemplatesDir,
         terminalBaseCwd: runtimeConfig.terminal.baseCwd,
         terminalShell: runtimeConfig.terminal.shell,
     });
@@ -104,10 +132,12 @@ app.get('/api/config', (_req, res) => {
 app.put('/api/config', (req, res) => {
     const payload = req.body && typeof req.body === 'object' ? req.body : {};
     const decksDir = sanitizeConfigValue(payload.decksDir);
+    const templatesDir = sanitizeConfigValue(payload.templatesDir);
+    const sharedTemplatesDir = sanitizeConfigValue(payload.sharedTemplatesDir, { allowEmpty: true });
     const terminalBaseCwd = sanitizeConfigValue(payload.terminalBaseCwd);
     const terminalShell = sanitizeConfigValue(payload.terminalShell, { allowEmpty: true });
 
-    if (!decksDir || !terminalBaseCwd) {
+    if (!decksDir || !templatesDir || !terminalBaseCwd) {
         return res.status(400).json({ error: 'Invalid config value' });
     }
 
@@ -120,6 +150,8 @@ app.put('/api/config', (req, res) => {
         writeRawConfigFile(runtimeConfig.configFilePath, {
             ...currentRawConfig,
             decksDir,
+            templatesDir,
+            sharedTemplatesDir,
             terminal: {
                 ...currentRawTerminal,
                 baseCwd: terminalBaseCwd,
@@ -131,6 +163,8 @@ app.put('/api/config', (req, res) => {
         return res.json({
             configFilePath: runtimeConfig.configFilePath,
             decksDir: runtimeConfig.decksDir,
+            templatesDir: runtimeConfig.templatesDir,
+            sharedTemplatesDir: runtimeConfig.sharedTemplatesDir,
             terminalBaseCwd: runtimeConfig.terminal.baseCwd,
             terminalShell: runtimeConfig.terminal.shell,
         });
@@ -157,6 +191,9 @@ app.get('/api/decks/:id', (req, res) => {
         }
         if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
             return res.status(404).json({ error: 'Deck not found' });
+        }
+        if (err.message === 'unsupported-deck-schema') {
+            return res.status(400).json({ error: 'Unsupported deck schema version' });
         }
         return res.status(500).json({ error: err.message });
     }
@@ -191,6 +228,9 @@ app.post('/api/decks/:id/duplicate', (req, res) => {
         if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
             return res.status(404).json({ error: 'Deck not found' });
         }
+        if (err.message === 'unsupported-deck-schema') {
+            return res.status(400).json({ error: 'Unsupported deck schema version' });
+        }
         return res.status(500).json({ error: err.message });
     }
 });
@@ -208,6 +248,9 @@ app.put('/api/decks/:id', (req, res) => {
         }
         if (err.code === 'ENOENT' || err.message === 'deck-not-found') {
             return res.status(404).json({ error: 'Deck not found' });
+        }
+        if (err.message === 'unsupported-deck-schema') {
+            return res.status(400).json({ error: 'Unsupported deck schema version' });
         }
         return res.status(500).json({ error: err.message });
     }
@@ -228,71 +271,14 @@ app.delete('/api/decks/:id', (req, res) => {
     }
 });
 
-app.get('/api/fs/dirs', (req, res) => {
-    const requestedPath = Array.isArray(req.query.path)
-        ? req.query.path[0]
-        : req.query.path;
+registerFsRoutes(app, () => runtimeConfig);
 
-    try {
-        const baseCwd = fs.existsSync(runtimeConfig.terminal.baseCwd)
-            ? runtimeConfig.terminal.baseCwd
-            : runtimeConfig.homeDir;
-        const currentDir = resolvePathWithinBase(baseCwd, requestedPath || '');
-        const parentDir = currentDir === baseCwd ? null : path.dirname(currentDir);
-
-        const directories = fs.readdirSync(currentDir, { withFileTypes: true })
-            .filter(entry => entry.isDirectory())
-            .map(entry => ({
-                name: entry.name,
-                path: toPosixRelative(baseCwd, path.join(currentDir, entry.name)),
-            }))
-            .sort((left, right) => left.name.localeCompare(right.name));
-
-        res.json({
-            currentPath: toPosixRelative(baseCwd, currentDir),
-            parentPath: parentDir ? toPosixRelative(baseCwd, parentDir) : null,
-            directories,
-        });
-    } catch (err) {
-        if (['invalid-path', 'path-outside-base', 'path-not-found', 'not-a-directory'].includes(err.message)) {
-            return res.status(400).json({ error: 'Invalid directory path' });
-        }
-        return res.status(500).json({ error: err.message });
-    }
-});
-
-app.get('/api/fs/system-dirs', (req, res) => {
-    const requestedPath = Array.isArray(req.query.path)
-        ? req.query.path[0]
-        : req.query.path;
-
-    try {
-        const homeDir = runtimeConfig.homeDir || process.cwd();
-        const currentDir = resolveSystemPath(requestedPath, homeDir);
-        const rootDir = path.parse(currentDir).root;
-        const parentDir = currentDir === rootDir ? null : path.dirname(currentDir);
-
-        const directories = fs.readdirSync(currentDir, { withFileTypes: true })
-            .filter(entry => entry.isDirectory())
-            .map(entry => ({
-                name: entry.name,
-                path: path.join(currentDir, entry.name),
-            }))
-            .sort((left, right) => left.name.localeCompare(right.name));
-
-        res.json({
-            currentPath: currentDir,
-            parentPath: parentDir,
-            homePath: homeDir,
-            directories,
-        });
-    } catch (err) {
-        if (['path-not-found', 'not-a-directory'].includes(err.message)) {
-            return res.status(400).json({ error: 'Invalid directory path' });
-        }
-        return res.status(500).json({ error: err.message });
-    }
-});
+registerExtraRoutes(app, () => ({
+    runtimeConfig,
+    storage,
+    templateStorage,
+    sharedTemplateStorage,
+}));
 
 const apiServer = app.listen(runtimeConfig.apiPort, () => {
     console.log(`API server listening on http://localhost:${runtimeConfig.apiPort}`);

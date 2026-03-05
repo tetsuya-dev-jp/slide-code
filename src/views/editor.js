@@ -6,6 +6,7 @@
 import * as api from '../core/api.js';
 import * as monaco from 'monaco-editor';
 import { MarkdownPane } from '../panes/markdown.js';
+import { initEditorAssetsModal } from './editor-assets-modal.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
@@ -85,7 +86,13 @@ export function initEditor(router) {
   const saveButtonEl = document.getElementById('editorSaveBtn');
   const saveStatusEl = document.getElementById('editorSaveStatus');
 
-  const mdPreviewPane = new MarkdownPane(document.getElementById('editorMarkdownPreview'));
+  const mdPreviewPane = new MarkdownPane(document.getElementById('editorMarkdownPreview'), {
+    resolveAssetUrl: (assetPath) => {
+      const deckId = persistedDeckId || deck?.id;
+      if (!deckId) return `asset://${assetPath}`;
+      return api.getDeckAssetUrl(deckId, assetPath);
+    },
+  });
   const deckSettingsModal = {
     modalEl: document.getElementById('editorDeckSettingsModal'),
     formEl: document.getElementById('editorDeckSettingsForm'),
@@ -114,6 +121,7 @@ export function initEditor(router) {
 
   let deckSettingsTriggerEl = null;
   let cwdPickerTriggerEl = null;
+  let assetsModal = null;
 
   // --- Dirty state ---
 
@@ -735,6 +743,7 @@ export function initEditor(router) {
 
     updateCodePreview({ saveFile: false, reveal: true });
     updateMarkdownPreview();
+    assetsModal?.refreshBrokenReferences();
     loading = false;
   }
 
@@ -748,6 +757,26 @@ export function initEditor(router) {
     slide.lineRange = [lineStart, lineEnd];
     slide.markdown = document.getElementById('editorMarkdown').value;
     slide.highlightLines = parseHighlightLinesInput(document.getElementById('editorHighlight').value);
+  }
+
+  function insertAssetReference(assetPath) {
+    const markdownEl = document.getElementById('editorMarkdown');
+    if (!markdownEl) return;
+
+    const reference = `asset://${assetPath}`;
+    const start = Number.isFinite(markdownEl.selectionStart) ? markdownEl.selectionStart : markdownEl.value.length;
+    const end = Number.isFinite(markdownEl.selectionEnd) ? markdownEl.selectionEnd : start;
+    markdownEl.value = `${markdownEl.value.slice(0, start)}${reference}${markdownEl.value.slice(end)}`;
+    const cursor = start + reference.length;
+    markdownEl.setSelectionRange(cursor, cursor);
+    markdownEl.focus();
+
+    if (deck?.slides?.[slideIndex]) {
+      deck.slides[slideIndex].markdown = markdownEl.value;
+    }
+    updateMarkdownPreview();
+    assetsModal?.refreshBrokenReferences();
+    markDirty();
   }
 
   // --- Live Previews ---
@@ -1391,6 +1420,20 @@ export function initEditor(router) {
     setupCwdPickerEventListeners();
     setupModalKeyboardShortcuts();
     setHighlightInputVisible(false);
+    assetsModal = initEditorAssetsModal({
+      api,
+      showToast,
+      trapFocusInModal,
+      restoreFocus,
+      getDeckId: () => persistedDeckId || deck?.id || '',
+      getSlides: () => deck?.slides || [],
+      getAssets: () => deck?.assets || [],
+      setAssets: (assets) => {
+        if (!deck) return;
+        deck.assets = Array.isArray(assets) ? assets : [];
+      },
+      insertAssetReference,
+    });
 
     // File management
     document.getElementById('addFileBtn').addEventListener('click', () => {
@@ -1466,7 +1509,14 @@ export function initEditor(router) {
     document.getElementById('editorLineStart').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorLineEnd').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorHighlight').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
-    document.getElementById('editorMarkdown').addEventListener('input', () => { debouncedMarkdownPreview(); markDirty(); });
+    document.getElementById('editorMarkdown').addEventListener('input', () => {
+      if (deck?.slides?.[slideIndex]) {
+        deck.slides[slideIndex].markdown = document.getElementById('editorMarkdown').value;
+      }
+      debouncedMarkdownPreview();
+      assetsModal?.refreshBrokenReferences();
+      markDirty();
+    });
     document.getElementById('toggleHighlightInputBtn').addEventListener('click', () => {
       const rowEl = document.getElementById('editorHighlightInputRow');
       const nextVisible = rowEl ? rowEl.hidden : true;
@@ -1724,6 +1774,9 @@ export function initEditor(router) {
           markdown: '',
         }];
       }
+      if (!Array.isArray(deck.assets)) {
+        deck.assets = [];
+      }
       if (!deck.terminal || typeof deck.terminal !== 'object') {
         deck.terminal = { cwd: '' };
       }
@@ -1740,6 +1793,7 @@ export function initEditor(router) {
       loadFile(0);
       renderSlideList();
       loadSlide(0);
+      assetsModal?.refreshBrokenReferences();
       clearDirty();
       changeVersion = 0;
       setSaveStatus('saved');
