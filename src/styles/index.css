@@ -1293,6 +1293,17 @@ body.resizing-v {
   outline-offset: 2px;
 }
 
+.btn-icon:focus-visible,
+.nav-btn:focus-visible,
+.theme-toggle:focus-visible,
+.layout-picker-btn:focus-visible,
+.layout-option:focus-visible,
+.action-btn:focus-visible,
+.toggle-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .btn-primary {
   background: var(--accent-primary);
   color: #0b0b0b;
@@ -1425,6 +1436,12 @@ body.resizing-v {
   border-color: var(--accent-primary);
   transform: none;
   box-shadow: none;
+}
+
+.deck-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-color: var(--accent-primary);
 }
 
 .deck-card-body {

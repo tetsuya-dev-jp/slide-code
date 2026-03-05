@@ -76,28 +76,28 @@
       <div class="toolbar-right" id="toolbarRight">
         <!-- Layout Picker -->
         <div class="layout-picker" id="layoutPicker">
-          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更">
+          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更" aria-label="レイアウト変更">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
           </button>
           <div class="layout-dropdown" id="layoutDropdown">
-            <button class="layout-option active" data-layout="three-col" title="3列">
+            <button class="layout-option active" data-layout="three-col" title="3列" aria-label="3列レイアウト">
               <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="1" width="8" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
-            <button class="layout-option" data-layout="left-stack" title="左2段+右">
+            <button class="layout-option" data-layout="left-stack" title="左2段+右" aria-label="左2段+右レイアウト">
               <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
-            <button class="layout-option" data-layout="right-stack" title="左+右2段">
+            <button class="layout-option" data-layout="right-stack" title="左+右2段" aria-label="左+右2段レイアウト">
               <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
-            <button class="layout-option" data-layout="top-bottom" title="上+下2列">
+            <button class="layout-option" data-layout="top-bottom" title="上+下2列" aria-label="上+下2列レイアウト">
               <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
-            <button class="layout-option" data-layout="bottom-top" title="上2列+下">
+            <button class="layout-option" data-layout="bottom-top" title="上2列+下" aria-label="上2列+下レイアウト">
               <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
             </button>
           </div>
         </div>
-        <button class="theme-toggle" id="themeToggle" title="テーマ切替">
+        <button class="theme-toggle" id="themeToggle" title="テーマ切替" aria-label="テーマ切替">
           <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
           <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
         </button>
@@ -108,11 +108,11 @@
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
         </button>
         <div class="slide-nav" id="slideNav">
-          <button class="nav-btn" id="prevBtn" title="前のスライド">
+          <button class="nav-btn" id="prevBtn" title="前のスライド" aria-label="前のスライド">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
           <span class="slide-counter" id="slideCounter">1 / 1</span>
-          <button class="nav-btn" id="nextBtn" title="次のスライド">
+          <button class="nav-btn" id="nextBtn" title="次のスライド" aria-label="次のスライド">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
           </button>
         </div>
@@ -165,7 +165,7 @@
             </span>
             <div class="pane-actions">
               <span class="lang-badge" id="langBadge">python</span>
-              <button class="action-btn" id="copyBtn" title="コピー">
+              <button class="action-btn" id="copyBtn" title="コピー" aria-label="コードをコピー">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </button>
             </div>
@@ -231,7 +231,7 @@
               <div class="editor-sidebar-header">
                 <span>スライド一覧</span>
                 <div class="editor-sidebar-header-actions">
-                  <button class="btn-icon" id="addSlideBtn" title="スライド追加">
+                  <button class="btn-icon" id="addSlideBtn" title="スライド追加" aria-label="スライド追加">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </button>
                 </div>
@@ -295,10 +295,10 @@
               <div class="editor-files-header">
                 <span class="editor-section-label">ソースファイル + エディタ</span>
                 <div class="editor-files-actions">
-                  <button class="btn-icon" id="importFileFromDiskBtn" title="ローカルファイルを読み込む">
+                  <button class="btn-icon" id="importFileFromDiskBtn" title="ローカルファイルを読み込む" aria-label="ローカルファイルを読み込む">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
                   </button>
-                  <button class="btn-icon" id="addFileBtn" title="空ファイル追加">
+                  <button class="btn-icon" id="addFileBtn" title="空ファイル追加" aria-label="空ファイルを追加">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                   </button>
                 </div>
@@ -311,7 +311,7 @@
                 <div class="editor-file-meta">
                   <input type="text" id="editorFileName" placeholder="ファイル名 (例: main.py)" class="editor-file-name-input" />
                   <input type="text" id="editorFileLang" placeholder="言語 (例: python)" class="editor-file-lang-input" />
-                  <button class="btn-icon btn-danger-icon" id="deleteFileBtn" title="ファイル削除">
+                  <button class="btn-icon btn-danger-icon" id="deleteFileBtn" title="ファイル削除" aria-label="現在のファイルを削除">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                   </button>
                 </div>
@@ -415,7 +415,7 @@
 
     <!-- Deck create/edit modal -->
     <div class="modal-overlay" id="deckModal" hidden>
-      <div class="modal-dialog">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckModalTitle">
         <h3 class="modal-title" id="deckModalTitle">新規デッキ</h3>
         <form id="deckModalForm" autocomplete="off">
           <div class="modal-field">

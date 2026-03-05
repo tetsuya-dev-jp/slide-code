@@ -6,6 +6,7 @@
 import * as api from '../core/api.js';
 import * as monaco from 'monaco-editor';
 import { MarkdownPane } from '../panes/markdown.js';
+import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
 import { detectLanguage, monacoLangId } from '../utils/lang-detect.js';
@@ -103,6 +104,9 @@ export function initEditor(router) {
     parentPath: null,
     targetInputEl: null,
   };
+
+  let deckSettingsTriggerEl = null;
+  let cwdPickerTriggerEl = null;
 
   // --- Dirty state ---
 
@@ -309,7 +313,7 @@ export function initEditor(router) {
       return `
         <span class="editor-highlight-chip">
           <span>${label}</span>
-          <button class="editor-highlight-chip-remove" data-remove-range="${group.start}:${group.end}" title="この範囲を解除">x</button>
+          <button class="editor-highlight-chip-remove" data-remove-range="${group.start}:${group.end}" title="この範囲を解除" aria-label="ハイライト範囲 ${label} を解除">x</button>
         </span>
       `;
     }).join('');
@@ -488,7 +492,7 @@ export function initEditor(router) {
           <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
           <span class="editor-slide-meta">${escapeHtml(fileRef)} L${lr[0]}–${lr[1]}</span>
         </div>
-        <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除">
+        <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除" aria-label="${escapeHtml(slide.title || '無題')} を削除">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
         </button>
       </li>`;
@@ -653,8 +657,9 @@ export function initEditor(router) {
     document.getElementById('editorDeckName').textContent = name || '無題のデッキ';
   }
 
-  function openDeckSettingsModal() {
+  function openDeckSettingsModal(triggerEl = document.activeElement) {
     if (!deck || !deckSettingsModal.modalEl) return;
+    deckSettingsTriggerEl = triggerEl instanceof HTMLElement ? triggerEl : null;
     deckSettingsModal.titleEl.value = deck.title || '';
     deckSettingsModal.folderEl.value = deck.id || '';
     deckSettingsModal.descEl.value = deck.description || '';
@@ -665,10 +670,14 @@ export function initEditor(router) {
     deckSettingsModal.titleEl.focus();
   }
 
-  function closeDeckSettingsModal() {
+  function closeDeckSettingsModal({ restore = true } = {}) {
     if (!deckSettingsModal.modalEl) return;
     deckSettingsModal.modalEl.hidden = true;
     deckSettingsModal.formEl?.reset();
+    if (restore) {
+      restoreFocus(deckSettingsTriggerEl);
+    }
+    deckSettingsTriggerEl = null;
   }
 
   function applyDeckSettingsFromModal() {
@@ -713,7 +722,9 @@ export function initEditor(router) {
   function setupDeckSettingsModalEventListeners() {
     if (!deckSettingsModal.modalEl || !deckSettingsModal.openBtn || !deckSettingsModal.formEl) return;
 
-    deckSettingsModal.openBtn.addEventListener('click', openDeckSettingsModal);
+    deckSettingsModal.openBtn.addEventListener('click', (event) => {
+      openDeckSettingsModal(event.currentTarget);
+    });
     deckSettingsModal.cancelBtn?.addEventListener('click', closeDeckSettingsModal);
     deckSettingsModal.pickCwdBtn?.addEventListener('click', () => {
       openCwdPickerModal(deckSettingsModal.cwdEl);
@@ -729,12 +740,6 @@ export function initEditor(router) {
 
     deckSettingsModal.modalEl.addEventListener('click', (event) => {
       if (event.target === deckSettingsModal.modalEl) {
-        closeDeckSettingsModal();
-      }
-    });
-
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && deckSettingsModal.modalEl && !deckSettingsModal.modalEl.hidden) {
         closeDeckSettingsModal();
       }
     });
@@ -864,16 +869,21 @@ export function initEditor(router) {
 
   function openCwdPickerModal(targetInputEl = deckSettingsModal.cwdEl) {
     if (!cwdPicker.modalEl) return;
+    cwdPickerTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     cwdPicker.targetInputEl = targetInputEl || deckSettingsModal.cwdEl;
     cwdPicker.modalEl.hidden = false;
     const initialPath = normalizeRelativeDirectory(cwdPicker.targetInputEl?.value || '');
     loadCwdPickerDirectory(initialPath);
   }
 
-  function closeCwdPickerModal() {
+  function closeCwdPickerModal({ restore = true } = {}) {
     if (!cwdPicker.modalEl) return;
     cwdPicker.modalEl.hidden = true;
     cwdPicker.targetInputEl = null;
+    if (restore) {
+      restoreFocus(cwdPickerTriggerEl);
+    }
+    cwdPickerTriggerEl = null;
   }
 
   function applyCwdPickerSelection() {
@@ -886,7 +896,8 @@ export function initEditor(router) {
     if (input.value !== nextValue) {
       input.value = nextValue;
     }
-    closeCwdPickerModal();
+    closeCwdPickerModal({ restore: false });
+    input.focus();
   }
 
   function setupCwdPickerEventListeners() {
@@ -907,10 +918,25 @@ export function initEditor(router) {
         closeCwdPickerModal();
       }
     });
+  }
 
+  function setupModalKeyboardShortcuts() {
     document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && cwdPicker.modalEl && !cwdPicker.modalEl.hidden) {
-        closeCwdPickerModal();
+      if (cwdPicker.modalEl && !cwdPicker.modalEl.hidden) {
+        if (event.key === 'Escape') {
+          closeCwdPickerModal();
+          return;
+        }
+        trapFocusInModal(event, cwdPicker.modalEl);
+        return;
+      }
+
+      if (deckSettingsModal.modalEl && !deckSettingsModal.modalEl.hidden) {
+        if (event.key === 'Escape') {
+          closeDeckSettingsModal();
+          return;
+        }
+        trapFocusInModal(event, deckSettingsModal.modalEl);
       }
     });
   }
@@ -1247,6 +1273,7 @@ export function initEditor(router) {
     setupMarkdownResizer();
     setupDeckSettingsModalEventListeners();
     setupCwdPickerEventListeners();
+    setupModalKeyboardShortcuts();
     setHighlightInputVisible(false);
 
     // File management

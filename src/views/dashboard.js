@@ -5,6 +5,7 @@
 
 import * as api from '../core/api.js';
 import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
+import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
 
 const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
@@ -128,8 +129,10 @@ export function initDashboard(router) {
   /** @type {string|null} deck id when editing, null for create */
   let editingDeckId = null;
   let autoSyncFolderName = true;
+  let modalTriggerEl = null;
 
-  function openModal(mode, deckData) {
+  function openModal(mode, deckData, triggerEl = document.activeElement) {
+    modalTriggerEl = triggerEl instanceof HTMLElement ? triggerEl : null;
     editingDeckId = mode === 'edit' ? deckData.id : null;
     autoSyncFolderName = mode !== 'edit';
     modalTitle.textContent = mode === 'edit' ? 'デッキ情報を編集' : '新規デッキ';
@@ -146,11 +149,15 @@ export function initDashboard(router) {
     modalName.focus();
   }
 
-  function closeModal() {
+  function closeModal({ restore = true } = {}) {
     modalEl.hidden = true;
     editingDeckId = null;
     autoSyncFolderName = true;
     modalForm.reset();
+    if (restore) {
+      restoreFocus(modalTriggerEl);
+    }
+    modalTriggerEl = null;
   }
 
   modalName.addEventListener('input', () => {
@@ -170,7 +177,12 @@ export function initDashboard(router) {
     if (e.target === modalEl) closeModal();
   });
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modalEl.hidden) closeModal();
+    if (modalEl.hidden) return;
+    if (e.key === 'Escape') {
+      closeModal();
+      return;
+    }
+    trapFocusInModal(e, modalEl);
   });
 
   modalForm.addEventListener('submit', async (e) => {
@@ -201,7 +213,7 @@ export function initDashboard(router) {
           description,
         });
         showToast(updated.id !== editingDeckId ? 'デッキ情報とフォルダ名を更新しました' : 'デッキ情報を更新しました');
-        closeModal();
+        closeModal({ restore: false });
         show();
       } else {
         const deck = await api.createDeck({
@@ -209,7 +221,7 @@ export function initDashboard(router) {
           title,
           description,
         });
-        closeModal();
+        closeModal({ restore: false });
         router.navigate(`/deck/${deck.id}/edit`);
       }
     } catch (err) {
@@ -230,8 +242,8 @@ export function initDashboard(router) {
   });
 
   // New deck button → open create modal
-  document.getElementById('newDeckBtn').addEventListener('click', () => {
-    openModal('create', {});
+  document.getElementById('newDeckBtn').addEventListener('click', (event) => {
+    openModal('create', {}, event.currentTarget);
   });
 
   // Import button
@@ -294,7 +306,7 @@ export function initDashboard(router) {
     }
 
     grid.innerHTML = decks.map(deck => `
-      <div class="deck-card" data-id="${deck.id}">
+      <div class="deck-card" data-id="${deck.id}" role="button" tabindex="0" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
         <div class="deck-card-body">
           <h3 class="deck-card-title">${escapeHtml(deck.title)}</h3>
           <p class="deck-card-desc">${escapeHtml(deck.description || '')}</p>
@@ -304,16 +316,16 @@ export function initDashboard(router) {
           </div>
         </div>
         <div class="deck-card-actions">
-          <button class="btn-icon deck-open" data-id="${deck.id}" title="開く">
+          <button class="btn-icon deck-open" data-id="${deck.id}" title="開く" aria-label="デッキ「${escapeHtml(deck.title)}」を開く">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           </button>
-          <button class="btn-icon deck-edit" data-id="${deck.id}" title="編集">
+          <button class="btn-icon deck-edit" data-id="${deck.id}" title="編集" aria-label="デッキ「${escapeHtml(deck.title)}」を編集">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
           </button>
-          <button class="btn-icon deck-export" data-id="${deck.id}" title="エクスポート">
+          <button class="btn-icon deck-export" data-id="${deck.id}" title="エクスポート" aria-label="デッキ「${escapeHtml(deck.title)}」をエクスポート">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           </button>
-          <button class="btn-icon deck-delete" data-id="${deck.id}" title="削除">
+          <button class="btn-icon deck-delete" data-id="${deck.id}" title="削除" aria-label="デッキ「${escapeHtml(deck.title)}」を削除">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
@@ -325,6 +337,12 @@ export function initDashboard(router) {
         if (event.target.closest('.deck-card-actions')) return;
         router.navigate(`/deck/${card.dataset.id}/edit`);
       });
+      card.addEventListener('keydown', (event) => {
+        if (event.target.closest('.deck-card-actions')) return;
+        if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return;
+        event.preventDefault();
+        router.navigate(`/deck/${card.dataset.id}/edit`);
+      });
     });
 
     grid.querySelectorAll('.deck-open').forEach(btn => {
@@ -334,7 +352,7 @@ export function initDashboard(router) {
       btn.addEventListener('click', async () => {
         try {
           const deck = await api.getDeck(btn.dataset.id);
-          openModal('edit', deck);
+          openModal('edit', deck, btn);
         } catch {
           showToast('デッキ情報の取得に失敗しました');
         }

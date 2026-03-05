@@ -1,4 +1,5 @@
 import * as api from '../core/api.js';
+import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast } from '../utils/helpers.js';
 
 function toDisplayPath(pathValue, homePath) {
@@ -43,16 +44,27 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     return;
   }
 
-  function closeModal() {
+  let configModalTriggerEl = null;
+  let pickerModalTriggerEl = null;
+
+  function closeModal({ restore = true } = {}) {
     modalEl.hidden = true;
     decksDirEl.classList.remove('modal-input-error');
     baseCwdEl.classList.remove('modal-input-error');
+    if (restore) {
+      restoreFocus(configModalTriggerEl);
+    }
+    configModalTriggerEl = null;
   }
 
-  function closePickerModal() {
+  function closePickerModal({ restore = true } = {}) {
     if (!picker.modalEl) return;
     picker.modalEl.hidden = true;
     picker.targetInput = null;
+    if (restore) {
+      restoreFocus(pickerModalTriggerEl);
+    }
+    pickerModalTriggerEl = null;
   }
 
   function renderPickerList(directories) {
@@ -112,6 +124,7 @@ export function initDashboardConfigModal({ onSaved } = {}) {
 
   async function openPickerModal(targetInput) {
     if (!picker.modalEl) return;
+    pickerModalTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     picker.targetInput = targetInput;
     picker.modalEl.hidden = false;
     const initialPath = targetInput?.value?.trim() || '';
@@ -126,10 +139,12 @@ export function initDashboardConfigModal({ onSaved } = {}) {
 
     picker.targetInput.value = picker.currentPath || '';
     picker.targetInput.classList.remove('modal-input-error');
-    closePickerModal();
+    closePickerModal({ restore: false });
+    picker.targetInput.focus();
   }
 
   async function openModal() {
+    configModalTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     try {
       const config = await api.getAppConfig();
       decksDirEl.value = config.decksDir || '';
@@ -220,13 +235,22 @@ export function initDashboardConfigModal({ onSaved } = {}) {
   });
 
   document.addEventListener('keydown', (event) => {
-    if (event.key !== 'Escape') return;
     if (picker.modalEl && !picker.modalEl.hidden) {
-      closePickerModal();
+      if (event.key === 'Escape') {
+        closePickerModal();
+        return;
+      }
+      trapFocusInModal(event, picker.modalEl);
       return;
     }
+
     if (!modalEl.hidden) {
-      closeModal();
+      if (event.key === 'Escape') {
+        closeModal();
+        return;
+      }
+      trapFocusInModal(event, modalEl);
+      return;
     }
   });
 }

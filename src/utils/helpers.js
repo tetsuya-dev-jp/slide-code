@@ -11,6 +11,9 @@ export function showToast(message) {
     toast.className = 'toast';
     document.body.appendChild(toast);
   }
+  toast.setAttribute('role', 'status');
+  toast.setAttribute('aria-live', 'polite');
+  toast.setAttribute('aria-atomic', 'true');
   toast.textContent = message;
   toast.classList.add('show');
   clearTimeout(toastTimeout);
