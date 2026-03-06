@@ -101,7 +101,7 @@ export function upsertDeckAsset(storage, deckId, payload = {}) {
 
     const persistedAssets = (existing.assets || [])
         .filter(asset => asset.path !== assetPath)
-        .map(({ exists, ...asset }) => asset);
+        .map(({ exists: _exists, ...asset }) => asset);
     persistedAssets.push({ path: assetPath, mimeType, kind, size });
 
     storage.writeDeck({
@@ -143,7 +143,7 @@ export function deleteDeckAsset(storage, deckId, assetPath) {
 
     const nextAssets = (deck.assets || [])
         .filter(asset => asset.path !== normalizedPath)
-        .map(({ exists, ...asset }) => asset);
+        .map(({ exists: _exists, ...asset }) => asset);
     storage.writeDeck({
         ...deck,
         assets: nextAssets,

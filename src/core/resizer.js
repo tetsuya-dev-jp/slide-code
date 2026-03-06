@@ -27,7 +27,7 @@ export class Resizer {
      * @param {string[]} paneOrder - Current pane order
      * @param {Object} paneVisibility - { code: bool, shell: bool, markdown: bool }
      */
-    buildSplitters(layout, paneOrder, paneVisibility) {
+    buildSplitters(layout, _paneOrder, _paneVisibility) {
         this.reset();
 
         layout.splitters.forEach(splitterDef => {
@@ -195,7 +195,7 @@ export class Resizer {
         const splitterSize = 5; // fixed splitter width
 
         // Find non-splitter tracks (fr candidates) and splitter tracks
-        const normalized = sizes.map((size, idx) => {
+        const normalized = sizes.map((size) => {
             // Splitter tracks are the small ones (~5px)
             if (size <= splitterSize + 1) {
                 return `${splitterSize}px`;

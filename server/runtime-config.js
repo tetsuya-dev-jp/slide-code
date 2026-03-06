@@ -2,8 +2,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-const APP_NAME = 'slidecode';
-const LEGACY_APP_NAME = 'codestage';
+const APP_NAME = /** @type {string} */ ('slidecode');
+const LEGACY_APP_NAME = /** @type {string} */ ('codestage');
 
 const DEFAULT_LOCAL_ALLOWED_ORIGINS = [
     'http://localhost:5173',

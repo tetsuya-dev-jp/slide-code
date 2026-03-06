@@ -24,7 +24,7 @@ export function getFileLineCount(fileOrCode) {
 }
 
 export function normalizeLineRange(lineRange, maxLine = 1) {
-  const clampedMaxLine = Math.max(parseInt(maxLine, 10) || 1, 1);
+  const clampedMaxLine = Math.max(Number(maxLine) || 1, 1);
   let start = parseInt(Array.isArray(lineRange) ? lineRange[0] : undefined, 10);
   let end = parseInt(Array.isArray(lineRange) ? lineRange[1] : undefined, 10);
 

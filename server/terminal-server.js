@@ -89,4 +89,6 @@ apiServer.on('error', (err) => {
     console.error(`API server failed to start: ${err.message}`);
 });
 
-startTerminalWsServer(getContext);
+startTerminalWsServer(getContext).catch((err) => {
+    console.error(`Terminal server failed to start: ${err.message}`);
+});

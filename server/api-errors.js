@@ -36,7 +36,7 @@ export const API_ERROR_RULES = {
 };
 
 export function createApiError(status, message) {
-    const err = new Error(message);
+    const err = /** @type {Error & { status: number }} */ (new Error(message));
     err.status = status;
     return err;
 }

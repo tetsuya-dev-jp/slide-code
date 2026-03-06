@@ -63,7 +63,7 @@ function processKaTeX(html) {
     html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, tex) => {
         try {
             return `<div class="katex-display">${katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false })}</div>`;
-        } catch (e) {
+        } catch (_err) {
             return `<div class="katex-error">${match}</div>`;
         }
     });
@@ -72,7 +72,7 @@ function processKaTeX(html) {
     html = html.replace(/(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)/g, (match, tex) => {
         try {
             return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false });
-        } catch (e) {
+        } catch (_err) {
             return match;
         }
     });

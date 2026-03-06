@@ -223,7 +223,7 @@ function normalizeTerminalConfig(terminal) {
 }
 
 export function normalizeDeckPayload(payload = {}) {
-    const source = payload && typeof payload === 'object' ? payload : {};
+    const source = /** @type {any} */ (payload && typeof payload === 'object' ? payload : {});
     const files = normalizeFiles(source.files);
     const slides = normalizeSlides(source.slides, files);
     const terminal = normalizeTerminalConfig(source.terminal);

@@ -1,5 +1,4 @@
 import fs from 'fs';
-import pty from 'node-pty';
 import { WebSocketServer } from 'ws';
 import { resolvePathWithinBase } from './path-config-utils.js';
 
@@ -55,12 +54,15 @@ function resolveDeckTerminalCwd(storage, deckId, baseCwd) {
     }
 }
 
-export function startTerminalWsServer(getContext) {
+export async function startTerminalWsServer(getContext) {
     const { runtimeConfig } = getContext();
     if (!runtimeConfig.terminal.enabled) {
         console.log('Terminal server disabled (set TERMINAL_ENABLED=true to enable).');
         return null;
     }
+
+    const ptyModule = await import('node-pty');
+    const pty = ptyModule.default ?? ptyModule;
 
     const wss = new WebSocketServer({ port: runtimeConfig.terminal.wsPort });
     wss.on('listening', () => {

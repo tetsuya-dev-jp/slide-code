@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "types": ["node"]
+  },
+  "include": [
+    "server/api-errors.js",
+    "server/deck-normalize.js",
+    "server/path-config-utils.js",
+    "server/runtime-config.js"
+  ]
+}

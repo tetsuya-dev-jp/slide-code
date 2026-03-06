@@ -46,7 +46,8 @@ export function normalizeImportedDeck(data, filename) {
         const fileRef = typeof slide.fileRef === 'string' && fileNames.has(slide.fileRef)
           ? slide.fileRef
           : fallbackFileRef;
-        const lineRange = normalizeLineRange(slide.lineRange);
+        const file = normalizedFiles.find(item => item.name === fileRef);
+        const lineRange = normalizeLineRange(slide.lineRange, (file?.code || '').split('\n').length);
         const highlightLines = normalizeHighlightLines(slide.highlightLines, {
           minLine: lineRange[0],
           maxLine: lineRange[1],
