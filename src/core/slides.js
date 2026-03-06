@@ -14,9 +14,9 @@ export class SlideManager {
      * Load slides data
      * @param {Array} slides - Array of slide objects
      */
-    load(slides) {
+    load(slides, startIndex = 0) {
         this.slides = slides;
-        this.currentIndex = 0;
+        this.currentIndex = Math.min(Math.max(startIndex, 0), Math.max(this.slides.length - 1, 0));
         this.emit();
     }
 

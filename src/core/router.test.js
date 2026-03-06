@@ -65,4 +65,13 @@ describe('Router', () => {
     expect(onError.mock.calls[0][0]).toBeInstanceOf(Error);
     expect(onError.mock.calls[0][0].message).toBe('boom');
   });
+
+  test('replace updates current path without triggering navigation', () => {
+    const router = createRouter();
+
+    router.replace('/deck/demo');
+
+    expect(window.location.hash).toBe('#/deck/demo');
+    expect(router.currentPath).toBe('/deck/demo');
+  });
 });

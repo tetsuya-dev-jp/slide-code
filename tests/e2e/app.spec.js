@@ -202,3 +202,25 @@ test('dashboard は JSON なしで zip export をダウンロードできる', a
   await expect(suggestedFilename).toContain('.zip');
   await expect(suggestedFilename).toContain(title.replace(/\s+/g, '_'));
 });
+
+test('root から再表示すると最後の presentation route と slide を復元する', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Restore Route');
+
+  await page.locator('#editorMarkdown').fill('1枚目の解説');
+  await page.locator('#addSlideBtn').click();
+  await page.locator('#editorMarkdown').fill('2枚目の解説');
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await page.locator('#editorPreviewBtn').click();
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}$`));
+  await expect(page.locator('#slideCounter')).toHaveText('1 / 2');
+  await page.locator('#nextBtn').click();
+  await expect(page.locator('#slideCounter')).toHaveText('2 / 2');
+
+  await page.goto('/');
+
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}$`));
+  await expect(page.locator('#viewPresentation')).toBeVisible();
+  await expect(page.locator('#slideCounter')).toHaveText('2 / 2');
+});

@@ -12,6 +12,7 @@ import { ShellPane } from '../panes/shell.js';
 import { MarkdownPane } from '../panes/markdown.js';
 import { resolveSlideCode } from '../core/resolve-code.js';
 import { showToast } from '../utils/helpers.js';
+import { getLastPresentationState, recordRecentDeck, setLastPresentationState } from '../core/preferences.js';
 import { theme } from '../core/theme.js';
 import {
   applyPaneToggle,
@@ -71,7 +72,7 @@ export function initPresentation(router) {
   }
 
   function setupSlideChangeHandler() {
-    slideManager.onChange(({ slide, position, total, hasPrev, hasNext }) => {
+    slideManager.onChange(({ slide, index, position, total, hasPrev, hasNext }) => {
       if (!slide) return;
       document.getElementById('slideTitle').textContent = slide.title || '';
       document.getElementById('slideCounter').textContent = `${position} / ${total}`;
@@ -85,6 +86,9 @@ export function initPresentation(router) {
       codePane.render(resolved.code, resolved.language, resolved.highlightLines);
       markdownPane.render(slide.markdown);
       syncPaneVisibilityForSlide(slide, resolved);
+      if (currentDeckId) {
+        setLastPresentationState({ deckId: currentDeckId, slideIndex: index });
+      }
     });
   }
 
@@ -312,8 +316,10 @@ export function initPresentation(router) {
       const deck = await api.getDeck(deckId);
       if (requestId !== showRequestId) return;
       presentationDeck = deck;
+      recordRecentDeck({ id: deck.id, title: deck.title });
       syncShellDeckSession(previousDeckId, deckId);
-      slideManager.load(deck.slides);
+      const restoredState = getLastPresentationState(deck.id);
+      slideManager.load(deck.slides, restoredState?.slideIndex ?? 0);
     } catch {
       if (requestId !== showRequestId) return;
       currentDeckId = null;

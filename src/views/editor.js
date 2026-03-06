@@ -18,6 +18,7 @@ import {
   syncSlideFileReference,
 } from '../core/deck-utils.js';
 import { MarkdownPane } from '../panes/markdown.js';
+import { getLastEditorState, recordRecentDeck, setLastEditorState } from '../core/preferences.js';
 import { initEditorDeckSettings } from './editor-deck-settings.js';
 import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
@@ -179,6 +180,17 @@ export function initEditor(router) {
     return dirty;
   }
 
+  function persistEditorViewState() {
+    const deckId = persistedDeckId || deck?.id;
+    if (!deckId) return;
+
+    setLastEditorState({
+      deckId,
+      slideIndex,
+      fileId: deck?.files?.[fileIndex]?.id || '',
+    });
+  }
+
   function confirmLeave({ from, to } = {}) {
     if (!dirty || from === to) {
       return true;
@@ -289,6 +301,7 @@ export function initEditor(router) {
       tab.classList.remove('active');
     });
     loading = false;
+    persistEditorViewState();
   }
 
   function renderFileTabs() {
@@ -611,6 +624,7 @@ export function initEditor(router) {
       tab.classList.toggle('active', i === index);
     });
     loading = false;
+    persistEditorViewState();
   }
 
   function saveCurrentFile() {
@@ -783,6 +797,7 @@ export function initEditor(router) {
     updateMarkdownPreview();
     assetsModal?.refreshBrokenReferences();
     loading = false;
+    persistEditorViewState();
   }
 
   function saveCurrentSlide() {
@@ -1299,12 +1314,20 @@ export function initEditor(router) {
       slideIndex = 0;
       fileIndex = 0;
       setEditorDeckName(deck.title);
+      recordRecentDeck({ id: deck.id, title: deck.title });
+
+      const restoredState = getLastEditorState(deck.id);
+      const restoredSlideIndex = restoredState
+        ? Math.min(restoredState.slideIndex, Math.max(deck.slides.length - 1, 0))
+        : 0;
 
       initMonaco();
       renderFileTabs();
-      loadFile(0);
       renderSlideList();
-      loadSlide(0);
+      loadSlide(restoredSlideIndex);
+      if (restoredState?.fileId) {
+        loadFileById(restoredState.fileId);
+      }
       assetsModal?.refreshBrokenReferences();
       clearDirty();
       changeVersion = 0;

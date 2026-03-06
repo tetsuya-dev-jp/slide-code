@@ -6,6 +6,7 @@
 import './styles/index.css';
 import '@xterm/xterm/css/xterm.css';
 import { Router } from './core/router.js';
+import { getLastRoute, setLastRoute } from './core/preferences.js';
 import { theme } from './core/theme.js';
 
 const revealApp = () => {
@@ -42,6 +43,14 @@ async function bootstrap() {
   // ============================
   // Router + View Switching
   // ============================
+
+  const initialHash = window.location.hash.trim();
+  if (!initialHash || initialHash === '#') {
+    const restoredRoute = getLastRoute();
+    if (restoredRoute && restoredRoute !== '/') {
+      window.history.replaceState(window.history.state, '', `#${restoredRoute}`);
+    }
+  }
 
   const router = new Router();
   const viewInstances = {
@@ -150,16 +159,19 @@ async function bootstrap() {
       await activateView('dashboard', async (dashboard, navigationId) => {
         await dashboard.show({ navigationId });
       });
+      setLastRoute('/');
     })
     .on('/deck/:id', async ({ id }) => {
       await activateView('presentation', async (presentation, navigationId) => {
         await presentation.show(id, { navigationId });
       });
+      setLastRoute(`/deck/${id}`);
     })
     .on('/deck/:id/edit', async ({ id }) => {
       await activateView('editor', async (editor, navigationId) => {
         await editor.show(id, { navigationId });
       });
+      setLastRoute(`/deck/${id}/edit`);
     })
     .start();
 
