@@ -32,6 +32,26 @@ describe('normalizeImportedDeck', () => {
     });
   });
 
+  test('preserves explicit empty file refs for markdown-only slides', () => {
+    const deck = normalizeImportedDeck({
+      files: [{ name: 'main.py', language: 'python', code: 'a\nb' }],
+      slides: [{
+        fileRef: '',
+        lineRange: [4, 9],
+        highlightLines: [1, 2],
+        markdown: '解説だけ',
+      }],
+    }, 'slides.json');
+
+    expect(deck.slides[0]).toEqual({
+      title: 'スライド 1',
+      fileRef: '',
+      lineRange: [1, 1],
+      highlightLines: [],
+      markdown: '解説だけ',
+    });
+  });
+
   test('rejects non-object payloads', () => {
     expect(() => normalizeImportedDeck([], 'bad.json')).toThrow('invalid-deck');
   });

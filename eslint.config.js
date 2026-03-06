@@ -37,7 +37,7 @@ export default [
   },
   {
     ...js.configs.recommended,
-    files: ['server/**/*.js', '*.config.js', 'playwright.config.js', 'vitest.config.js'],
+    files: ['server/**/*.js', 'tests/**/*.js', '*.config.js', 'playwright.config.js', 'vitest.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

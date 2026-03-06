@@ -19,6 +19,7 @@ export function initPresentation(router) {
   const paneState = { code: true, shell: true, markdown: true };
 
   let initialized = false;
+  let activeSlideKey = '';
   let contentEl, resizer, layoutManager;
   let codePane, shellPane, markdownPane;
   let presentationDeck = null;
@@ -62,7 +63,7 @@ export function initPresentation(router) {
   }
 
   function setupSlideChangeHandler() {
-    slideManager.onChange(({ slide, position, total, hasPrev, hasNext }) => {
+    slideManager.onChange(({ slide, index, position, total, hasPrev, hasNext }) => {
       if (!slide) return;
       document.getElementById('slideTitle').textContent = slide.title || '';
       document.getElementById('slideCounter').textContent = `${position} / ${total}`;
@@ -75,7 +76,23 @@ export function initPresentation(router) {
       const resolved = resolveSlideCode(slide, presentationDeck);
       codePane.render(resolved.code, resolved.language, resolved.highlightLines);
       markdownPane.render(slide.markdown);
+      syncPaneVisibilityForSlide(index, slide, resolved);
     });
+  }
+
+  function syncPaneVisibilityForSlide(index, slide, resolved) {
+    const slideKey = `${currentDeckId || ''}:${index}`;
+    if (slideKey === activeSlideKey) return;
+
+    activeSlideKey = slideKey;
+    const hasCode = Boolean(resolved.code && resolved.code.trim());
+    const hasMarkdown = Boolean(typeof slide?.markdown === 'string' && slide.markdown.trim());
+
+    paneState.code = hasCode;
+    paneState.markdown = hasMarkdown;
+    paneState.shell = hasCode || !hasMarkdown;
+
+    updatePaneVisibility();
   }
 
   function setupNavigation() {
@@ -273,6 +290,7 @@ export function initPresentation(router) {
   async function show(deckId) {
     const previousDeckId = currentDeckId;
     currentDeckId = deckId;
+    activeSlideKey = '';
     init();
     try {
       const deck = await api.getDeck(deckId);

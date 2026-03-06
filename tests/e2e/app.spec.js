@@ -53,6 +53,7 @@ test('editor で編集して保存状態を更新できる', async ({ page }) =>
 test('presentation でスライド移動と pane toggle が動く', async ({ page }) => {
   const { folder } = await createDeck(page, 'Presentation');
 
+  await page.locator('#editorMarkdown').fill('1枚目の解説');
   await page.locator('#addSlideBtn').click();
   await expect(page.locator('.editor-slide-item')).toHaveCount(2);
   await page.locator('#editorSaveBtn').click();
@@ -68,6 +69,30 @@ test('presentation でスライド移動と pane toggle が動く', async ({ pag
   await page.locator('#prevBtn').click();
   await expect(page.locator('#slideCounter')).toHaveText('1 / 2');
 
-  await page.locator('.toggle-btn[data-pane="shell"]').click();
   await expect(page.locator('#paneShell')).toHaveClass(/hidden/);
+  await page.locator('.toggle-btn[data-pane="shell"]').click();
+  await expect(page.locator('#paneShell')).not.toHaveClass(/hidden/);
+});
+
+test('presentation は参照なしスライドで空の code pane を初期非表示にできる', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Markdown Only');
+
+  await page.locator('#editorFileRef').selectOption('');
+  await expect(page.locator('#editorFileRef')).toHaveValue('');
+  await page.locator('#editorMarkdown').fill('解説だけのスライド');
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await page.locator('#editorPreviewBtn').click();
+  await expect(page).toHaveURL(new RegExp(`#\\/deck\\/${folder}$`));
+  await expect(page.locator('#viewPresentation')).toBeVisible();
+  await expect(page.locator('#paneCode')).toHaveClass(/hidden/);
+  await expect(page.locator('#paneShell')).toHaveClass(/hidden/);
+  await expect(page.locator('#paneMarkdown')).not.toHaveClass(/hidden/);
+
+  await page.locator('.toggle-btn[data-pane="shell"]').click();
+  await expect(page.locator('#paneShell')).not.toHaveClass(/hidden/);
+
+  await page.locator('.toggle-btn[data-pane="code"]').click();
+  await expect(page.locator('#paneCode')).not.toHaveClass(/hidden/);
 });

@@ -153,11 +153,17 @@ function normalizeSlides(slides, files) {
 
     const normalized = source.map((entry, index) => {
         const title = normalizeNonEmptyString(entry?.title, `スライド ${index + 1}`);
-        const requestedFileRef = normalizeString(entry?.fileRef, fallbackFileRef);
-        const fileRef = fileNames.has(requestedFileRef) ? requestedFileRef : fallbackFileRef;
-        const maxLine = linesByFile.get(fileRef) || 1;
-        const lineRange = normalizeLineRange(entry?.lineRange, maxLine);
-        const highlightLines = normalizeHighlightLines(entry?.highlightLines, lineRange[0], lineRange[1]);
+        const requestedFileRef = typeof entry?.fileRef === 'string'
+            ? entry.fileRef
+            : fallbackFileRef;
+        const fileRef = requestedFileRef === ''
+            ? ''
+            : (fileNames.has(requestedFileRef) ? requestedFileRef : fallbackFileRef);
+        const maxLine = fileRef ? (linesByFile.get(fileRef) || 1) : 1;
+        const lineRange = fileRef ? normalizeLineRange(entry?.lineRange, maxLine) : [1, 1];
+        const highlightLines = fileRef
+            ? normalizeHighlightLines(entry?.highlightLines, lineRange[0], lineRange[1])
+            : [];
         const markdown = normalizeString(entry?.markdown, '');
 
         return {

@@ -43,15 +43,22 @@ export function normalizeImportedDeck(data, filename) {
     ? data.slides
       .filter(slide => slide && typeof slide === 'object')
       .map((slide, index) => {
-        const fileRef = typeof slide.fileRef === 'string' && fileNames.has(slide.fileRef)
+        const requestedFileRef = typeof slide.fileRef === 'string'
           ? slide.fileRef
           : fallbackFileRef;
+        const fileRef = requestedFileRef === ''
+          ? ''
+          : (fileNames.has(requestedFileRef) ? requestedFileRef : fallbackFileRef);
         const file = normalizedFiles.find(item => item.name === fileRef);
-        const lineRange = normalizeLineRange(slide.lineRange, (file?.code || '').split('\n').length);
-        const highlightLines = normalizeHighlightLines(slide.highlightLines, {
-          minLine: lineRange[0],
-          maxLine: lineRange[1],
-        });
+        const lineRange = file
+          ? normalizeLineRange(slide.lineRange, (file.code || '').split('\n').length)
+          : [1, 1];
+        const highlightLines = file
+          ? normalizeHighlightLines(slide.highlightLines, {
+            minLine: lineRange[0],
+            maxLine: lineRange[1],
+          })
+          : [];
 
         return {
           title: typeof slide.title === 'string' && slide.title.trim() ? slide.title.trim() : createDefaultSlide(index, fileRef).title,

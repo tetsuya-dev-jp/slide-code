@@ -48,6 +48,8 @@ export function initEditor(router) {
     dark: 'slidecode-dark',
     light: 'vs',
   };
+  const EMPTY_FILE_REF_VALUE = '';
+  const EMPTY_FILE_REF_LABEL = '参照なし';
 
   function ensureMonacoThemes() {
     monaco.editor.defineTheme(MONACO_THEME.dark, {
@@ -253,59 +255,49 @@ export function initEditor(router) {
   function updateFileRefOptions() {
     const select = document.getElementById('editorFileRef');
     const currentVal = select.value;
-    select.innerHTML = deck.files.map(f =>
-      `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`
-    ).join('');
-    if (currentVal && deck.files.some(f => f.name === currentVal)) {
+    select.innerHTML = [
+      `<option value="${EMPTY_FILE_REF_VALUE}">${EMPTY_FILE_REF_LABEL}</option>`,
+      ...deck.files.map(f =>
+        `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`,
+      ),
+    ].join('');
+    if (currentVal === EMPTY_FILE_REF_VALUE || deck.files.some(f => f.name === currentVal)) {
       select.value = currentVal;
+    } else {
+      select.value = EMPTY_FILE_REF_VALUE;
     }
   }
 
-  function loadFile(index) {
-    loading = true;
-    fileIndex = index;
-    const file = deck.files[index];
-    if (!file) {
-      document.getElementById('editorFileName').value = '';
-      document.getElementById('editorFileLang').value = '';
-      if (monacoEditor) monacoEditor.setValue('');
-      loading = false;
-      return;
-    }
-
-    document.getElementById('editorFileName').value = file.name || '';
-    document.getElementById('editorFileLang').value = file.language || '';
-
-    if (monacoEditor) {
-      monacoEditor.setValue(file.code || '');
-      monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(file.language || 'python'));
-      updateMonacoDecorations();
-    }
-
-    document.querySelectorAll('.editor-file-tab').forEach((tab, i) => {
-      tab.classList.toggle('active', i === index);
-    });
-    loading = false;
+  function resetSelectionInputsForNoReference() {
+    setLineRangeInputs(1, 1);
+    setHighlightInput([]);
   }
 
-  function saveCurrentFile() {
-    if (!deck || !deck.files[fileIndex]) return;
-    const file = deck.files[fileIndex];
-    const oldName = file.name;
-    file.name = document.getElementById('editorFileName').value || '無名';
-    file.language = document.getElementById('editorFileLang').value || 'python';
-    file.code = monacoEditor ? monacoEditor.getValue() : '';
+  function hasSelectedFileRef(fileRef) {
+    return typeof fileRef === 'string' && fileRef.trim().length > 0;
+  }
 
-    if (oldName !== file.name) {
-      deck.slides.forEach(slide => {
-        if (slide.fileRef === oldName) slide.fileRef = file.name;
-      });
-      updateFileRefOptions();
+  function getSlideMetaText(slide) {
+    const lineRange = slide.lineRange || [1, 1];
+    const fileRef = slide.fileRef || '';
+
+    if (!hasSelectedFileRef(fileRef)) {
+      return '参照なし';
     }
+
+    return `${escapeHtml(fileRef)} L${lineRange[0]}–${lineRange[1]}`;
   }
 
   function getDraftSlideStateFromForm() {
     const fileRef = document.getElementById('editorFileRef').value;
+    if (!hasSelectedFileRef(fileRef)) {
+      return {
+        fileRef: EMPTY_FILE_REF_VALUE,
+        lineRange: [1, 1],
+        highlightLines: [],
+      };
+    }
+
     const lineStart = parseInt(document.getElementById('editorLineStart').value, 10);
     const lineEnd = parseInt(document.getElementById('editorLineEnd').value, 10);
 
@@ -341,6 +333,11 @@ export function initEditor(router) {
     if (!summaryEl) return;
 
     const draft = slideState || getDraftSlideStateFromForm();
+    if (!hasSelectedFileRef(draft?.fileRef)) {
+      summaryEl.textContent = '参照なし';
+      return;
+    }
+
     const result = getNormalizedDraftSlideState(draft);
     if (!result) {
       summaryEl.textContent = '範囲未設定';
@@ -359,6 +356,11 @@ export function initEditor(router) {
     if (!chipsEl) return;
 
     const draft = slideState || getDraftSlideStateFromForm();
+    if (!hasSelectedFileRef(draft?.fileRef)) {
+      chipsEl.innerHTML = '<span class="editor-chip-placeholder">参照なし</span>';
+      return;
+    }
+
     const lines = [...(draft.highlightLines || [])].sort((a, b) => a - b);
     const groups = groupConsecutiveLines(lines);
 
@@ -416,8 +418,8 @@ export function initEditor(router) {
     const draft = getDraftSlideStateFromForm();
     const result = getNormalizedDraftSlideState(draft);
     if (!result) {
-      updateMonacoDecorations();
-      refreshSelectionWidgets();
+      updateMonacoDecorations(draft);
+      refreshSelectionWidgets(draft);
       return;
     }
 
@@ -516,13 +518,55 @@ export function initEditor(router) {
 
     monacoDecorations = monacoEditor.deltaDecorations(monacoDecorations, newDecorations);
   }
+  function loadFile(index) {
+    loading = true;
+    fileIndex = index;
+    const file = deck.files[index];
+    if (!file) {
+      document.getElementById('editorFileName').value = '';
+      document.getElementById('editorFileLang').value = '';
+      if (monacoEditor) monacoEditor.setValue('');
+      loading = false;
+      return;
+    }
+
+    document.getElementById('editorFileName').value = file.name || '';
+    document.getElementById('editorFileLang').value = file.language || '';
+
+    if (monacoEditor) {
+      monacoEditor.setValue(file.code || '');
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(file.language || 'python'));
+      updateMonacoDecorations();
+    }
+
+    document.querySelectorAll('.editor-file-tab').forEach((tab, i) => {
+      tab.classList.toggle('active', i === index);
+    });
+    loading = false;
+  }
+
+  function saveCurrentFile() {
+    if (!deck || !deck.files[fileIndex]) return;
+    const file = deck.files[fileIndex];
+    const oldName = file.name;
+    file.name = document.getElementById('editorFileName').value || '無名';
+    file.language = document.getElementById('editorFileLang').value || 'python';
+    file.code = monacoEditor ? monacoEditor.getValue() : '';
+
+    if (oldName !== file.name) {
+      deck.slides.forEach(slide => {
+        if (slide.fileRef === oldName) slide.fileRef = file.name;
+      });
+      updateFileRefOptions();
+    }
+  }
+
 
   // --- Slide List ---
 
   function renderSlideList() {
     const list = document.getElementById('editorSlideList');
     list.innerHTML = deck.slides.map((slide, i) => {
-      const lr = slide.lineRange || [1, 1];
       const fileRef = slide.fileRef || '';
       const file = deck.files?.find(f => f.name === fileRef);
       const lang = file?.language || '';
@@ -532,7 +576,7 @@ export function initEditor(router) {
         <span class="editor-slide-num" title="${escapeHtml(lang)}">${langIcon}</span>
         <div class="editor-slide-info">
           <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
-          <span class="editor-slide-meta">${escapeHtml(fileRef)} L${lr[0]}–${lr[1]}</span>
+          <span class="editor-slide-meta">${getSlideMetaText(slide)}</span>
         </div>
         <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除" aria-label="${escapeHtml(slide.title || '無題')} を削除">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -668,13 +712,19 @@ export function initEditor(router) {
   function saveCurrentSlide() {
     if (!deck || !deck.slides[slideIndex]) return;
     const slide = deck.slides[slideIndex];
+    const fileRef = document.getElementById('editorFileRef').value;
     slide.title = document.getElementById('editorSlideTitle').value;
-    slide.fileRef = document.getElementById('editorFileRef').value;
-    const lineStart = parseInt(document.getElementById('editorLineStart').value) || 1;
-    const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
-    slide.lineRange = [lineStart, lineEnd];
+    slide.fileRef = hasSelectedFileRef(fileRef) ? fileRef : EMPTY_FILE_REF_VALUE;
+    if (slide.fileRef) {
+      const lineStart = parseInt(document.getElementById('editorLineStart').value) || 1;
+      const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
+      slide.lineRange = [lineStart, lineEnd];
+      slide.highlightLines = parseHighlightInputText(document.getElementById('editorHighlight').value);
+    } else {
+      slide.lineRange = [1, 1];
+      slide.highlightLines = [];
+    }
     slide.markdown = document.getElementById('editorMarkdown').value;
-    slide.highlightLines = parseHighlightInputText(document.getElementById('editorHighlight').value);
   }
 
   function insertAssetReference(assetPath) {
@@ -889,7 +939,11 @@ export function initEditor(router) {
 
     // Slide fields
     document.getElementById('editorFileRef').addEventListener('change', () => {
-      loadFileByName(document.getElementById('editorFileRef').value);
+      const fileRef = document.getElementById('editorFileRef').value;
+      if (!hasSelectedFileRef(fileRef)) {
+        resetSelectionInputsForNoReference();
+      }
+      loadFileByName(fileRef);
       updateCodePreview({ saveFile: false, reveal: true });
       markDirty();
     });
