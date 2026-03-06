@@ -2,3 +2,9 @@ node_modules
 dist
 .DS_Store
 CLAUDE.md
+.env
+.env.*
+*.log
+coverage
+pnpm-debug.log*
+*.local

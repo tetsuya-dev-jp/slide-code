@@ -1,4 +1,5 @@
 import { createDeckExportHtml, createDeckExportZip } from './export-service.js';
+import { API_ERROR_RULES, createApiError, withApiErrorHandling } from './api-errors.js';
 import {
     createDeckFromTemplate,
     listTemplates,
@@ -10,240 +11,210 @@ function isNotFoundError(err) {
     return err?.code === 'ENOENT' || err?.message === 'deck-not-found' || err?.message === 'asset-not-found';
 }
 
-function isUnsupportedSchemaError(err) {
-    return err?.message === 'unsupported-deck-schema';
-}
-
 function asQueryString(value) {
     if (Array.isArray(value)) return value[0] || '';
     return typeof value === 'string' ? value : '';
 }
 
+const CREATE_DECK_FROM_TEMPLATE_ERROR_RULES = [
+    {
+        status: 400,
+        error: 'Invalid template request',
+        match: err => err?.message === 'invalid-deck-id' || err?.code === 'EINVAL' || err?.message === 'missing-template-id',
+    },
+    API_ERROR_RULES.deckAlreadyExists,
+    {
+        status: 404,
+        error: 'Template not found',
+        match: err => isNotFoundError(err) || err?.message === 'template-source-not-found',
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
+const SAVE_TEMPLATE_FROM_DECK_ERROR_RULES = [
+    API_ERROR_RULES.invalidDeckId,
+    API_ERROR_RULES.templateAlreadyExists,
+    {
+        status: 404,
+        error: 'Deck not found',
+        match: isNotFoundError,
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
+const DELETE_TEMPLATE_ERROR_RULES = [
+    API_ERROR_RULES.invalidDeckId,
+    API_ERROR_RULES.templateNotFound,
+];
+
+const DECK_ASSET_LIST_ERROR_RULES = [
+    API_ERROR_RULES.invalidDeckId,
+    {
+        status: 404,
+        error: 'Deck not found',
+        match: isNotFoundError,
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
+const UPSERT_ASSET_ERROR_RULES = [
+    {
+        status: 400,
+        error: 'Invalid asset payload',
+        match: err => err?.message === 'invalid-deck-id' || err?.code === 'EINVAL' || err?.message === 'invalid-asset-content',
+    },
+    {
+        status: 404,
+        error: 'Deck not found',
+        match: isNotFoundError,
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
+const DELETE_ASSET_ERROR_RULES = [
+    API_ERROR_RULES.invalidDeckId,
+    {
+        status: 404,
+        error: 'Deck or asset not found',
+        match: isNotFoundError,
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
+const READ_ASSET_FILE_ERROR_RULES = [
+    API_ERROR_RULES.invalidDeckId,
+    {
+        status: 404,
+        error: 'Asset not found',
+        match: isNotFoundError,
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
+const EXPORT_DECK_ERROR_RULES = [
+    API_ERROR_RULES.invalidDeckId,
+    {
+        status: 404,
+        error: 'Deck not found',
+        match: isNotFoundError,
+    },
+    API_ERROR_RULES.unsupportedDeckSchema,
+];
+
 export function registerExtraRoutes(app, getContext) {
-    app.get('/api/templates', (_req, res) => {
-        try {
-            const { templateStorage, sharedTemplateStorage } = getContext();
-            res.json(listTemplates({
-                localTemplateStorage: templateStorage,
-                sharedTemplateStorage,
-            }));
-        } catch (err) {
-            res.status(500).json({ error: err.message });
-        }
-    });
+    app.get('/api/templates', withApiErrorHandling((_req, res) => {
+        const { templateStorage, sharedTemplateStorage } = getContext();
+        res.json(listTemplates({
+            localTemplateStorage: templateStorage,
+            sharedTemplateStorage,
+        }));
+    }));
 
-    app.post('/api/decks/from-template', (req, res) => {
-        try {
-            const { storage, templateStorage, sharedTemplateStorage } = getContext();
-            const created = createDeckFromTemplate({
-                deckStorage: storage,
-                localTemplateStorage: templateStorage,
-                sharedTemplateStorage,
-                payload: req.body,
-            });
-            res.status(201).json(created);
-        } catch (err) {
-            if (err.message === 'invalid-deck-id' || err.code === 'EINVAL' || err.message === 'missing-template-id') {
-                return res.status(400).json({ error: 'Invalid template request' });
-            }
-            if (err.code === 'EEXIST' || err.message === 'deck-already-exists') {
-                return res.status(409).json({ error: 'Deck folder already exists' });
-            }
-            if (isNotFoundError(err) || err.message === 'template-source-not-found') {
-                return res.status(404).json({ error: 'Template not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+    app.post('/api/decks/from-template', withApiErrorHandling((req, res) => {
+        const { storage, templateStorage, sharedTemplateStorage } = getContext();
+        const created = createDeckFromTemplate({
+            deckStorage: storage,
+            localTemplateStorage: templateStorage,
+            sharedTemplateStorage,
+            payload: req.body,
+        });
+        res.status(201).json(created);
+    }, CREATE_DECK_FROM_TEMPLATE_ERROR_RULES));
 
-    app.post('/api/templates/from-deck/:id', (req, res) => {
-        try {
-            const { storage, templateStorage } = getContext();
-            const templateMeta = saveTemplateFromDeck({
-                deckStorage: storage,
-                localTemplateStorage: templateStorage,
-                deckId: req.params.id,
-                payload: req.body,
-            });
-            res.status(201).json(templateMeta);
-        } catch (err) {
-            if (err.message === 'invalid-deck-id') {
-                return res.status(400).json({ error: 'Invalid deck id' });
-            }
-            if (err.code === 'EEXIST' || err.message === 'deck-already-exists' || err.message === 'template-already-exists') {
-                return res.status(409).json({ error: 'Template already exists' });
-            }
-            if (isNotFoundError(err)) {
-                return res.status(404).json({ error: 'Deck not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+    app.post('/api/templates/from-deck/:id', withApiErrorHandling((req, res) => {
+        const { storage, templateStorage } = getContext();
+        const templateMeta = saveTemplateFromDeck({
+            deckStorage: storage,
+            localTemplateStorage: templateStorage,
+            deckId: req.params.id,
+            payload: req.body,
+        });
+        res.status(201).json(templateMeta);
+    }, SAVE_TEMPLATE_FROM_DECK_ERROR_RULES));
 
-    app.delete('/api/templates/from-deck/:id', (req, res) => {
-        try {
-            const { templateStorage } = getContext();
-            const result = removeTemplatesFromDeck({
-                localTemplateStorage: templateStorage,
-                deckId: req.params.id,
-            });
-            res.json({ ok: true, ...result });
-        } catch (err) {
-            if (err.message === 'invalid-deck-id') {
-                return res.status(400).json({ error: 'Invalid deck id' });
-            }
-            if (err.code === 'ENOENT' || err.message === 'template-not-found') {
-                return res.status(404).json({ error: 'Template not found' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+    app.delete('/api/templates/from-deck/:id', withApiErrorHandling((req, res) => {
+        const { templateStorage } = getContext();
+        const result = removeTemplatesFromDeck({
+            localTemplateStorage: templateStorage,
+            deckId: req.params.id,
+        });
+        res.json({ ok: true, ...result });
+    }, DELETE_TEMPLATE_ERROR_RULES));
 
-    app.get('/api/decks/:id/assets', (req, res) => {
-        try {
-            const { storage } = getContext();
-            const assets = storage.listDeckAssets(req.params.id);
-            res.json({ assets });
-        } catch (err) {
-            if (err.message === 'invalid-deck-id') {
-                return res.status(400).json({ error: 'Invalid deck id' });
-            }
-            if (isNotFoundError(err)) {
-                return res.status(404).json({ error: 'Deck not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+    app.get('/api/decks/:id/assets', withApiErrorHandling((req, res) => {
+        const { storage } = getContext();
+        const assets = storage.listDeckAssets(req.params.id);
+        res.json({ assets });
+    }, DECK_ASSET_LIST_ERROR_RULES));
 
-    app.post('/api/decks/:id/assets', (req, res) => {
-        try {
-            const { storage } = getContext();
-            const asset = storage.upsertAsset(req.params.id, req.body);
-            const assets = storage.listDeckAssets(req.params.id);
-            res.status(201).json({ asset, assets });
-        } catch (err) {
-            if (err.message === 'invalid-deck-id' || err.code === 'EINVAL' || err.message === 'invalid-asset-content') {
-                return res.status(400).json({ error: 'Invalid asset payload' });
-            }
-            if (isNotFoundError(err)) {
-                return res.status(404).json({ error: 'Deck not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+    app.post('/api/decks/:id/assets', withApiErrorHandling((req, res) => {
+        const { storage } = getContext();
+        const asset = storage.upsertAsset(req.params.id, req.body);
+        const assets = storage.listDeckAssets(req.params.id);
+        res.status(201).json({ asset, assets });
+    }, UPSERT_ASSET_ERROR_RULES));
 
-    app.delete('/api/decks/:id/assets', (req, res) => {
+    app.delete('/api/decks/:id/assets', withApiErrorHandling((req, res) => {
         const requestedPath = asQueryString(req.query.path);
         if (!requestedPath) {
-            return res.status(400).json({ error: 'Missing asset path' });
+            throw createApiError(400, 'Missing asset path');
         }
 
-        try {
-            const { storage } = getContext();
-            storage.deleteAsset(req.params.id, requestedPath);
-            const assets = storage.listDeckAssets(req.params.id);
-            res.json({ ok: true, assets });
-        } catch (err) {
-            if (err.message === 'invalid-deck-id') {
-                return res.status(400).json({ error: 'Invalid deck id' });
-            }
-            if (isNotFoundError(err)) {
-                return res.status(404).json({ error: 'Deck or asset not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+        const { storage } = getContext();
+        storage.deleteAsset(req.params.id, requestedPath);
+        const assets = storage.listDeckAssets(req.params.id);
+        res.json({ ok: true, assets });
+    }, DELETE_ASSET_ERROR_RULES));
 
-    app.get('/api/decks/:id/assets/file', (req, res) => {
+    app.get('/api/decks/:id/assets/file', withApiErrorHandling((req, res) => {
         const requestedPath = asQueryString(req.query.path);
         if (!requestedPath) {
-            return res.status(400).json({ error: 'Missing asset path' });
+            throw createApiError(400, 'Missing asset path');
         }
 
-        try {
-            const { storage } = getContext();
-            const asset = storage.readAsset(req.params.id, requestedPath);
-            res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
-            res.setHeader('Cache-Control', 'no-store');
-            res.send(asset.buffer);
-        } catch (err) {
-            if (err.message === 'invalid-deck-id') {
-                return res.status(400).json({ error: 'Invalid deck id' });
-            }
-            if (isNotFoundError(err)) {
-                return res.status(404).json({ error: 'Asset not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
-        }
-    });
+        const { storage } = getContext();
+        const asset = storage.readAsset(req.params.id, requestedPath);
+        res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
+        res.setHeader('Cache-Control', 'no-store');
+        res.send(asset.buffer);
+    }, READ_ASSET_FILE_ERROR_RULES));
 
-    app.get('/api/decks/:id/export/:format', (req, res) => {
+    app.get('/api/decks/:id/export/:format', withApiErrorHandling((req, res) => {
         const format = typeof req.params.format === 'string' ? req.params.format.toLowerCase() : '';
 
-        try {
-            const { storage } = getContext();
-            if (format === 'html') {
-                const result = createDeckExportHtml({
-                    storage,
-                    deckId: req.params.id,
-                    printMode: false,
-                });
-                res.setHeader('Content-Type', 'text/html; charset=utf-8');
-                res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-                return res.send(result.html);
-            }
-
-            if (format === 'pdf') {
-                const result = createDeckExportHtml({
-                    storage,
-                    deckId: req.params.id,
-                    printMode: true,
-                });
-                res.setHeader('Content-Type', 'text/html; charset=utf-8');
-                res.setHeader('Content-Disposition', 'inline');
-                return res.send(result.html);
-            }
-
-            if (format === 'zip') {
-                const result = createDeckExportZip({
-                    storage,
-                    deckId: req.params.id,
-                });
-                res.setHeader('Content-Type', 'application/zip');
-                res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
-                return res.send(result.buffer);
-            }
-
-            return res.status(400).json({ error: 'Unsupported export format' });
-        } catch (err) {
-            if (err.message === 'invalid-deck-id') {
-                return res.status(400).json({ error: 'Invalid deck id' });
-            }
-            if (isNotFoundError(err)) {
-                return res.status(404).json({ error: 'Deck not found' });
-            }
-            if (isUnsupportedSchemaError(err)) {
-                return res.status(400).json({ error: 'Unsupported deck schema version' });
-            }
-            return res.status(500).json({ error: err.message });
+        const { storage } = getContext();
+        if (format === 'html') {
+            const result = createDeckExportHtml({
+                storage,
+                deckId: req.params.id,
+                printMode: false,
+            });
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            return res.send(result.html);
         }
-    });
+
+        if (format === 'pdf') {
+            const result = createDeckExportHtml({
+                storage,
+                deckId: req.params.id,
+                printMode: true,
+            });
+            res.setHeader('Content-Type', 'text/html; charset=utf-8');
+            res.setHeader('Content-Disposition', 'inline');
+            return res.send(result.html);
+        }
+
+        if (format === 'zip') {
+            const result = createDeckExportZip({
+                storage,
+                deckId: req.params.id,
+            });
+            res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            return res.send(result.buffer);
+        }
+
+        throw createApiError(400, 'Unsupported export format');
+    }, EXPORT_DECK_ERROR_RULES));
 }

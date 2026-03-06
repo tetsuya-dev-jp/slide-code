@@ -7,9 +7,6 @@ import './styles/index.css';
 import '@xterm/xterm/css/xterm.css';
 import { Router } from './core/router.js';
 import { theme } from './core/theme.js';
-import { initDashboard } from './views/dashboard.js';
-import { initPresentation } from './views/presentation.js';
-import { initEditor } from './views/editor.js';
 
 const revealApp = () => {
   document.documentElement.setAttribute('data-app-ready', 'true');
@@ -28,6 +25,22 @@ theme.init();
 // ============================
 
 const router = new Router();
+const viewInstances = {
+  dashboard: null,
+  presentation: null,
+  editor: null,
+};
+const viewPromises = {
+  dashboard: null,
+  presentation: null,
+  editor: null,
+};
+
+const viewLoaders = {
+  dashboard: () => import('./views/dashboard.js').then(({ initDashboard }) => initDashboard(router)),
+  presentation: () => import('./views/presentation.js').then(({ initPresentation }) => initPresentation(router)),
+  editor: () => import('./views/editor.js').then(({ initEditor }) => initEditor(router)),
+};
 
 const viewEls = {
   dashboard: document.getElementById('viewDashboard'),
@@ -59,20 +72,33 @@ function showView(name) {
   dashboardToolbar.forEach(el => el.style.display = isDashboard ? '' : 'none');
 }
 
-// ============================
-// Initialize Views
-// ============================
+async function getView(name) {
+  if (!viewLoaders[name]) {
+    throw new Error(`Unknown view: ${name}`);
+  }
 
-const dashboard = initDashboard(router);
-const presentation = initPresentation(router);
-const editor = initEditor(router);
+  if (!viewInstances[name]) {
+    viewPromises[name] ??= viewLoaders[name]()
+      .then((view) => {
+        viewInstances[name] = view;
+        return view;
+      })
+      .catch((err) => {
+        viewPromises[name] = null;
+        throw err;
+      });
+    return viewPromises[name];
+  }
+
+  return viewInstances[name];
+}
 
 // Theme toggle
 document.getElementById('themeToggle').addEventListener('click', () => {
   const next = theme.toggle();
   const isDark = next === 'dark';
-  presentation.applyTheme(isDark);
-  editor.applyTheme(isDark);
+  viewInstances.presentation?.applyTheme?.(isDark);
+  viewInstances.editor?.applyTheme?.(isDark);
 });
 
 // ============================
@@ -80,16 +106,19 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 // ============================
 
 router
-  .on('/', () => {
+  .on('/', async () => {
     showView('dashboard');
+    const dashboard = await getView('dashboard');
     dashboard.show();
   })
-  .on('/deck/:id', ({ id }) => {
+  .on('/deck/:id', async ({ id }) => {
     showView('presentation');
+    const presentation = await getView('presentation');
     presentation.show(id);
   })
-  .on('/deck/:id/edit', ({ id }) => {
+  .on('/deck/:id/edit', async ({ id }) => {
     showView('editor');
+    const editor = await getView('editor');
     editor.show(id);
   })
   .start();

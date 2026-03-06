@@ -1,28 +1,11 @@
 import * as api from '../core/api.js';
+import { createDeckFolderSlug, DECK_FOLDER_PATTERN, normalizeDeckFolderName } from '../core/deck-utils.js';
 import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
 import { initDashboardExportModal } from './dashboard-export-modal.js';
 import { normalizeImportedDeck } from './deck-import-normalize.js';
 import { applyTemplateButtonState, collectSavedTemplateDeckIds, parseTemplateSelection } from './dashboard-template-state.js';
-
-const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
-function normalizeDeckFolderName(value) {
-  if (typeof value !== 'string') return '';
-  return value.trim().replace(/\s+/g, '-');
-}
-
-function createDeckFolderSlug(seed) {
-  const base = normalizeDeckFolderName(seed)
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^[-_]+|[-_]+$/g, '');
-
-  if (base) return base;
-  return `deck-${Date.now().toString(36)}`;
-}
 
 export function initDashboard(router) {
   initDashboardConfigModal({ onSaved: show });

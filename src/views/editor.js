@@ -5,19 +5,24 @@
 
 import * as api from '../core/api.js';
 import * as monaco from 'monaco-editor';
+import {
+  compactLineGroups as groupConsecutiveLines,
+  createDefaultFile,
+  createDefaultSlide,
+  ensureDeckShape,
+  normalizeDraftSlideState as normalizeSlideDraftState,
+  normalizeLineRange as clampLineRange,
+  normalizeRelativeDirectory as normalizeDeckRelativeDirectory,
+  parseHighlightLinesInput as parseHighlightInputText,
+} from '../core/deck-utils.js';
 import { MarkdownPane } from '../panes/markdown.js';
+import { initEditorDeckSettings } from './editor-deck-settings.js';
+import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
 import { detectLanguage, monacoLangId } from '../utils/lang-detect.js';
-
-const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
-
-function normalizeDeckFolderName(value) {
-  if (typeof value !== 'string') return '';
-  return value.trim().replace(/\s+/g, '-');
-}
 
 // Configure Monaco workers for Vite
 self.MonacoEnvironment = {
@@ -93,34 +98,7 @@ export function initEditor(router) {
       return api.getDeckAssetUrl(deckId, assetPath);
     },
   });
-  const deckSettingsModal = {
-    modalEl: document.getElementById('editorDeckSettingsModal'),
-    formEl: document.getElementById('editorDeckSettingsForm'),
-    titleEl: document.getElementById('editorDeckSettingsName'),
-    folderEl: document.getElementById('editorDeckSettingsFolder'),
-    descEl: document.getElementById('editorDeckSettingsDesc'),
-    cwdEl: document.getElementById('editorDeckSettingsCwd'),
-    pickCwdBtn: document.getElementById('editorDeckSettingsPickCwdBtn'),
-    cancelBtn: document.getElementById('editorDeckSettingsCancel'),
-    submitBtn: document.getElementById('editorDeckSettingsSubmit'),
-    openBtn: document.getElementById('editorDeckSettingsBtn'),
-  };
-
-  const cwdPicker = {
-    modalEl: document.getElementById('cwdPickerModal'),
-    currentEl: document.getElementById('cwdPickerCurrent'),
-    listEl: document.getElementById('cwdPickerList'),
-    homeBtn: document.getElementById('cwdPickerHomeBtn'),
-    upBtn: document.getElementById('cwdPickerUpBtn'),
-    cancelBtn: document.getElementById('cwdPickerCancel'),
-    selectBtn: document.getElementById('cwdPickerSelect'),
-    currentPath: '',
-    parentPath: null,
-    targetInputEl: null,
-  };
-
-  let deckSettingsTriggerEl = null;
-  let cwdPickerTriggerEl = null;
+  let deckSettingsController = null;
   let assetsModal = null;
 
   // --- Dirty state ---
@@ -326,30 +304,6 @@ export function initEditor(router) {
     }
   }
 
-  function parseHighlightLinesInput(text) {
-    if (!text) return [];
-    const values = new Set();
-    text.split(',').forEach((part) => {
-      const line = parseInt(part.trim(), 10);
-      if (!Number.isFinite(line) || line < 1) return;
-      values.add(line);
-    });
-    return Array.from(values).sort((a, b) => a - b);
-  }
-
-  function normalizeLineRangeForFile(lineRange, file) {
-    const maxLine = Math.max((file?.code || '').split('\n').length, 1);
-    let start = parseInt(Array.isArray(lineRange) ? lineRange[0] : undefined, 10);
-    let end = parseInt(Array.isArray(lineRange) ? lineRange[1] : undefined, 10);
-
-    if (!Number.isFinite(start) || start < 1) start = 1;
-    if (!Number.isFinite(end) || end < start) end = start;
-
-    start = Math.min(start, maxLine);
-    end = Math.min(end, maxLine);
-    return [start, end];
-  }
-
   function getDraftSlideStateFromForm() {
     const fileRef = document.getElementById('editorFileRef').value;
     const lineStart = parseInt(document.getElementById('editorLineStart').value, 10);
@@ -361,7 +315,7 @@ export function initEditor(router) {
         Number.isFinite(lineStart) ? lineStart : 1,
         Number.isFinite(lineEnd) ? lineEnd : (Number.isFinite(lineStart) ? lineStart : 1),
       ],
-      highlightLines: parseHighlightLinesInput(document.getElementById('editorHighlight').value),
+      highlightLines: parseHighlightInputText(document.getElementById('editorHighlight').value),
     };
   }
 
@@ -377,26 +331,9 @@ export function initEditor(router) {
     document.getElementById('editorHighlight').value = normalized.join(', ');
   }
 
-  function compactLineGroups(lines) {
-    if (!lines.length) return [];
-
-    const groups = [];
-    let start = lines[0];
-    let prev = lines[0];
-
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i];
-      if (line === prev + 1) {
-        prev = line;
-        continue;
-      }
-      groups.push({ start, end: prev });
-      start = line;
-      prev = line;
-    }
-
-    groups.push({ start, end: prev });
-    return groups;
+  function getNormalizedDraftSlideState(draft) {
+    if (!deck) return null;
+    return normalizeSlideDraftState(draft, deck.files);
   }
 
   function renderRangeSummary(slideState = null) {
@@ -404,7 +341,7 @@ export function initEditor(router) {
     if (!summaryEl) return;
 
     const draft = slideState || getDraftSlideStateFromForm();
-    const result = normalizeDraftSlideState(draft);
+    const result = getNormalizedDraftSlideState(draft);
     if (!result) {
       summaryEl.textContent = '範囲未設定';
       return;
@@ -423,7 +360,7 @@ export function initEditor(router) {
 
     const draft = slideState || getDraftSlideStateFromForm();
     const lines = [...(draft.highlightLines || [])].sort((a, b) => a - b);
-    const groups = compactLineGroups(lines);
+    const groups = groupConsecutiveLines(lines);
 
     if (!groups.length) {
       chipsEl.innerHTML = '<span class="editor-chip-placeholder">未選択</span>';
@@ -464,30 +401,11 @@ export function initEditor(router) {
     const targetFile = deck.files.find(file => file.name === fileRef);
     if (!targetFile) return;
 
-    const maxLine = Math.max((targetFile.code || '').split('\n').length, 1);
-    setLineRangeInputs(1, maxLine);
+    const lineCount = (targetFile.code || '').split('\n').length;
+    const [, endLine] = clampLineRange([1, lineCount], lineCount);
+    setLineRangeInputs(1, endLine);
     updateCodePreview({ saveFile: false, reveal: false });
     markDirty();
-  }
-
-  function normalizeDraftSlideState(draft) {
-    if (!deck) return null;
-
-    const targetFile = deck.files.find(file => file.name === draft.fileRef);
-    if (!targetFile) return null;
-
-    const [start, end] = normalizeLineRangeForFile(draft.lineRange, targetFile);
-    const highlightLines = Array.from(
-      new Set((draft.highlightLines || []).map(line => parseInt(line, 10)).filter(line => Number.isFinite(line) && line >= 1)),
-    ).sort((a, b) => a - b);
-    return {
-      targetFile,
-      normalized: {
-        ...draft,
-        lineRange: [start, end],
-        highlightLines,
-      },
-    };
   }
 
   function syncMonacoWithFormState({ saveFile = false, reveal = false } = {}) {
@@ -496,7 +414,7 @@ export function initEditor(router) {
     if (saveFile) saveCurrentFile();
 
     const draft = getDraftSlideStateFromForm();
-    const result = normalizeDraftSlideState(draft);
+    const result = getNormalizedDraftSlideState(draft);
     if (!result) {
       updateMonacoDecorations();
       refreshSelectionWidgets();
@@ -546,7 +464,7 @@ export function initEditor(router) {
       return;
     }
 
-    const [start, end] = normalizeLineRangeForFile(slide.lineRange || [1, 1], file);
+    const [start, end] = clampLineRange(slide.lineRange || [1, 1], (file.code || '').split('\n').length);
     const highlightLines = (slide.highlightLines || [])
       .map(line => parseInt(line, 10))
       .filter(line => Number.isFinite(line) && line >= 1);
@@ -756,7 +674,7 @@ export function initEditor(router) {
     const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
     slide.lineRange = [lineStart, lineEnd];
     slide.markdown = document.getElementById('editorMarkdown').value;
-    slide.highlightLines = parseHighlightLinesInput(document.getElementById('editorHighlight').value);
+    slide.highlightLines = parseHighlightInputText(document.getElementById('editorHighlight').value);
   }
 
   function insertAssetReference(assetPath) {
@@ -794,107 +712,12 @@ export function initEditor(router) {
     if (!deck) return;
 
     deck.terminal = {
-      cwd: normalizeRelativeDirectory(deck.terminal?.cwd || ''),
+      cwd: normalizeDeckRelativeDirectory(deck.terminal?.cwd || ''),
     };
   }
 
   function setEditorDeckName(name) {
     document.getElementById('editorDeckName').textContent = name || '無題のデッキ';
-  }
-
-  function openDeckSettingsModal(triggerEl = document.activeElement) {
-    if (!deck || !deckSettingsModal.modalEl) return;
-    deckSettingsTriggerEl = triggerEl instanceof HTMLElement ? triggerEl : null;
-    deckSettingsModal.titleEl.value = deck.title || '';
-    deckSettingsModal.folderEl.value = deck.id || '';
-    deckSettingsModal.descEl.value = deck.description || '';
-    deckSettingsModal.cwdEl.value = normalizeRelativeDirectory(deck.terminal?.cwd || '');
-    deckSettingsModal.titleEl.classList.remove('modal-input-error');
-    deckSettingsModal.folderEl.classList.remove('modal-input-error');
-    deckSettingsModal.modalEl.hidden = false;
-    deckSettingsModal.titleEl.focus();
-  }
-
-  function closeDeckSettingsModal({ restore = true } = {}) {
-    if (!deckSettingsModal.modalEl) return;
-    deckSettingsModal.modalEl.hidden = true;
-    deckSettingsModal.formEl?.reset();
-    if (restore) {
-      restoreFocus(deckSettingsTriggerEl);
-    }
-    deckSettingsTriggerEl = null;
-  }
-
-  function applyDeckSettingsFromModal() {
-    if (!deck) return false;
-
-    const nextTitle = deckSettingsModal.titleEl.value.trim();
-    if (!nextTitle) {
-      deckSettingsModal.titleEl.classList.add('modal-input-error');
-      deckSettingsModal.titleEl.focus();
-      return false;
-    }
-    deckSettingsModal.titleEl.classList.remove('modal-input-error');
-
-    const nextFolderName = normalizeDeckFolderName(deckSettingsModal.folderEl.value);
-    if (!DECK_FOLDER_PATTERN.test(nextFolderName)) {
-      deckSettingsModal.folderEl.classList.add('modal-input-error');
-      deckSettingsModal.folderEl.focus();
-      return false;
-    }
-    deckSettingsModal.folderEl.classList.remove('modal-input-error');
-
-    const nextDescription = deckSettingsModal.descEl.value.trim();
-    const nextCwd = normalizeRelativeDirectory(deckSettingsModal.cwdEl.value);
-    const currentCwd = normalizeRelativeDirectory(deck.terminal?.cwd || '');
-    const changed = deck.title !== nextTitle
-      || deck.description !== nextDescription
-      || deck.id !== nextFolderName
-      || currentCwd !== nextCwd;
-
-    deck.title = nextTitle;
-    deck.description = nextDescription;
-    deck.id = nextFolderName;
-    deck.terminal = {
-      cwd: nextCwd,
-    };
-    setEditorDeckName(deck.title);
-
-    if (changed) markDirty();
-    return true;
-  }
-
-  function setupDeckSettingsModalEventListeners() {
-    if (!deckSettingsModal.modalEl || !deckSettingsModal.openBtn || !deckSettingsModal.formEl) return;
-
-    deckSettingsModal.openBtn.addEventListener('click', (event) => {
-      openDeckSettingsModal(event.currentTarget);
-    });
-    deckSettingsModal.cancelBtn?.addEventListener('click', closeDeckSettingsModal);
-    deckSettingsModal.pickCwdBtn?.addEventListener('click', () => {
-      openCwdPickerModal(deckSettingsModal.cwdEl);
-    });
-
-    deckSettingsModal.titleEl?.addEventListener('input', () => {
-      deckSettingsModal.titleEl.classList.remove('modal-input-error');
-    });
-
-    deckSettingsModal.folderEl?.addEventListener('input', () => {
-      deckSettingsModal.folderEl.classList.remove('modal-input-error');
-    });
-
-    deckSettingsModal.modalEl.addEventListener('click', (event) => {
-      if (event.target === deckSettingsModal.modalEl) {
-        closeDeckSettingsModal();
-      }
-    });
-
-    deckSettingsModal.formEl.addEventListener('submit', (event) => {
-      event.preventDefault();
-      if (!applyDeckSettingsFromModal()) return;
-      closeDeckSettingsModal();
-      showToast('デッキ設定を反映しました');
-    });
   }
 
   function replaceHash(path) {
@@ -927,10 +750,11 @@ export function initEditor(router) {
 
   function focusDeckFolderSettingWithError(message) {
     showToast(message);
-    openDeckSettingsModal();
-    if (!deckSettingsModal.folderEl) return;
-    deckSettingsModal.folderEl.classList.add('modal-input-error');
-    deckSettingsModal.folderEl.focus();
+    deckSettingsController?.openDeckSettingsModal();
+    const folderEl = document.getElementById('editorDeckSettingsFolder');
+    if (!folderEl) return;
+    folderEl.classList.add('modal-input-error');
+    folderEl.focus();
   }
 
   function handlePersistDeckError(err, fallbackMessage) {
@@ -947,145 +771,6 @@ export function initEditor(router) {
     showToast(fallbackMessage);
   }
 
-  function normalizeRelativeDirectory(rawValue) {
-    if (typeof rawValue !== 'string') return '';
-    const compact = rawValue.trim().replace(/\\/g, '/').replace(/^\/+/, '');
-    if (!compact) return '';
-    const segments = compact
-      .split('/')
-      .map(segment => segment.trim())
-      .filter(Boolean)
-      .filter(segment => segment !== '.' && segment !== '..');
-    return segments.join('/');
-  }
-
-  function formatCwdDisplay(relativePath) {
-    const normalized = normalizeRelativeDirectory(relativePath);
-    return normalized ? `~/${normalized}` : '~';
-  }
-
-  function renderCwdPickerList(directories) {
-    if (!cwdPicker.listEl) return;
-
-    if (!directories.length) {
-      cwdPicker.listEl.innerHTML = '<p class="cwd-picker-empty">サブディレクトリがありません</p>';
-      return;
-    }
-
-    cwdPicker.listEl.innerHTML = directories.map((directory) => {
-      const dirPath = normalizeRelativeDirectory(directory.path || '');
-      return `
-        <button type="button" class="cwd-picker-item" data-path="${escapeHtml(dirPath)}">
-          <span class="cwd-picker-item-name">${escapeHtml(directory.name || '')}</span>
-          <span class="cwd-picker-item-path">${escapeHtml(formatCwdDisplay(dirPath))}</span>
-        </button>
-      `;
-    }).join('');
-
-    cwdPicker.listEl.querySelectorAll('.cwd-picker-item').forEach((button) => {
-      button.addEventListener('click', async () => {
-        await loadCwdPickerDirectory(button.dataset.path || '');
-      });
-    });
-  }
-
-  async function loadCwdPickerDirectory(requestedPath) {
-    const pathToLoad = normalizeRelativeDirectory(requestedPath || '');
-    try {
-      const payload = await api.listDirectories(pathToLoad);
-      cwdPicker.currentPath = normalizeRelativeDirectory(payload.currentPath || '');
-      cwdPicker.parentPath = typeof payload.parentPath === 'string'
-        ? normalizeRelativeDirectory(payload.parentPath)
-        : null;
-
-      if (cwdPicker.currentEl) {
-        cwdPicker.currentEl.textContent = formatCwdDisplay(cwdPicker.currentPath);
-      }
-      if (cwdPicker.upBtn) {
-        cwdPicker.upBtn.disabled = !cwdPicker.parentPath;
-      }
-
-      const directories = Array.isArray(payload.directories) ? payload.directories : [];
-      renderCwdPickerList(directories);
-    } catch {
-      showToast('ディレクトリ一覧の取得に失敗しました');
-    }
-  }
-
-  function openCwdPickerModal(targetInputEl = deckSettingsModal.cwdEl) {
-    if (!cwdPicker.modalEl) return;
-    cwdPickerTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    cwdPicker.targetInputEl = targetInputEl || deckSettingsModal.cwdEl;
-    cwdPicker.modalEl.hidden = false;
-    const initialPath = normalizeRelativeDirectory(cwdPicker.targetInputEl?.value || '');
-    loadCwdPickerDirectory(initialPath);
-  }
-
-  function closeCwdPickerModal({ restore = true } = {}) {
-    if (!cwdPicker.modalEl) return;
-    cwdPicker.modalEl.hidden = true;
-    cwdPicker.targetInputEl = null;
-    if (restore) {
-      restoreFocus(cwdPickerTriggerEl);
-    }
-    cwdPickerTriggerEl = null;
-  }
-
-  function applyCwdPickerSelection() {
-    const input = cwdPicker.targetInputEl || deckSettingsModal.cwdEl;
-    if (!input) {
-      closeCwdPickerModal();
-      return;
-    }
-    const nextValue = normalizeRelativeDirectory(cwdPicker.currentPath || '');
-    if (input.value !== nextValue) {
-      input.value = nextValue;
-    }
-    closeCwdPickerModal({ restore: false });
-    input.focus();
-  }
-
-  function setupCwdPickerEventListeners() {
-    if (!cwdPicker.modalEl) return;
-
-    cwdPicker.cancelBtn?.addEventListener('click', closeCwdPickerModal);
-    cwdPicker.selectBtn?.addEventListener('click', applyCwdPickerSelection);
-    cwdPicker.homeBtn?.addEventListener('click', async () => {
-      await loadCwdPickerDirectory('');
-    });
-    cwdPicker.upBtn?.addEventListener('click', async () => {
-      if (!cwdPicker.parentPath) return;
-      await loadCwdPickerDirectory(cwdPicker.parentPath);
-    });
-
-    cwdPicker.modalEl.addEventListener('click', (event) => {
-      if (event.target === cwdPicker.modalEl) {
-        closeCwdPickerModal();
-      }
-    });
-  }
-
-  function setupModalKeyboardShortcuts() {
-    document.addEventListener('keydown', (event) => {
-      if (cwdPicker.modalEl && !cwdPicker.modalEl.hidden) {
-        if (event.key === 'Escape') {
-          closeCwdPickerModal();
-          return;
-        }
-        trapFocusInModal(event, cwdPicker.modalEl);
-        return;
-      }
-
-      if (deckSettingsModal.modalEl && !deckSettingsModal.modalEl.hidden) {
-        if (event.key === 'Escape') {
-          closeDeckSettingsModal();
-          return;
-        }
-        trapFocusInModal(event, deckSettingsModal.modalEl);
-      }
-    });
-  }
-
   function clearAllHighlightLines() {
     setHighlightInput([]);
     updateCodePreview({ saveFile: false, reveal: false });
@@ -1093,318 +778,11 @@ export function initEditor(router) {
   }
 
   function removeHighlightRange(start, end) {
-    const values = parseHighlightLinesInput(document.getElementById('editorHighlight').value)
+    const values = parseHighlightInputText(document.getElementById('editorHighlight').value)
       .filter(line => line < start || line > end);
     setHighlightInput(values);
     updateCodePreview({ saveFile: false, reveal: false });
     markDirty();
-  }
-
-  function setupEditorResizer() {
-    const bodyEl = document.querySelector('.editor-body');
-    const sidebarEl = document.querySelector('.editor-sidebar');
-    const resizerEl = document.getElementById('editorMainNarrativeResizer');
-    if (!bodyEl || !sidebarEl || !resizerEl) return;
-
-    const STORAGE_KEY = 'slidecode-editor-narrative-width';
-    const minNarrativeWidth = 260;
-    const minMainWidth = 420;
-    const splitterSize = 8;
-
-    const getMainAndNarrativeSpace = () => {
-      const bodyWidth = bodyEl.getBoundingClientRect().width;
-      const collapsed = bodyEl.classList.contains('sidebar-collapsed');
-      const sidebarWidth = collapsed ? 0 : sidebarEl.getBoundingClientRect().width;
-      const leftSplitterWidth = splitterSize;
-      const rightSplitterWidth = splitterSize;
-      const gap = parseFloat(getComputedStyle(bodyEl).columnGap) || 0;
-      const gapCount = collapsed ? 3 : 4;
-      const totalGap = gap * gapCount;
-      return bodyWidth - sidebarWidth - leftSplitterWidth - rightSplitterWidth - totalGap;
-    };
-
-    const clampWidth = (rawWidth) => {
-      if (window.matchMedia('(max-width: 1080px)').matches) {
-        return Math.max(rawWidth, minNarrativeWidth);
-      }
-
-      const available = getMainAndNarrativeSpace();
-      const maxNarrativeWidth = Math.max(
-        minNarrativeWidth,
-        available - minMainWidth,
-      );
-      return Math.min(Math.max(rawWidth, minNarrativeWidth), maxNarrativeWidth);
-    };
-
-    const getBalancedNarrativeWidth = () => {
-      if (window.matchMedia('(max-width: 1080px)').matches) {
-        return minNarrativeWidth;
-      }
-
-      const available = getMainAndNarrativeSpace();
-      return available / 2;
-    };
-
-    const applyWidth = (width, persist = false) => {
-      const clamped = clampWidth(width);
-      bodyEl.style.setProperty('--editor-narrative-width', `${clamped}px`);
-      if (persist) {
-        localStorage.setItem(STORAGE_KEY, String(Math.round(clamped)));
-      }
-    };
-
-    const savedWidth = parseInt(localStorage.getItem(STORAGE_KEY), 10);
-    if (Number.isFinite(savedWidth)) {
-      bodyEl.style.setProperty('--editor-narrative-width', `${savedWidth}px`);
-    } else {
-      applyWidth(getBalancedNarrativeWidth());
-    }
-
-    let dragging = false;
-
-    const onMouseMove = (e) => {
-      if (!dragging) return;
-      const rect = bodyEl.getBoundingClientRect();
-      const nextWidth = rect.right - e.clientX;
-      applyWidth(nextWidth);
-      if (monacoEditor) monacoEditor.layout();
-    };
-
-    const onMouseUp = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      document.body.classList.remove('resizing-h');
-      resizerEl.classList.remove('dragging');
-
-      const rect = bodyEl.getBoundingClientRect();
-      const nextWidth = rect.right - e.clientX;
-      applyWidth(nextWidth, true);
-
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      if (monacoEditor) monacoEditor.layout();
-    };
-
-    resizerEl.addEventListener('mousedown', (e) => {
-      if (window.matchMedia('(max-width: 1080px)').matches) return;
-      e.preventDefault();
-      dragging = true;
-      document.body.classList.add('resizing-h');
-      resizerEl.classList.add('dragging');
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-
-    window.addEventListener('resize', () => {
-      const current = parseInt(bodyEl.style.getPropertyValue('--editor-narrative-width'), 10);
-      if (Number.isFinite(current)) {
-        applyWidth(current);
-      }
-      if (monacoEditor) monacoEditor.layout();
-    });
-  }
-
-  function setupSidebarHandle() {
-    const bodyEl = document.querySelector('.editor-body');
-    const sidebarEl = document.querySelector('.editor-sidebar');
-    const sidebarResizerEl = document.getElementById('editorSidebarResizer');
-    const sidebarHandleBtn = document.getElementById('editorSidebarHandle');
-    if (!bodyEl || !sidebarEl || !sidebarResizerEl || !sidebarHandleBtn) return;
-
-    const WIDTH_KEY = 'slidecode-editor-sidebar-width';
-    const COLLAPSED_KEY = 'slidecode-editor-sidebar-collapsed';
-    const minSidebarWidth = 220;
-    const minMainWidth = 420;
-    const splitterSize = 8;
-
-    const clampSidebarWidth = (rawWidth) => {
-      if (window.matchMedia('(max-width: 860px)').matches) {
-        return rawWidth;
-      }
-
-      const isDesktopWide = !window.matchMedia('(max-width: 1080px)').matches;
-      const bodyWidth = bodyEl.getBoundingClientRect().width;
-      const narrativeWidth = isDesktopWide
-        ? document.querySelector('.editor-narrative')?.getBoundingClientRect().width || 0
-        : 0;
-      const rightSplitterWidth = isDesktopWide ? splitterSize : 0;
-      const gap = parseFloat(getComputedStyle(bodyEl).columnGap) || 0;
-      const gapCount = isDesktopWide ? 4 : 2;
-      const totalGap = gap * gapCount;
-      const maxSidebarWidth = Math.max(
-        minSidebarWidth,
-        bodyWidth - minMainWidth - narrativeWidth - rightSplitterWidth - splitterSize - totalGap,
-      );
-      return Math.min(Math.max(rawWidth, minSidebarWidth), maxSidebarWidth);
-    };
-
-    const applySidebarWidth = (width, persist = false) => {
-      const clamped = clampSidebarWidth(width);
-      bodyEl.style.setProperty('--editor-sidebar-width', `${clamped}px`);
-      if (persist) {
-        localStorage.setItem(WIDTH_KEY, String(Math.round(clamped)));
-      }
-    };
-
-    const setCollapsed = (collapsed, persist = false) => {
-      bodyEl.classList.toggle('sidebar-collapsed', collapsed);
-      sidebarHandleBtn.setAttribute('aria-pressed', collapsed ? 'true' : 'false');
-      sidebarHandleBtn.title = collapsed ? '左パネルを表示' : '左パネルを隠す';
-      sidebarHandleBtn.setAttribute('aria-label', collapsed ? '左パネルを表示' : '左パネルを隠す');
-
-      if (persist) {
-        localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
-      }
-
-      window.dispatchEvent(new Event('resize'));
-      if (monacoEditor) monacoEditor.layout();
-    };
-
-    const savedWidth = parseInt(localStorage.getItem(WIDTH_KEY), 10);
-    if (Number.isFinite(savedWidth)) {
-      bodyEl.style.setProperty('--editor-sidebar-width', `${savedWidth}px`);
-    }
-
-    const initialCollapsed = localStorage.getItem(COLLAPSED_KEY) === '1';
-    setCollapsed(initialCollapsed);
-
-    let dragging = false;
-
-    const onMouseMove = (e) => {
-      if (!dragging) return;
-
-      const rect = bodyEl.getBoundingClientRect();
-      const nextWidth = e.clientX - rect.left;
-
-      if (bodyEl.classList.contains('sidebar-collapsed')) {
-        setCollapsed(false, false);
-      }
-
-      applySidebarWidth(nextWidth);
-      if (monacoEditor) monacoEditor.layout();
-    };
-
-    const onMouseUp = (e) => {
-      if (!dragging) return;
-
-      dragging = false;
-      document.body.classList.remove('resizing-h');
-      sidebarResizerEl.classList.remove('dragging');
-
-      const rect = bodyEl.getBoundingClientRect();
-      const nextWidth = e.clientX - rect.left;
-      applySidebarWidth(nextWidth, true);
-
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-      if (monacoEditor) monacoEditor.layout();
-    };
-
-    sidebarResizerEl.addEventListener('mousedown', (e) => {
-      if (window.matchMedia('(max-width: 860px)').matches) return;
-      if (e.target === sidebarHandleBtn || sidebarHandleBtn.contains(e.target)) return;
-
-      e.preventDefault();
-      dragging = true;
-      document.body.classList.add('resizing-h');
-      sidebarResizerEl.classList.add('dragging');
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-
-    sidebarResizerEl.addEventListener('dblclick', () => {
-      if (window.matchMedia('(max-width: 860px)').matches) return;
-      const nextCollapsed = !bodyEl.classList.contains('sidebar-collapsed');
-      setCollapsed(nextCollapsed, true);
-    });
-
-    sidebarHandleBtn.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-    });
-
-    sidebarHandleBtn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const nextCollapsed = !bodyEl.classList.contains('sidebar-collapsed');
-      setCollapsed(nextCollapsed, true);
-    });
-
-    window.addEventListener('resize', () => {
-      const current = parseInt(bodyEl.style.getPropertyValue('--editor-sidebar-width'), 10);
-      if (Number.isFinite(current)) {
-        applySidebarWidth(current);
-      }
-    });
-  }
-
-  function setupMarkdownResizer() {
-    const containerEl = document.querySelector('.editor-fields-markdown');
-    const resizerEl = document.getElementById('editorMarkdownResizer');
-    if (!containerEl || !resizerEl) return;
-
-    const STORAGE_KEY = 'slidecode-editor-markdown-input-height';
-    const minInputHeight = 140;
-    const minPreviewHeight = 140;
-    const splitterSize = 8;
-
-    const clampHeight = (rawHeight) => {
-      const total = containerEl.getBoundingClientRect().height;
-      const maxInputHeight = Math.max(minInputHeight, total - minPreviewHeight - splitterSize);
-      return Math.min(Math.max(rawHeight, minInputHeight), maxInputHeight);
-    };
-
-    const applyHeight = (height, persist = false) => {
-      const clamped = clampHeight(height);
-      containerEl.style.setProperty('--editor-markdown-input-height', `${clamped}px`);
-      if (persist) {
-        localStorage.setItem(STORAGE_KEY, String(Math.round(clamped)));
-      }
-    };
-
-    const savedHeight = parseInt(localStorage.getItem(STORAGE_KEY), 10);
-    if (Number.isFinite(savedHeight)) {
-      containerEl.style.setProperty('--editor-markdown-input-height', `${savedHeight}px`);
-    }
-
-    let dragging = false;
-
-    const onMouseMove = (e) => {
-      if (!dragging) return;
-      const rect = containerEl.getBoundingClientRect();
-      const nextHeight = e.clientY - rect.top;
-      applyHeight(nextHeight);
-    };
-
-    const onMouseUp = (e) => {
-      if (!dragging) return;
-      dragging = false;
-      document.body.classList.remove('resizing-v');
-      resizerEl.classList.remove('dragging');
-
-      const rect = containerEl.getBoundingClientRect();
-      const nextHeight = e.clientY - rect.top;
-      applyHeight(nextHeight, true);
-
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-
-    resizerEl.addEventListener('mousedown', (e) => {
-      if (window.matchMedia('(max-width: 860px)').matches) return;
-      e.preventDefault();
-      dragging = true;
-      document.body.classList.add('resizing-v');
-      resizerEl.classList.add('dragging');
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-    });
-
-    window.addEventListener('resize', () => {
-      const current = parseInt(containerEl.style.getPropertyValue('--editor-markdown-input-height'), 10);
-      if (Number.isFinite(current)) {
-        applyHeight(current);
-      }
-    });
   }
 
   // --- Event Listeners ---
@@ -1413,12 +791,18 @@ export function initEditor(router) {
     const debouncedCodePreview = debounce(updateCodePreview, 300);
     const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
 
-    setupSidebarHandle();
-    setupEditorResizer();
-    setupMarkdownResizer();
-    setupDeckSettingsModalEventListeners();
-    setupCwdPickerEventListeners();
-    setupModalKeyboardShortcuts();
+    setupEditorLayoutControls({
+      getMonacoEditor: () => monacoEditor,
+    });
+    deckSettingsController = initEditorDeckSettings({
+      api,
+      showToast,
+      restoreFocus,
+      trapFocusInModal,
+      getDeck: () => deck,
+      markDirty,
+      setEditorDeckName,
+    });
     setHighlightInputVisible(false);
     assetsModal = initEditorAssetsModal({
       api,
@@ -1438,8 +822,12 @@ export function initEditor(router) {
     // File management
     document.getElementById('addFileBtn').addEventListener('click', () => {
       saveCurrentFile();
-      const newName = `file${deck.files.length + 1}.py`;
-      deck.files.push({ name: newName, language: 'python', code: '' });
+      const newFile = {
+        ...createDefaultFile(deck.files.length),
+        name: `file${deck.files.length + 1}.py`,
+        language: 'python',
+      };
+      deck.files.push(newFile);
       fileIndex = deck.files.length - 1;
       renderFileTabs();
       loadFile(fileIndex);
@@ -1548,13 +936,7 @@ export function initEditor(router) {
     document.getElementById('addSlideBtn').addEventListener('click', () => {
       saveCurrentSlide();
       const firstFile = deck.files[0];
-      deck.slides.push({
-        title: `スライド ${deck.slides.length + 1}`,
-        fileRef: firstFile ? firstFile.name : '',
-        lineRange: [1, 1],
-        highlightLines: [],
-        markdown: '',
-      });
+      deck.slides.push(createDefaultSlide(deck.slides.length, firstFile ? firstFile.name : ''));
       slideIndex = deck.slides.length - 1;
       renderSlideList();
       loadSlide(slideIndex);
@@ -1648,7 +1030,7 @@ export function initEditor(router) {
     };
 
     const setHighlightLine = (line, shouldHighlight) => {
-      const values = parseHighlightLinesInput(document.getElementById('editorHighlight').value);
+      const values = parseHighlightInputText(document.getElementById('editorHighlight').value);
       const hasLine = values.includes(line);
       if (shouldHighlight && !hasLine) {
         values.push(line);
@@ -1693,7 +1075,7 @@ export function initEditor(router) {
 
       if (e.target.type === glyphTargetType) {
         e.event.preventDefault();
-        const existing = parseHighlightLinesInput(document.getElementById('editorHighlight').value);
+        const existing = parseHighlightInputText(document.getElementById('editorHighlight').value);
         highlightDragMode = existing.includes(line) ? 'remove' : 'add';
         highlightPointerDown = true;
         lastHighlightDragLine = -1;
@@ -1762,27 +1144,7 @@ export function initEditor(router) {
     try {
       loading = true;
       deck = await api.getDeck(deckId);
-      if (!deck.files || deck.files.length === 0) {
-        deck.files = [{ name: 'main.py', language: 'python', code: '' }];
-      }
-      if (!deck.slides || deck.slides.length === 0) {
-        deck.slides = [{
-          title: 'スライド 1',
-          fileRef: deck.files[0].name,
-          lineRange: [1, 1],
-          highlightLines: [],
-          markdown: '',
-        }];
-      }
-      if (!Array.isArray(deck.assets)) {
-        deck.assets = [];
-      }
-      if (!deck.terminal || typeof deck.terminal !== 'object') {
-        deck.terminal = { cwd: '' };
-      }
-      if (typeof deck.terminal.cwd !== 'string') {
-        deck.terminal.cwd = '';
-      }
+      ensureDeckShape(deck);
       persistedDeckId = deck.id;
       slideIndex = 0;
       fileIndex = 0;

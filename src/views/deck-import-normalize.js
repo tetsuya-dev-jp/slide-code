@@ -1,3 +1,10 @@
+import {
+  createDefaultFile,
+  createDefaultSlide,
+  normalizeHighlightLines,
+  normalizeLineRange,
+} from '../core/deck-utils.js';
+
 export function normalizeImportedDeck(data, filename) {
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
     throw new Error('invalid-deck');
@@ -16,29 +23,21 @@ export function normalizeImportedDeck(data, filename) {
     ? data.files
       .filter(file => file && typeof file === 'object')
       .map((file, index) => {
-        const fallbackName = index === 0 ? 'main.py' : `file${index + 1}.txt`;
+        const fallbackFile = createDefaultFile(index);
         return {
-          name: typeof file.name === 'string' && file.name.trim() ? file.name.trim() : fallbackName,
-          language: typeof file.language === 'string' && file.language.trim() ? file.language.trim() : 'plaintext',
+          name: typeof file.name === 'string' && file.name.trim() ? file.name.trim() : fallbackFile.name,
+          language: typeof file.language === 'string' && file.language.trim() ? file.language.trim() : fallbackFile.language,
           code: typeof file.code === 'string' ? file.code : '',
         };
       })
     : [];
 
   if (normalizedFiles.length === 0) {
-    normalizedFiles.push({ name: 'main.py', language: 'python', code: '' });
+    normalizedFiles.push(createDefaultFile(0));
   }
 
   const fileNames = new Set(normalizedFiles.map(file => file.name));
   const fallbackFileRef = normalizedFiles[0].name;
-
-  const normalizeLineRange = (lineRange) => {
-    let start = parseInt(Array.isArray(lineRange) ? lineRange[0] : undefined, 10);
-    let end = parseInt(Array.isArray(lineRange) ? lineRange[1] : undefined, 10);
-    if (!Number.isFinite(start) || start < 1) start = 1;
-    if (!Number.isFinite(end) || end < start) end = start;
-    return [start, end];
-  };
 
   const normalizedSlides = Array.isArray(data.slides)
     ? data.slides
@@ -48,14 +47,13 @@ export function normalizeImportedDeck(data, filename) {
           ? slide.fileRef
           : fallbackFileRef;
         const lineRange = normalizeLineRange(slide.lineRange);
-        const highlightLines = Array.isArray(slide.highlightLines)
-          ? slide.highlightLines
-            .map(line => parseInt(line, 10))
-            .filter(line => Number.isFinite(line) && line >= lineRange[0] && line <= lineRange[1])
-          : [];
+        const highlightLines = normalizeHighlightLines(slide.highlightLines, {
+          minLine: lineRange[0],
+          maxLine: lineRange[1],
+        });
 
         return {
-          title: typeof slide.title === 'string' && slide.title.trim() ? slide.title.trim() : `スライド ${index + 1}`,
+          title: typeof slide.title === 'string' && slide.title.trim() ? slide.title.trim() : createDefaultSlide(index, fileRef).title,
           fileRef,
           lineRange,
           highlightLines,
@@ -65,13 +63,7 @@ export function normalizeImportedDeck(data, filename) {
     : [];
 
   if (normalizedSlides.length === 0) {
-    normalizedSlides.push({
-      title: 'スライド 1',
-      fileRef: fallbackFileRef,
-      lineRange: [1, 1],
-      highlightLines: [],
-      markdown: '',
-    });
+    normalizedSlides.push(createDefaultSlide(0, fallbackFileRef));
   }
 
   const normalizedAssets = Array.isArray(data.assets)
