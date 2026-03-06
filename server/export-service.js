@@ -1,13 +1,10 @@
 import fs from 'fs';
-
-function escapeHtml(value) {
-    return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-}
+import {
+    escapeHtml,
+    EXPORT_KATEX_STYLESHEET_URL,
+    EXPORT_MERMAID_MODULE_URL,
+    renderMarkdownDocument,
+} from '../src/core/markdown-render.js';
 
 function normalizeFileName(value, fallback) {
     const normalized = String(value || '')
@@ -42,36 +39,7 @@ function resolveSlideCode(slide, deck) {
     };
 }
 
-function extractAssetRefs(markdown) {
-    if (typeof markdown !== 'string' || !markdown.trim()) return [];
-    const refs = new Set();
-    const pattern = /asset:\/\/([^\s)"'`<>]+)/g;
-    let match = pattern.exec(markdown);
-    while (match) {
-        refs.add(match[1]);
-        match = pattern.exec(markdown);
-    }
-    return Array.from(refs);
-}
-
-function markdownToSimpleHtml(markdown, assetDataUriByPath) {
-    const safeMarkdown = typeof markdown === 'string' ? markdown : '';
-    const escaped = escapeHtml(safeMarkdown).replace(/\n/g, '<br />');
-    const refs = extractAssetRefs(safeMarkdown);
-
-    const images = refs
-        .map((assetPath) => {
-            const src = assetDataUriByPath.get(assetPath) || '';
-            if (!src) return '';
-            return `<div class="asset-image"><img src="${src}" alt="${escapeHtml(assetPath)}" /></div>`;
-        })
-        .filter(Boolean)
-        .join('');
-
-    return `<div class="markdown-block">${escaped}</div>${images}`;
-}
-
-function createAssetDataUriMap(storage, deck) {
+function createAssetDataUriResolver(storage, deck) {
     const map = new Map();
     (deck.assets || []).forEach((asset) => {
         if (!asset?.exists) return;
@@ -83,13 +51,54 @@ function createAssetDataUriMap(storage, deck) {
             // Skip unreadable asset.
         }
     });
-    return map;
+    return (assetPath) => map.get(assetPath) || `asset://${assetPath}`;
 }
 
-function renderExportHtml({ deck, printMode, assetDataUriByPath }) {
+function createRelativeAssetResolver() {
+    return (assetPath) => `assets/${assetPath}`;
+}
+
+function createExportBehaviorScript({ hasMermaid, printMode }) {
+    if (!hasMermaid && !printMode) return '';
+
+    if (!hasMermaid) {
+        return '<script>window.addEventListener("load", () => window.print());</script>';
+    }
+
+    return `<script type="module">
+import mermaid from '${EXPORT_MERMAID_MODULE_URL}';
+
+mermaid.initialize({ startOnLoad: false, theme: 'default' });
+
+window.addEventListener('load', async () => {
+  const nodes = Array.from(document.querySelectorAll('.mermaid'));
+  for (const [index, el] of nodes.entries()) {
+    try {
+      const source = el.textContent || '';
+      const id = (el.id || 'export-mermaid') + '-svg-' + index;
+      const { svg, bindFunctions } = await mermaid.render(id, source);
+      el.innerHTML = svg;
+      if (typeof bindFunctions === 'function') bindFunctions(el);
+    } catch (error) {
+      el.classList.add('mermaid-error');
+      el.textContent = error instanceof Error ? error.message : String(error);
+    }
+  }
+  ${printMode ? 'window.print();' : ''}
+});
+</script>`;
+}
+
+function renderExportHtml({ deck, printMode, resolveAssetUrl }) {
+    let hasMermaid = false;
     const slideSections = (deck.slides || []).map((slide, index) => {
         const resolved = resolveSlideCode(slide, deck);
-        const markdownHtml = markdownToSimpleHtml(slide.markdown || '', assetDataUriByPath);
+        const markdownResult = renderMarkdownDocument(slide.markdown || '', {
+            resolveAssetUrl,
+            mermaidIdPrefix: `export-mermaid-${index}`,
+        });
+        hasMermaid ||= markdownResult.hasMermaid;
+        const markdownHtml = markdownResult.html || '<p>このスライドには解説がありません</p>';
 
         return `
         <article class="slide">
@@ -98,14 +107,12 @@ function renderExportHtml({ deck, printMode, assetDataUriByPath }) {
             <p>${escapeHtml(resolved.language)} / ${resolved.lineStart}-${resolved.lineEnd}</p>
           </header>
           <section class="slide-code"><pre><code>${escapeHtml(resolved.code || '')}</code></pre></section>
-          <section class="slide-markdown"><h3>解説</h3>${markdownHtml}</section>
+          <section class="slide-markdown markdown-body"><h3>解説</h3>${markdownHtml}</section>
         </article>
       `;
     }).join('');
 
-    const printScript = printMode
-        ? '<script>window.addEventListener("load", () => window.print());</script>'
-        : '';
+    const behaviorScript = createExportBehaviorScript({ hasMermaid, printMode });
 
     return `<!doctype html>
 <html lang="ja">
@@ -113,6 +120,7 @@ function renderExportHtml({ deck, printMode, assetDataUriByPath }) {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(deck.title)} - SlideCode Export</title>
+  <link rel="stylesheet" href="${EXPORT_KATEX_STYLESHEET_URL}" />
   <style>
     :root { color-scheme: light; }
     body { margin: 0; font-family: "Inter", sans-serif; background: #f7f8fa; color: #111827; }
@@ -126,10 +134,32 @@ function renderExportHtml({ deck, printMode, assetDataUriByPath }) {
     .slide-header p { margin: 0; color: #6b7280; font-size: 12px; }
     .slide-code pre { margin: 10px 0 0; padding: 12px; background: #111827; color: #f9fafb; border-radius: 8px; overflow: auto; }
     .slide-code code { font-family: "JetBrains Mono", monospace; font-size: 12px; line-height: 1.5; }
-    .slide-markdown h3 { margin: 14px 0 8px; font-size: 14px; }
-    .markdown-block { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; line-height: 1.6; white-space: normal; }
-    .asset-image { margin-top: 10px; }
-    .asset-image img { max-width: 100%; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .slide-markdown { margin-top: 14px; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    .slide-markdown h3 { margin: 0 0 12px; font-size: 14px; }
+    .markdown-body h1 { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; font-size: 26px; }
+    .markdown-body h2 { margin: 24px 0 12px; font-size: 22px; }
+    .markdown-body h3 { margin: 18px 0 10px; font-size: 18px; }
+    .markdown-body p, .markdown-body li { line-height: 1.7; }
+    .markdown-body ul, .markdown-body ol { padding-left: 24px; }
+    .markdown-body a { color: #2563eb; text-decoration: none; }
+    .markdown-body a:hover { text-decoration: underline; }
+    .markdown-body code { padding: 2px 6px; border-radius: 4px; background: #eef2ff; color: #4338ca; font-family: "JetBrains Mono", monospace; }
+    .markdown-body pre { overflow-x: auto; padding: 14px; border-radius: 8px; background: #0f172a; color: #f8fafc; }
+    .markdown-body pre code { padding: 0; background: transparent; color: inherit; }
+    .markdown-body blockquote { margin: 0 0 12px; padding: 8px 16px; border-left: 3px solid #cbd5e1; color: #475569; }
+    .markdown-body img { max-width: 100%; border-radius: 8px; border: 1px solid #e5e7eb; }
+    .markdown-body table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+    .markdown-body th, .markdown-body td { padding: 8px 12px; border: 1px solid #e5e7eb; text-align: left; }
+    .markdown-body th { background: #f8fafc; }
+    .markdown-body hr { border: none; border-top: 1px solid #e5e7eb; margin: 24px 0; }
+    .markdown-body .katex-display { overflow-x: auto; overflow-y: hidden; margin: 16px 0; }
+    .markdown-body .mermaid { display: flex; justify-content: center; padding: 16px; margin: 16px 0; border-radius: 8px; background: #f8fafc; white-space: pre; }
+    .markdown-body .mermaid-error { color: #b91c1c; justify-content: flex-start; white-space: pre-wrap; }
+    .markdown-body .callout { margin-bottom: 16px; padding: 12px 16px; border-left: 4px solid; border-radius: 8px; }
+    .markdown-body .callout strong { display: block; margin-bottom: 6px; }
+    .markdown-body .callout-info { background: rgba(183, 255, 26, 0.12); border-color: #84cc16; }
+    .markdown-body .callout-tip { background: rgba(183, 255, 26, 0.16); border-color: #65a30d; }
+    .markdown-body .callout-warn { background: rgba(245, 158, 11, 0.08); border-color: #d97706; }
     @media print {
       body { background: #fff; }
       .container { max-width: none; padding: 0; }
@@ -145,7 +175,7 @@ function renderExportHtml({ deck, printMode, assetDataUriByPath }) {
     </header>
     ${slideSections}
   </div>
-  ${printScript}
+  ${behaviorScript}
 </body>
 </html>`;
 }
@@ -234,10 +264,12 @@ function createZipBuffer(entries) {
     return Buffer.concat([...localParts, centralDirectory, endRecord]);
 }
 
-export function createDeckExportHtml({ storage, deckId, printMode = false }) {
+function buildDeckExportHtml({ storage, deckId, printMode = false, createResolveAssetUrl }) {
     const deck = storage.readDeck(deckId);
-    const assetDataUriByPath = createAssetDataUriMap(storage, deck);
-    const html = renderExportHtml({ deck, printMode, assetDataUriByPath });
+    const resolveAssetUrl = typeof createResolveAssetUrl === 'function'
+        ? createResolveAssetUrl(deck)
+        : () => '';
+    const html = renderExportHtml({ deck, printMode, resolveAssetUrl });
     const baseName = normalizeFileName(deck.title, deck.id || 'deck');
     return {
         deck,
@@ -246,8 +278,22 @@ export function createDeckExportHtml({ storage, deckId, printMode = false }) {
     };
 }
 
+export function createDeckExportHtml({ storage, deckId, printMode = false }) {
+    return buildDeckExportHtml({
+        storage,
+        deckId,
+        printMode,
+        createResolveAssetUrl: (deck) => createAssetDataUriResolver(storage, deck),
+    });
+}
+
 export function createDeckExportZip({ storage, deckId }) {
-    const { deck, html } = createDeckExportHtml({ storage, deckId, printMode: false });
+    const { deck, html } = buildDeckExportHtml({
+        storage,
+        deckId,
+        printMode: false,
+        createResolveAssetUrl: () => createRelativeAssetResolver(),
+    });
     const entries = [];
 
     const manifestPath = storage.getDeckJsonPath(deck.id);

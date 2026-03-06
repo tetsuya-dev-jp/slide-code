@@ -3,11 +3,10 @@
  * Renders markdown with KaTeX math and Mermaid diagrams
  */
 
-import { marked } from 'marked';
-import katex from 'katex';
 import 'katex/dist/katex.min.css';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
+import { renderMarkdownDocument } from '../core/markdown-render.js';
 
 const HTML_SANITIZE_OPTIONS = {
     USE_PROFILES: {
@@ -54,59 +53,11 @@ function initMermaid() {
 }
 initMermaid();
 
-/**
- * Process KaTeX math expressions in text
- * Supports $...$ for inline and $$...$$ for block math
- */
-function processKaTeX(html) {
-    // Block math: $$...$$
-    html = html.replace(/\$\$([\s\S]*?)\$\$/g, (match, tex) => {
-        try {
-            return `<div class="katex-display">${katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false })}</div>`;
-        } catch (_err) {
-            return `<div class="katex-error">${match}</div>`;
-        }
-    });
-
-    // Inline math: $...$  (but not $$ )
-    html = html.replace(/(?<!\$)\$(?!\$)(.*?)(?<!\$)\$(?!\$)/g, (match, tex) => {
-        try {
-            return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false });
-        } catch (_err) {
-            return match;
-        }
-    });
-
-    return html;
-}
-
 export class MarkdownPane {
     constructor(markdownBodyEl, { resolveAssetUrl } = {}) {
         this.markdownBody = markdownBodyEl;
         this.mermaidId = 0;
         this.resolveAssetUrl = typeof resolveAssetUrl === 'function' ? resolveAssetUrl : null;
-
-        // Configure marked
-        marked.setOptions({
-            gfm: true,
-            breaks: true,
-        });
-    }
-
-    resolveAssetLinks(markdownText) {
-        if (!this.resolveAssetUrl || typeof markdownText !== 'string' || !markdownText.includes('asset://')) {
-            return markdownText;
-        }
-
-        return markdownText.replace(/asset:\/\/([^\s)"'`<>]+)/g, (match, assetPath) => {
-            try {
-                const resolved = this.resolveAssetUrl(assetPath);
-                if (typeof resolved !== 'string' || !resolved) return match;
-                return resolved;
-            } catch {
-                return match;
-            }
-        });
     }
 
     /**
@@ -125,71 +76,25 @@ export class MarkdownPane {
             return;
         }
 
-        // Pre-process: Extract mermaid code blocks before marked parses them
-        const markdownWithResolvedAssets = this.resolveAssetLinks(md);
-        const mermaidBlocks = [];
-        const mdProcessed = markdownWithResolvedAssets.replace(/```mermaid\n([\s\S]*?)```/g, (match, code) => {
-            const id = `mermaid-${this.mermaidId++}`;
-            mermaidBlocks.push({ id, code: code.trim() });
-            return `<div class="mermaid" id="${id}"></div>`;
+        const { html } = renderMarkdownDocument(md, {
+            resolveAssetUrl: this.resolveAssetUrl,
+            mermaidIdPrefix: 'preview-mermaid',
         });
-
-        // Pre-process: Protect KaTeX from marked
-        let mathBlocks = [];
-        let mathProcessed = mdProcessed.replace(/\$\$([\s\S]*?)\$\$/g, (match) => {
-            const placeholder = `%%MATHBLOCK${mathBlocks.length}%%`;
-            mathBlocks.push(match);
-            return placeholder;
-        });
-
-        let mathInlines = [];
-        mathProcessed = mathProcessed.replace(/(?<!\$)\$(?!\$)([^\n]*?)(?<!\$)\$(?!\$)/g, (match) => {
-            const placeholder = `%%MATHINLINE${mathInlines.length}%%`;
-            mathInlines.push(match);
-            return placeholder;
-        });
-
-        // Parse markdown
-        let html = marked.parse(mathProcessed);
-
-        // Restore math expressions
-        mathBlocks.forEach((expr, i) => {
-            html = html.replace(`%%MATHBLOCK${i}%%`, expr);
-        });
-        mathInlines.forEach((expr, i) => {
-            html = html.replace(`%%MATHINLINE${i}%%`, expr);
-        });
-
-        // Process KaTeX
-        html = processKaTeX(html);
-
-        // Process callouts (> [!NOTE], > [!TIP], etc.)
-        html = html.replace(/<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]([\s\S]*?)<\/p>\s*<\/blockquote>/gi,
-            (match, type, content) => {
-                const typeLC = type.toLowerCase();
-                const classMap = { note: 'callout-info', tip: 'callout-tip', important: 'callout-info', warning: 'callout-warn', caution: 'callout-warn' };
-                return `<div class="callout ${classMap[typeLC] || 'callout-info'}"><strong>${type}</strong>${content}</div>`;
-            }
-        );
 
         this.markdownBody.innerHTML = DOMPurify.sanitize(html, HTML_SANITIZE_OPTIONS);
 
         // Render mermaid diagrams
-        for (const block of mermaidBlocks) {
+        for (const el of this.markdownBody.querySelectorAll('.mermaid')) {
             try {
-                const el = document.getElementById(block.id);
-                if (el) {
-                    const { svg } = await mermaid.render(block.id + '-svg', block.code);
-                    el.innerHTML = DOMPurify.sanitize(svg, MERMAID_SANITIZE_OPTIONS);
-                }
+                const source = el.textContent || '';
+                const renderId = `${el.id || 'preview-mermaid'}-svg-${this.mermaidId++}`;
+                const { svg } = await mermaid.render(renderId, source);
+                el.innerHTML = DOMPurify.sanitize(svg, MERMAID_SANITIZE_OPTIONS);
             } catch (e) {
-                const el = document.getElementById(block.id);
-                if (el) {
-                    const errorPre = document.createElement('pre');
-                    errorPre.style.color = 'var(--accent-danger)';
-                    errorPre.textContent = e instanceof Error ? e.message : String(e);
-                    el.replaceChildren(errorPre);
-                }
+                const errorPre = document.createElement('pre');
+                errorPre.style.color = 'var(--accent-danger)';
+                errorPre.textContent = e instanceof Error ? e.message : String(e);
+                el.replaceChildren(errorPre);
             }
         }
 
