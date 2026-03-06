@@ -47,4 +47,16 @@ A-->B
     expect(html).not.toContain('<script>');
     expect(html).not.toContain('href="javascript:alert(1)"');
   });
+
+  test('resolves asset references in text and links without mutating code spans or fences', () => {
+    const { html } = renderMarkdownDocument('asset://diagram.png\n\n![Diagram](asset://diagram.png)\n\n`asset://inline-code.png`\n\n```txt\nasset://code-block.png\n```', {
+      resolveAssetUrl: (assetPath) => `assets/${assetPath}`,
+    });
+
+    expect(html).toContain('<p>assets/diagram.png</p>');
+    expect(html).toContain('src="assets/diagram.png"');
+    expect(html).toContain('<code>asset://inline-code.png</code>');
+    expect(html).toContain('asset://code-block.png');
+    expect(html).not.toContain('assets/code-block.png');
+  });
 });

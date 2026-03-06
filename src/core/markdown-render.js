@@ -26,12 +26,13 @@ export function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
-function resolveAssetLinks(markdownText, resolveAssetUrl) {
-  if (typeof markdownText !== 'string' || !markdownText.includes('asset://') || typeof resolveAssetUrl !== 'function') {
-    return typeof markdownText === 'string' ? markdownText : '';
+function resolveAssetReference(value, resolveAssetUrl) {
+  const text = typeof value === 'string' ? value : '';
+  if (!text.includes('asset://') || typeof resolveAssetUrl !== 'function') {
+    return text;
   }
 
-  return markdownText.replace(/asset:\/\/([^\s)"'`<>]+)/g, (match, assetPath) => {
+  return text.replace(/asset:\/\/([^\s)"'`<>]+)/g, (match, assetPath) => {
     try {
       const resolved = resolveAssetUrl(assetPath);
       return typeof resolved === 'string' && resolved ? resolved : match;
@@ -125,6 +126,18 @@ export function renderMarkdownDocument(markdownText, { resolveAssetUrl, mermaidI
 
   parser.use({
     extensions: createMathExtensions(),
+    walkTokens(token) {
+      if (token.type === 'text') {
+        token.text = resolveAssetReference(token.text, resolveAssetUrl);
+        if (typeof token.raw === 'string') {
+          token.raw = resolveAssetReference(token.raw, resolveAssetUrl);
+        }
+      }
+
+      if ((token.type === 'link' || token.type === 'image') && typeof token.href === 'string') {
+        token.href = resolveAssetReference(token.href, resolveAssetUrl);
+      }
+    },
     renderer: {
       html(token) {
         return escapeHtml(token.raw || token.text || '');
@@ -168,8 +181,7 @@ export function renderMarkdownDocument(markdownText, { resolveAssetUrl, mermaidI
     },
   });
 
-  const resolvedMarkdown = resolveAssetLinks(markdownText, resolveAssetUrl);
-  const html = parser.parse(resolvedMarkdown || '');
+  const html = parser.parse(typeof markdownText === 'string' ? markdownText : '');
 
   return {
     html,
