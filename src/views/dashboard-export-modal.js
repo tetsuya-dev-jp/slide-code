@@ -32,9 +32,9 @@ export function initDashboardExportModal() {
         const deck = await api.getDeck(id);
         const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
         downloadBlob(blob, `${deck.title || 'deck'}.json`);
-      } else if (format === 'pdf') {
-        const pdfUrl = api.getDeckExportUrl(id, 'pdf');
-        const printWindow = window.open(pdfUrl, '_blank', 'noopener');
+      } else if (format === 'print') {
+        const printUrl = api.getDeckExportUrl(id, 'print');
+        const printWindow = window.open(printUrl, '_blank', 'noopener');
         if (!printWindow) {
           showToast('ポップアップがブロックされました');
           return;

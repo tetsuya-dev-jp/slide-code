@@ -23,7 +23,6 @@ export function initDashboardConfigModal({ onSaved } = {}) {
   const sharedTemplatesDirEl = document.getElementById('appConfigSharedTemplatesDir');
   const baseCwdEl = document.getElementById('appConfigTerminalBaseCwd');
   const shellEl = document.getElementById('appConfigTerminalShell');
-  const pathEl = document.getElementById('appConfigFilePath');
   const cancelBtn = document.getElementById('appConfigCancel');
   const pickDecksDirBtn = document.getElementById('pickAppConfigDecksDirBtn');
   const pickTemplatesDirBtn = document.getElementById('pickAppConfigTemplatesDirBtn');
@@ -44,7 +43,7 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     targetInput: null,
   };
 
-  if (!openBtn || !modalEl || !formEl || !decksDirEl || !templatesDirEl || !sharedTemplatesDirEl || !baseCwdEl || !shellEl || !pathEl || !cancelBtn) {
+  if (!openBtn || !modalEl || !formEl || !decksDirEl || !templatesDirEl || !sharedTemplatesDirEl || !baseCwdEl || !shellEl || !cancelBtn) {
     return;
   }
 
@@ -157,7 +156,6 @@ export function initDashboardConfigModal({ onSaved } = {}) {
       sharedTemplatesDirEl.value = config.sharedTemplatesDir || '';
       baseCwdEl.value = config.terminalBaseCwd || '';
       shellEl.value = config.terminalShell || '';
-      pathEl.textContent = config.configFilePath || '';
       decksDirEl.classList.remove('modal-input-error');
       templatesDirEl.classList.remove('modal-input-error');
       baseCwdEl.classList.remove('modal-input-error');
@@ -193,15 +191,13 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     }
 
     try {
-      const config = await api.updateAppConfig({
+      await api.updateAppConfig({
         decksDir,
         templatesDir,
         sharedTemplatesDir,
         terminalBaseCwd,
         terminalShell,
       });
-
-      pathEl.textContent = config.configFilePath || pathEl.textContent;
       closeModal();
       showToast('設定を保存しました');
       if (typeof onSaved === 'function') {

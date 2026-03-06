@@ -212,7 +212,7 @@ export function registerExtraRoutes(app, getContext) {
             return res.send(result.html);
         }
 
-        if (format === 'pdf') {
+        if (format === 'print') {
             const result = createDeckExportHtml({
                 storage,
                 deckId: req.params.id,
@@ -221,6 +221,10 @@ export function registerExtraRoutes(app, getContext) {
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
             res.setHeader('Content-Disposition', 'inline');
             return res.send(result.html);
+        }
+
+        if (format === 'pdf') {
+            throw createApiError(400, 'PDF export is not supported; use print export');
         }
 
         if (format === 'zip') {

@@ -24,7 +24,6 @@ const DECK_WRITE_ERROR_RULES = [
 
 function createConfigResponse(runtimeConfig) {
     return {
-        configFilePath: runtimeConfig.configFilePath,
         decksDir: runtimeConfig.decksDir,
         templatesDir: runtimeConfig.templatesDir,
         sharedTemplatesDir: runtimeConfig.sharedTemplatesDir,
