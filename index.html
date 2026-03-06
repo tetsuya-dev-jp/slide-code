@@ -712,6 +712,66 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="editorPreferencesModal" hidden>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorPreferencesTitle">
+        <h3 class="modal-title" id="editorPreferencesTitle">エディタ設定</h3>
+        <form id="editorPreferencesForm" autocomplete="off">
+          <div class="modal-field">
+            <label for="editorPrefFontSize">フォントサイズ</label>
+            <select id="editorPrefFontSize" class="editor-select">
+              <option value="12">12</option>
+              <option value="13">13</option>
+              <option value="14">14</option>
+              <option value="16">16</option>
+              <option value="18">18</option>
+              <option value="20">20</option>
+              <option value="24">24</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label for="editorPrefTabSize">タブ幅</label>
+            <select id="editorPrefTabSize" class="editor-select">
+              <option value="2">2</option>
+              <option value="4">4</option>
+              <option value="8">8</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label for="editorPrefWordWrap">折り返し</label>
+            <select id="editorPrefWordWrap" class="editor-select">
+              <option value="off">オフ</option>
+              <option value="on">オン</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label for="editorPrefLineNumbers">行番号</label>
+            <select id="editorPrefLineNumbers" class="editor-select">
+              <option value="on">表示</option>
+              <option value="off">非表示</option>
+            </select>
+          </div>
+          <div class="modal-field">
+            <label class="modal-checkbox"><input type="checkbox" id="editorPrefMinimap" /> minimap を表示</label>
+            <label class="modal-checkbox"><input type="checkbox" id="editorPrefAutosave" /> autosave を有効にする</label>
+          </div>
+          <div class="modal-field">
+            <label for="editorPrefAutosaveDelay">autosave 間隔</label>
+            <select id="editorPrefAutosaveDelay" class="editor-select">
+              <option value="500">0.5 秒</option>
+              <option value="1000">1 秒</option>
+              <option value="1500">1.5 秒</option>
+              <option value="3000">3 秒</option>
+              <option value="5000">5 秒</option>
+            </select>
+          </div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="editorPreferencesCancel">キャンセル</button>
+            <button type="submit" class="btn btn-primary" id="editorPreferencesSave">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="cwdPickerModal" hidden>
       <div class="modal-dialog cwd-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="cwdPickerTitle">
         <h3 class="modal-title" id="cwdPickerTitle">作業ディレクトリを選択</h3>

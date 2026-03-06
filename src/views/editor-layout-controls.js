@@ -1,9 +1,15 @@
+import { getEditorPreferences } from '../core/preferences.js';
 import { getStoredItem, setStoredItem } from '../utils/storage.js';
 
 export function setupEditorLayoutControls({ getMonacoEditor }) {
   setupSidebarHandle({ getMonacoEditor });
   setupEditorResizer({ getMonacoEditor });
   setupMarkdownResizer();
+}
+
+function getLayoutStorageKey(baseKey) {
+  const preferences = getEditorPreferences();
+  return `${baseKey}-${preferences.autosave ? 'autosave' : 'manual'}`;
 }
 
 function layoutMonaco(getMonacoEditor) {
@@ -17,7 +23,7 @@ function setupEditorResizer({ getMonacoEditor }) {
   const resizerEl = document.getElementById('editorMainNarrativeResizer');
   if (!bodyEl || !sidebarEl || !resizerEl) return;
 
-  const STORAGE_KEY = 'slidecode-editor-narrative-width';
+  const STORAGE_KEY = getLayoutStorageKey('slidecode-editor-narrative-width');
   const minNarrativeWidth = 260;
   const minMainWidth = 420;
   const splitterSize = 8;
@@ -118,8 +124,8 @@ function setupSidebarHandle({ getMonacoEditor }) {
   const sidebarHandleBtn = document.getElementById('editorSidebarHandle');
   if (!bodyEl || !sidebarEl || !sidebarResizerEl || !sidebarHandleBtn) return;
 
-  const WIDTH_KEY = 'slidecode-editor-sidebar-width';
-  const COLLAPSED_KEY = 'slidecode-editor-sidebar-collapsed';
+  const WIDTH_KEY = getLayoutStorageKey('slidecode-editor-sidebar-width');
+  const COLLAPSED_KEY = getLayoutStorageKey('slidecode-editor-sidebar-collapsed');
   const minSidebarWidth = 220;
   const minMainWidth = 420;
   const splitterSize = 8;
@@ -246,7 +252,7 @@ function setupMarkdownResizer() {
   const resizerEl = document.getElementById('editorMarkdownResizer');
   if (!containerEl || !resizerEl) return;
 
-  const STORAGE_KEY = 'slidecode-editor-markdown-input-height';
+  const STORAGE_KEY = getLayoutStorageKey('slidecode-editor-markdown-input-height');
   const minInputHeight = 140;
   const minPreviewHeight = 140;
   const splitterSize = 8;

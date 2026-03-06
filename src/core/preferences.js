@@ -4,7 +4,18 @@ const LAST_ROUTE_KEY = 'slidecode-last-route';
 const LAST_EDITOR_STATE_KEY = 'slidecode-last-editor-state';
 const LAST_PRESENTATION_STATE_KEY = 'slidecode-last-presentation-state';
 const RECENT_DECKS_KEY = 'slidecode-recent-decks';
+const EDITOR_PREFERENCES_KEY = 'slidecode-editor-preferences';
 const MAX_RECENT_DECKS = 12;
+
+const DEFAULT_EDITOR_PREFERENCES = {
+  fontSize: 14,
+  tabSize: 2,
+  wordWrap: 'off',
+  lineNumbers: 'on',
+  minimap: true,
+  autosave: true,
+  autosaveDelay: 1500,
+};
 
 function readJson(key, fallback) {
   const raw = getStoredItem(key);
@@ -118,4 +129,30 @@ export function recordRecentDeck({ id, title = '' }) {
   ].slice(0, MAX_RECENT_DECKS);
 
   return writeJson(RECENT_DECKS_KEY, nextDecks);
+}
+
+export function getEditorPreferences() {
+  const stored = readJson(EDITOR_PREFERENCES_KEY, {});
+  return {
+    fontSize: Number.isFinite(stored?.fontSize) ? Math.min(Math.max(stored.fontSize, 12), 24) : DEFAULT_EDITOR_PREFERENCES.fontSize,
+    tabSize: Number.isFinite(stored?.tabSize) ? Math.min(Math.max(stored.tabSize, 2), 8) : DEFAULT_EDITOR_PREFERENCES.tabSize,
+    wordWrap: stored?.wordWrap === 'on' ? 'on' : DEFAULT_EDITOR_PREFERENCES.wordWrap,
+    lineNumbers: stored?.lineNumbers === 'off' ? 'off' : DEFAULT_EDITOR_PREFERENCES.lineNumbers,
+    minimap: typeof stored?.minimap === 'boolean' ? stored.minimap : DEFAULT_EDITOR_PREFERENCES.minimap,
+    autosave: typeof stored?.autosave === 'boolean' ? stored.autosave : DEFAULT_EDITOR_PREFERENCES.autosave,
+    autosaveDelay: Number.isFinite(stored?.autosaveDelay)
+      ? Math.min(Math.max(stored.autosaveDelay, 500), 5000)
+      : DEFAULT_EDITOR_PREFERENCES.autosaveDelay,
+  };
+}
+
+export function setEditorPreferences(preferences) {
+  return writeJson(EDITOR_PREFERENCES_KEY, {
+    ...getEditorPreferences(),
+    ...preferences,
+  });
+}
+
+export function getDefaultEditorPreferences() {
+  return { ...DEFAULT_EDITOR_PREFERENCES };
 }

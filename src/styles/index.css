@@ -1183,6 +1183,18 @@ html, body {
   padding-left: 18px;
 }
 
+.modal-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.modal-checkbox input {
+  margin: 0;
+}
+
 .modal-field label {
   font-size: 12px;
   font-weight: 600;

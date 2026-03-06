@@ -272,3 +272,24 @@ test('presentation の layout picker はキーボード操作と非 DnD 並び�
   await page.keyboard.press('Escape');
   await expect(page.locator('#layoutDropdown')).toBeHidden();
 });
+
+test('editor 設定で monaco 表示と autosave を切り替えられる', async ({ page }) => {
+  await createDeck(page, 'Editor Preferences');
+
+  await page.locator('#editorDeckSettingsBtn').click();
+  await expect(page.locator('#editorPreferencesModal')).toBeVisible();
+
+  await page.locator('#editorPrefFontSize').selectOption('20');
+  await page.locator('#editorPrefWordWrap').selectOption('off');
+  await page.locator('#editorPrefLineNumbers').selectOption('off');
+  await page.locator('#editorPrefMinimap').uncheck();
+  await page.locator('#editorPrefAutosave').uncheck();
+  await page.locator('#editorPreferencesSave').click();
+
+  await expect(page.locator('#editorPreferencesModal')).toBeHidden();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await page.locator('#editorSlideTitle').fill('autosave off');
+  await page.waitForTimeout(1800);
+  await expect(page.locator('#editorSaveStatus')).toHaveText('未保存の変更');
+});

@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
+  getDefaultEditorPreferences,
+  getEditorPreferences,
   getLastEditorState,
   getLastPresentationState,
   getLastRoute,
   getRecentDecks,
   recordRecentDeck,
+  setEditorPreferences,
   setLastEditorState,
   setLastPresentationState,
   setLastRoute,
@@ -60,5 +63,29 @@ describe('preferences', () => {
       slideIndex: 1,
     });
     expect(getLastPresentationState('deck-b')).toBeNull();
+  });
+
+  test('stores sanitized editor preferences', () => {
+    expect(getEditorPreferences()).toEqual(getDefaultEditorPreferences());
+
+    setEditorPreferences({
+      fontSize: 30,
+      tabSize: 1,
+      wordWrap: 'on',
+      lineNumbers: 'off',
+      minimap: false,
+      autosave: false,
+      autosaveDelay: 200,
+    });
+
+    expect(getEditorPreferences()).toEqual({
+      fontSize: 24,
+      tabSize: 2,
+      wordWrap: 'on',
+      lineNumbers: 'off',
+      minimap: false,
+      autosave: false,
+      autosaveDelay: 500,
+    });
   });
 });

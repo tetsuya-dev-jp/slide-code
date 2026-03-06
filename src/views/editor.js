@@ -18,10 +18,16 @@ import {
   syncSlideFileReference,
 } from '../core/deck-utils.js';
 import { MarkdownPane } from '../panes/markdown.js';
-import { getLastEditorState, recordRecentDeck, setLastEditorState } from '../core/preferences.js';
+import {
+  getLastEditorState,
+  getEditorPreferences,
+  recordRecentDeck,
+  setLastEditorState,
+} from '../core/preferences.js';
 import { initEditorDeckSettings } from './editor-deck-settings.js';
 import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
+import { initEditorPreferencesModal } from './editor-preferences-modal.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
@@ -92,8 +98,7 @@ export function initEditor(router) {
   let autosaveTimer = null;
   let saveQueue = Promise.resolve();
   let showRequestId = 0;
-
-  const AUTOSAVE_DELAY_MS = 1500;
+  let editorPreferences = getEditorPreferences();
   const saveButtonEl = document.getElementById('editorSaveBtn');
   const saveStatusEl = document.getElementById('editorSaveStatus');
 
@@ -106,6 +111,7 @@ export function initEditor(router) {
   });
   let deckSettingsController = null;
   let assetsModal = null;
+  let editorPreferencesModal = null;
 
   // --- Dirty state ---
 
@@ -134,8 +140,22 @@ export function initEditor(router) {
     autosaveTimer = null;
   }
 
+  function applyEditorPreferences(preferences) {
+    editorPreferences = preferences;
+    if (!monacoEditor) return;
+
+    monacoEditor.updateOptions({
+      fontSize: preferences.fontSize,
+      tabSize: preferences.tabSize,
+      wordWrap: preferences.wordWrap,
+      lineNumbers: preferences.lineNumbers,
+      minimap: { enabled: preferences.minimap },
+    });
+  }
+
   function scheduleAutosave() {
     if (!deck || loading) return;
+    if (!editorPreferences.autosave) return;
     clearAutosaveTimer();
     autosaveTimer = window.setTimeout(() => {
       autosaveTimer = null;
@@ -147,7 +167,7 @@ export function initEditor(router) {
       }).catch(() => {
         // Keep editor state and let status indicator communicate the failure.
       });
-    }, AUTOSAVE_DELAY_MS);
+    }, editorPreferences.autosaveDelay);
   }
 
   function enqueueSaveTask(task) {
@@ -940,6 +960,15 @@ export function initEditor(router) {
     setupEditorLayoutControls({
       getMonacoEditor: () => monacoEditor,
     });
+    editorPreferencesModal = initEditorPreferencesModal({
+      applyPreferences: (preferences) => {
+        applyEditorPreferences(preferences);
+        if (dirty) {
+          scheduleAutosave();
+        }
+      },
+      showToast,
+    });
     deckSettingsController = initEditorDeckSettings({
       api,
       showToast,
@@ -963,6 +992,10 @@ export function initEditor(router) {
         deck.assets = Array.isArray(assets) ? assets : [];
       },
       insertAssetReference,
+    });
+
+    document.getElementById('editorDeckSettingsBtn').addEventListener('click', (event) => {
+      editorPreferencesModal?.open(event.currentTarget);
     });
 
     // File management
@@ -1146,14 +1179,14 @@ export function initEditor(router) {
       value: '',
       language: 'python',
       theme: document.documentElement.getAttribute('data-theme') === 'light' ? MONACO_THEME.light : MONACO_THEME.dark,
-      minimap: { enabled: false },
+      minimap: { enabled: editorPreferences.minimap },
       glyphMargin: true,
-      fontSize: 13,
-      lineNumbers: 'on',
+      fontSize: editorPreferences.fontSize,
+      lineNumbers: editorPreferences.lineNumbers,
       scrollBeyondLastLine: false,
       automaticLayout: false,
-      wordWrap: 'on',
-      tabSize: 4,
+      wordWrap: editorPreferences.wordWrap,
+      tabSize: editorPreferences.tabSize,
       renderLineHighlight: 'all',
       bracketPairColorization: { enabled: true },
       padding: { top: 8, bottom: 8 },
