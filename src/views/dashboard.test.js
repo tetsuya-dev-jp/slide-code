@@ -5,7 +5,9 @@ const api = vi.hoisted(() => ({
   createDeckFromTemplate: vi.fn(),
   deleteDeck: vi.fn(),
   deleteTemplatesFromDeck: vi.fn(),
+  downloadDeckExport: vi.fn(),
   duplicateDeck: vi.fn(),
+  getDeckExportUrl: vi.fn(() => '/api/decks/deck-1/export/print'),
   getDeck: vi.fn(),
   listDeckIssues: vi.fn(),
   listDecks: vi.fn(),
@@ -16,7 +18,6 @@ const api = vi.hoisted(() => ({
 
 const showToast = vi.hoisted(() => vi.fn());
 const initDashboardConfigModal = vi.hoisted(() => vi.fn());
-const initDashboardExportModal = vi.hoisted(() => vi.fn(() => ({ openExportModal: vi.fn() })));
 
 vi.mock('../core/api.js', () => api);
 vi.mock('../utils/helpers.js', async () => {
@@ -27,7 +28,6 @@ vi.mock('../utils/helpers.js', async () => {
   };
 });
 vi.mock('./dashboard-config-modal.js', () => ({ initDashboardConfigModal }));
-vi.mock('./dashboard-export-modal.js', () => ({ initDashboardExportModal }));
 vi.mock('./deck-import-normalize.js', () => ({ normalizeImportedDeck: vi.fn((value) => value) }));
 vi.mock('./dashboard-template-state.js', () => ({
   applyTemplateButtonState: vi.fn(),
@@ -72,7 +72,13 @@ function buildDom() {
     </div>
     <div id="deckExportModal" hidden>
       <form id="deckExportForm">
-        <select id="deckExportFormat"></select>
+        <select id="deckExportFormat">
+          <option value="html">HTML</option>
+          <option value="print">Print</option>
+          <option value="zip">ZIP</option>
+        </select>
+        <p id="deckExportFormatHint"></p>
+        <div id="deckExportDetails"></div>
         <button id="deckExportCancel" type="button">cancel</button>
       </form>
     </div>
@@ -82,14 +88,15 @@ function buildDom() {
 beforeEach(() => {
   buildDom();
   initDashboardConfigModal.mockReset();
-  initDashboardExportModal.mockReset();
-  initDashboardExportModal.mockReturnValue({ openExportModal: vi.fn() });
   showToast.mockReset();
   api.createDeck.mockReset();
   api.createDeckFromTemplate.mockReset();
   api.deleteDeck.mockReset();
   api.deleteTemplatesFromDeck.mockReset();
+  api.downloadDeckExport.mockReset();
   api.duplicateDeck.mockReset();
+  api.getDeckExportUrl.mockReset();
+  api.getDeckExportUrl.mockReturnValue('/api/decks/deck-1/export/print');
   api.getDeck.mockReset();
   api.listDeckIssues.mockReset();
   api.listDecks.mockReset();
@@ -98,9 +105,12 @@ beforeEach(() => {
   api.updateDeck.mockReset();
   api.listDeckIssues.mockResolvedValue([]);
   api.listTemplates.mockResolvedValue({ local: [], shared: [] });
+  api.downloadDeckExport.mockResolvedValue({ blob: new Blob(['ok']), filename: 'deck.html' });
+  vi.spyOn(window, 'open').mockReturnValue({ focus: vi.fn() });
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   document.body.innerHTML = '';
 });
 
@@ -144,5 +154,59 @@ describe('dashboard', () => {
     cta.click();
 
     expect(clickSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test('shows detailed import errors for invalid json and deck conflicts', async () => {
+    api.listDecks.mockResolvedValue([]);
+
+    const { show } = initDashboard({ navigate: vi.fn() });
+    await show();
+    await flush();
+
+    const importInput = document.getElementById('importFileInput');
+
+    Object.defineProperty(importInput, 'files', {
+      configurable: true,
+      value: [{ name: 'broken.json', text: () => Promise.resolve('{') }],
+    });
+
+    importInput.dispatchEvent(new Event('change'));
+    await flush();
+
+    expect(showToast).toHaveBeenCalledWith('JSON の構文が不正なためインポートできません');
+
+    api.createDeck.mockRejectedValueOnce(Object.assign(new Error('Deck folder already exists'), { status: 409 }));
+    Object.defineProperty(importInput, 'files', {
+      configurable: true,
+      value: [{ name: 'deck.json', text: () => Promise.resolve('{"title":"Demo"}') }],
+    });
+
+    importInput.dispatchEvent(new Event('change'));
+    await flush();
+
+    expect(showToast).toHaveBeenCalledWith('同じフォルダ名のデッキが既に存在します');
+  });
+
+  test('updates export helper copy when format changes', async () => {
+    api.listDecks.mockResolvedValue([{ id: 'deck-1', title: 'Alpha', description: '', slideCount: 3, updatedAt: Date.now() }]);
+
+    const { show } = initDashboard({ navigate: vi.fn() });
+    await show();
+    await flush();
+
+    document.querySelector('.deck-export').click();
+
+    const hint = document.getElementById('deckExportFormatHint');
+    const details = document.getElementById('deckExportDetails');
+    const format = document.getElementById('deckExportFormat');
+
+    expect(hint.textContent).toContain('単一 HTML');
+    expect(details.textContent).toContain('画像アセットは埋め込みます');
+
+    format.value = 'zip';
+    format.dispatchEvent(new Event('change'));
+
+    expect(hint.textContent).toContain('ZIP');
+    expect(details.textContent).toContain('deck.json / files / assets');
   });
 });

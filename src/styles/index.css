@@ -1065,6 +1065,33 @@ html, body {
   color: var(--text-secondary);
 }
 
+.modal-callout {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.modal-callout strong {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.modal-callout p,
+.modal-callout ul {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.modal-callout ul {
+  padding-left: 18px;
+}
+
 .modal-field label {
   font-size: 12px;
   font-weight: 600;

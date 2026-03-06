@@ -30,6 +30,39 @@ export function initDashboard(router) {
   let savedTemplateDeckIds = new Set();
   let showRequestId = 0;
 
+  function getImportErrorMessage(error) {
+    if (error instanceof SyntaxError) {
+      return 'JSON の構文が不正なためインポートできません';
+    }
+
+    const message = typeof error?.message === 'string' ? error.message.trim() : '';
+    if (message === 'invalid-deck') {
+      return 'deck JSON の形式が不正です';
+    }
+
+    if (error?.status === 409) {
+      return '同じフォルダ名のデッキが既に存在します';
+    }
+
+    if (error?.status === 400) {
+      if (message === 'Invalid deck id') {
+        return 'フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます';
+      }
+      if (message === 'Unsupported deck schema version') {
+        return '未対応の deck schema のためインポートできません';
+      }
+      if (message) {
+        return `インポート内容が不正です: ${message}`;
+      }
+    }
+
+    if (message) {
+      return `インポートに失敗しました: ${message}`;
+    }
+
+    return 'インポートに失敗しました';
+  }
+
   async function loadTemplateOptions() {
     if (!modalTemplate) return;
     const baseOption = document.createElement('option');
@@ -206,8 +239,8 @@ export function initDashboard(router) {
       await api.createDeck(normalizedDeck);
       showToast('インポートしました');
       show();
-    } catch {
-      showToast('インポートに失敗しました');
+    } catch (error) {
+      showToast(getImportErrorMessage(error));
     }
     e.target.value = '';
   });
