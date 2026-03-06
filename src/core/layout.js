@@ -146,6 +146,20 @@ export class LayoutManager {
         this.swapPanes(idxA, idxB);
     }
 
+    movePaneByName(paneName, direction) {
+        const currentIndex = this.paneOrder.indexOf(paneName);
+        if (currentIndex === -1) return false;
+
+        const delta = direction === 'prev' ? -1 : direction === 'next' ? 1 : 0;
+        const nextIndex = currentIndex + delta;
+        if (delta === 0 || nextIndex < 0 || nextIndex >= this.paneOrder.length) {
+            return false;
+        }
+
+        this.swapPanes(currentIndex, nextIndex);
+        return true;
+    }
+
     /**
      * Get which pane is in which slot
      * @returns {{ code: number, shell: number, markdown: number }}

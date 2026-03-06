@@ -23,6 +23,7 @@ import {
 
 export function initPresentation(router) {
   const slideManager = new SlideManager();
+  const paneLabels = { code: 'コード', shell: 'シェル', markdown: '解説' };
   const paneState = { code: true, shell: true, markdown: true };
   let panePreferences = createPanePreferences();
   let slidePaneDefaults = { ...paneState };
@@ -33,12 +34,15 @@ export function initPresentation(router) {
   let presentationDeck = null;
   let currentDeckId = null;
   let showRequestId = 0;
+  let layoutPickerBtnEl, layoutDropdownEl;
 
   function init() {
     if (initialized) return;
     initialized = true;
 
     contentEl = document.getElementById('content');
+    layoutPickerBtnEl = document.getElementById('layoutPickerBtn');
+    layoutDropdownEl = document.getElementById('layoutDropdown');
     resizer = new Resizer(contentEl);
     layoutManager = new LayoutManager(contentEl);
 
@@ -130,30 +134,138 @@ export function initPresentation(router) {
     });
   }
 
-  function setupLayoutPicker() {
-    const layoutPickerBtn = document.getElementById('layoutPickerBtn');
-    const layoutDropdown = document.getElementById('layoutDropdown');
+  function isLayoutDropdownOpen() {
+    return Boolean(layoutDropdownEl && !layoutDropdownEl.hidden && layoutDropdownEl.classList.contains('open'));
+  }
 
-    layoutPickerBtn.addEventListener('click', (e) => {
+  function closeLayoutDropdown({ restoreFocus = false } = {}) {
+    if (!layoutDropdownEl || !layoutPickerBtnEl) return;
+    layoutDropdownEl.hidden = true;
+    layoutDropdownEl.classList.remove('open');
+    layoutPickerBtnEl.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) {
+      layoutPickerBtnEl.focus();
+    }
+  }
+
+  function openLayoutDropdown() {
+    if (!layoutDropdownEl || !layoutPickerBtnEl) return;
+    layoutDropdownEl.hidden = false;
+    layoutDropdownEl.classList.add('open');
+    layoutPickerBtnEl.setAttribute('aria-expanded', 'true');
+    const activeOption = layoutDropdownEl.querySelector('.layout-option.active') || layoutDropdownEl.querySelector('.layout-option');
+    activeOption?.focus();
+  }
+
+  function toggleLayoutDropdown({ restoreFocus = false } = {}) {
+    if (isLayoutDropdownOpen()) {
+      closeLayoutDropdown({ restoreFocus });
+    } else {
+      openLayoutDropdown();
+    }
+  }
+
+  function applyLayoutOption(optionBtn) {
+    if (!optionBtn) return;
+    layoutManager.setLayout(optionBtn.dataset.layout);
+    rebuildLayout();
+    syncLayoutPicker();
+    closeLayoutDropdown({ restoreFocus: true });
+  }
+
+  function refreshPaneOrderControls() {
+    document.querySelectorAll('.pane-order-item').forEach((item, index) => {
+      const paneName = layoutManager.paneOrder[index];
+      item.dataset.paneOrder = paneName;
+      item.querySelector('.pane-order-rank').textContent = String(index + 1);
+      item.querySelector('.pane-order-label').textContent = paneLabels[paneName] || paneName;
+
+      const prevBtn = item.querySelector('.pane-move-prev');
+      const nextBtn = item.querySelector('.pane-move-next');
+      prevBtn.dataset.pane = paneName;
+      nextBtn.dataset.pane = paneName;
+      prevBtn.disabled = index === 0;
+      nextBtn.disabled = index === layoutManager.paneOrder.length - 1;
+    });
+  }
+
+  function setupLayoutPicker() {
+    layoutPickerBtnEl.addEventListener('click', (e) => {
       e.stopPropagation();
-      layoutDropdown.classList.toggle('open');
+      toggleLayoutDropdown();
+    });
+
+    layoutPickerBtnEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        toggleLayoutDropdown();
+        return;
+      }
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        openLayoutDropdown();
+        return;
+      }
+      if (event.key === 'Escape' && isLayoutDropdownOpen()) {
+        event.preventDefault();
+        closeLayoutDropdown({ restoreFocus: true });
+      }
     });
 
     document.addEventListener('click', (e) => {
       if (!e.target.closest('.layout-picker')) {
-        layoutDropdown.classList.remove('open');
+        closeLayoutDropdown();
       }
     });
 
     document.querySelectorAll('.layout-option').forEach(btn => {
       btn.addEventListener('click', () => {
-        layoutManager.setLayout(btn.dataset.layout);
-        rebuildLayout();
-        document.querySelectorAll('.layout-option').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        layoutDropdown.classList.remove('open');
+        applyLayoutOption(btn);
+      });
+
+      btn.addEventListener('keydown', (event) => {
+        const options = [...document.querySelectorAll('.layout-option')];
+        const currentIndex = options.indexOf(btn);
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          options[(currentIndex + 1) % options.length]?.focus();
+          return;
+        }
+        if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          options[(currentIndex - 1 + options.length) % options.length]?.focus();
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          applyLayoutOption(btn);
+          return;
+        }
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          closeLayoutDropdown({ restoreFocus: true });
+        }
       });
     });
+
+    document.querySelectorAll('.pane-move-prev, .pane-move-next').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const direction = btn.classList.contains('pane-move-prev') ? 'prev' : 'next';
+        if (!layoutManager.movePaneByName(btn.dataset.pane, direction)) return;
+        rebuildLayout();
+        refreshPaneOrderControls();
+      });
+    });
+
+    layoutDropdownEl.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeLayoutDropdown({ restoreFocus: true });
+      }
+    });
+
+    closeLayoutDropdown();
+    refreshPaneOrderControls();
   }
 
   function setupPaneDragDrop() {
@@ -237,6 +349,17 @@ export function initPresentation(router) {
           updatePaneVisibility();
           break;
         }
+        case 'l':
+        case 'L':
+          if (e.ctrlKey || e.metaKey || e.altKey) break;
+          e.preventDefault();
+          toggleLayoutDropdown({ restoreFocus: true });
+          break;
+        case 'Escape':
+          if (!isLayoutDropdownOpen()) break;
+          e.preventDefault();
+          closeLayoutDropdown({ restoreFocus: true });
+          break;
       }
     });
   }
@@ -291,7 +414,9 @@ export function initPresentation(router) {
   function syncLayoutPicker() {
     document.querySelectorAll('.layout-option').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.layout === layoutManager.currentLayoutId);
+      btn.setAttribute('aria-pressed', btn.dataset.layout === layoutManager.currentLayoutId ? 'true' : 'false');
     });
+    refreshPaneOrderControls();
   }
 
   function syncShellDeckSession(previousDeckId, nextDeckId) {

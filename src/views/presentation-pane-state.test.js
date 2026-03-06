@@ -5,6 +5,7 @@ import {
   getSlidePaneDefaults,
   resolvePaneVisibility,
 } from './presentation-pane-state.js';
+import { LayoutManager } from '../core/layout.js';
 
 describe('presentation pane state', () => {
   test('derives default visibility from slide content', () => {
@@ -64,5 +65,16 @@ describe('presentation pane state', () => {
 
     expect(toggled.allowed).toBe(false);
     expect(toggled.visibility).toEqual(visibility);
+  });
+
+  test('moves panes left and right without drag and drop', () => {
+    const contentEl = document.createElement('div');
+    const manager = new LayoutManager(contentEl);
+
+    expect(manager.paneOrder).toEqual(['code', 'shell', 'markdown']);
+    expect(manager.movePaneByName('shell', 'prev')).toBe(true);
+    expect(manager.paneOrder).toEqual(['shell', 'code', 'markdown']);
+    expect(manager.movePaneByName('markdown', 'next')).toBe(false);
+    expect(manager.paneOrder).toEqual(['shell', 'code', 'markdown']);
   });
 });

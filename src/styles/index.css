@@ -869,6 +869,12 @@ html, body {
   background: var(--bg-elevated);
 }
 
+.layout-picker-btn[aria-expanded="true"] {
+  color: var(--text-primary);
+  border-color: var(--accent-primary);
+  background: var(--bg-elevated);
+}
+
 .layout-dropdown {
   display: none;
   position: absolute;
@@ -882,11 +888,31 @@ html, body {
   box-shadow: var(--shadow-lg);
   z-index: 100;
   flex-wrap: wrap;
-  width: 200px;
+  width: 260px;
 }
 
 .layout-dropdown.open {
+  display: grid;
+}
+
+.layout-section {
+  display: grid;
+  gap: 8px;
+}
+
+.layout-section-title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.layout-options-grid {
   display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
 }
 
 .layout-option {
@@ -914,6 +940,71 @@ html, body {
   border-color: var(--accent-primary);
   color: var(--accent-primary);
   background: var(--bg-primary);
+}
+
+.pane-order-list {
+  display: grid;
+  gap: 6px;
+}
+
+.pane-order-item {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+}
+
+.pane-order-rank {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+}
+
+.pane-order-label {
+  font-size: 12px;
+  color: var(--text-primary);
+}
+
+.pane-order-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.layout-mini-btn {
+  min-width: 28px;
+  height: 28px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.layout-mini-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  border-color: var(--border-accent);
+}
+
+.layout-mini-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.layout-shortcut-list {
+  margin: 0;
+  padding-left: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
+.layout-shortcut-list li {
+  margin: 0;
 }
 
 [data-theme="light"] .layout-option.active {

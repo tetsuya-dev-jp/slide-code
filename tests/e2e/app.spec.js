@@ -246,3 +246,29 @@ test('dashboard で recent filter と title sort を切り替えられる', asyn
   await page.locator('#deckSortSelect').selectOption('title-asc');
   await expect(page.locator('.deck-card-title').first()).toHaveText(first.title);
 });
+
+test('presentation の layout picker はキーボード操作と非 DnD 並び替えに対応する', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Accessible Layout');
+
+  await page.locator('#editorPreviewBtn').click();
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}$`));
+  await expect(page.locator('#viewPresentation')).toBeVisible();
+
+  const layoutBtn = page.locator('#layoutPickerBtn');
+  await layoutBtn.focus();
+  await page.keyboard.press('Enter');
+
+  await expect(layoutBtn).toHaveAttribute('aria-expanded', 'true');
+  await expect(page.locator('#layoutDropdown')).toBeVisible();
+
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  await expect(layoutBtn).toHaveAttribute('aria-expanded', 'false');
+
+  await layoutBtn.click();
+  await page.locator('.pane-move-prev[data-pane="shell"]').click();
+  await expect(page.locator('.pane-order-item').nth(0)).toContainText('シェル');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#layoutDropdown')).toBeHidden();
+});

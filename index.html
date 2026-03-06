@@ -172,25 +172,68 @@
       <div class="toolbar-right" id="toolbarRight">
         <!-- Layout Picker -->
         <div class="layout-picker" id="layoutPicker">
-          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更" aria-label="レイアウト変更">
+          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更" aria-label="レイアウト変更" aria-haspopup="dialog" aria-expanded="false" aria-controls="layoutDropdown">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
           </button>
-          <div class="layout-dropdown" id="layoutDropdown">
-            <button class="layout-option active" data-layout="three-col" title="3列" aria-label="3列レイアウト">
-              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="1" width="8" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-            </button>
-            <button class="layout-option" data-layout="left-stack" title="左2段+右" aria-label="左2段+右レイアウト">
-              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-            </button>
-            <button class="layout-option" data-layout="right-stack" title="左+右2段" aria-label="左+右2段レイアウト">
-              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-            </button>
-            <button class="layout-option" data-layout="top-bottom" title="上+下2列" aria-label="上+下2列レイアウト">
-              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-            </button>
-            <button class="layout-option" data-layout="bottom-top" title="上2列+下" aria-label="上2列+下レイアウト">
-              <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-            </button>
+          <div class="layout-dropdown" id="layoutDropdown" role="dialog" aria-label="レイアウトとペイン順序" hidden>
+            <div class="layout-section">
+              <p class="layout-section-title">レイアウト</p>
+              <div class="layout-options-grid" role="group" aria-label="レイアウト候補">
+                <button class="layout-option active" data-layout="three-col" data-layout-label="3列" title="3列" aria-label="3列レイアウト">
+                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="1" width="8" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="layout-option" data-layout="left-stack" data-layout-label="左2段+右" title="左2段+右" aria-label="左2段+右レイアウト">
+                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="layout-option" data-layout="right-stack" data-layout-label="左+右2段" title="左+右2段" aria-label="左+右2段レイアウト">
+                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="layout-option" data-layout="top-bottom" data-layout-label="上+下2列" title="上+下2列" aria-label="上+下2列レイアウト">
+                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+                <button class="layout-option" data-layout="bottom-top" data-layout-label="上2列+下" title="上2列+下" aria-label="上2列+下レイアウト">
+                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                </button>
+              </div>
+            </div>
+            <div class="layout-section">
+              <p class="layout-section-title">ペイン順序</p>
+              <div class="pane-order-list" aria-label="ペイン順序の変更">
+                <div class="pane-order-item" data-pane-order="code">
+                  <span class="pane-order-rank" aria-hidden="true">1</span>
+                  <span class="pane-order-label">コード</span>
+                  <div class="pane-order-actions">
+                    <button class="layout-mini-btn pane-move-prev" data-pane="code" type="button" aria-label="コードを前へ移動">←</button>
+                    <button class="layout-mini-btn pane-move-next" data-pane="code" type="button" aria-label="コードを後ろへ移動">→</button>
+                  </div>
+                </div>
+                <div class="pane-order-item" data-pane-order="shell">
+                  <span class="pane-order-rank" aria-hidden="true">2</span>
+                  <span class="pane-order-label">シェル</span>
+                  <div class="pane-order-actions">
+                    <button class="layout-mini-btn pane-move-prev" data-pane="shell" type="button" aria-label="シェルを前へ移動">←</button>
+                    <button class="layout-mini-btn pane-move-next" data-pane="shell" type="button" aria-label="シェルを後ろへ移動">→</button>
+                  </div>
+                </div>
+                <div class="pane-order-item" data-pane-order="markdown">
+                  <span class="pane-order-rank" aria-hidden="true">3</span>
+                  <span class="pane-order-label">解説</span>
+                  <div class="pane-order-actions">
+                    <button class="layout-mini-btn pane-move-prev" data-pane="markdown" type="button" aria-label="解説を前へ移動">←</button>
+                    <button class="layout-mini-btn pane-move-next" data-pane="markdown" type="button" aria-label="解説を後ろへ移動">→</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="layout-section">
+              <p class="layout-section-title">ショートカット</p>
+              <ul class="layout-shortcut-list" id="layoutShortcutList">
+                <li><kbd>←</kbd><kbd>→</kbd> スライド移動</li>
+                <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> ペイン表示切替</li>
+                <li><kbd>L</kbd> レイアウトメニュー</li>
+                <li><kbd>Esc</kbd> メニューを閉じる</li>
+              </ul>
+            </div>
           </div>
         </div>
         <button class="theme-toggle" id="themeToggle" title="テーマ切替" aria-label="テーマ切替">
