@@ -10,6 +10,7 @@ import { applyTemplateButtonState, collectSavedTemplateDeckIds, parseTemplateSel
 export function initDashboard(router) {
   initDashboardConfigModal({ onSaved: show });
   const { openExportModal } = initDashboardExportModal();
+  const deckIssuesEl = document.getElementById('deckIssues');
   const modalEl      = document.getElementById('deckModal');
   const modalTitle   = document.getElementById('deckModalTitle');
   const modalForm    = document.getElementById('deckModalForm');
@@ -272,6 +273,46 @@ export function initDashboard(router) {
     }
   }
 
+  function formatDeckIssueReason(reason) {
+    const value = typeof reason === 'string' ? reason.trim() : '';
+    if (!value) return '詳細不明の理由で隔離されました';
+    if (value.startsWith('invalid-deck:')) return 'deck.json の読み込みに失敗したため隔離されました';
+    if (value.startsWith('unsupported-schema:')) return '未対応の schemaVersion のため隔離されました';
+    if (value === 'missing-quarantine-record') return '隔離記録が欠落しています';
+    if (value === 'invalid-quarantine-record') return '隔離記録の読み込みに失敗しました';
+    return value;
+  }
+
+  function renderDeckIssues(issues) {
+    if (!deckIssuesEl) return;
+
+    if (!Array.isArray(issues) || issues.length === 0) {
+      deckIssuesEl.hidden = true;
+      deckIssuesEl.innerHTML = '';
+      return;
+    }
+
+    deckIssuesEl.hidden = false;
+    deckIssuesEl.innerHTML = `
+      <div class="deck-issues-header">
+        <h3 class="deck-issues-title">要確認のデッキ</h3>
+        <p class="deck-issues-subtitle">読み込めなかったデッキは quarantine に移動されています。</p>
+      </div>
+      <div class="deck-issues-list">
+        ${issues.map((issue) => {
+          const timestamp = issue?.quarantinedAt ? formatDate(issue.quarantinedAt) : '日時不明';
+          return `
+            <article class="deck-issue-card">
+              <strong>${escapeHtml(issue?.deckId || 'unknown-deck')}</strong>
+              <p>${escapeHtml(formatDeckIssueReason(issue?.reason))}</p>
+              <div class="deck-issue-meta">隔離日時: ${escapeHtml(timestamp)}</div>
+            </article>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
   function renderDeckGrid(decks) {
     const grid = document.getElementById('deckGrid');
     if (decks.length === 0) {
@@ -366,16 +407,20 @@ export function initDashboard(router) {
     const requestId = ++showRequestId;
     const grid = document.getElementById('deckGrid');
     grid.innerHTML = '<div class="deck-loading">読み込み中...</div>';
+    renderDeckIssues([]);
     try {
-      const [decks, templates] = await Promise.all([
+      const [decks, issues, templates] = await Promise.all([
         api.listDecks(),
+        api.listDeckIssues().catch(() => []),
         api.listTemplates().catch(() => null),
       ]);
       if (requestId !== showRequestId) return;
       savedTemplateDeckIds = collectSavedTemplateDeckIds(templates);
+      renderDeckIssues(issues);
       renderDeckGrid(decks);
     } catch (err) {
       if (requestId !== showRequestId) return;
+      renderDeckIssues([]);
       grid.innerHTML = '<div class="deck-error">デッキの読み込みに失敗しました</div>';
       console.error(err);
     }

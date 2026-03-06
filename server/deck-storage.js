@@ -261,6 +261,52 @@ export class DeckStorage {
             .filter(Boolean);
     }
 
+    listQuarantinedDeckIssues(quarantineDir) {
+        const quarantineDecksDir = typeof quarantineDir === 'string' && quarantineDir.trim()
+            ? path.join(quarantineDir, 'decks')
+            : '';
+        if (!quarantineDecksDir || !fs.existsSync(quarantineDecksDir)) {
+            return [];
+        }
+
+        return fs.readdirSync(quarantineDecksDir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map((entry) => {
+                const recordPath = path.join(quarantineDecksDir, entry.name, 'quarantine.json');
+                if (!fs.existsSync(recordPath)) {
+                    return {
+                        deckId: entry.name,
+                        reason: 'missing-quarantine-record',
+                        quarantinedAt: '',
+                        status: 'quarantined',
+                    };
+                }
+
+                try {
+                    const raw = fs.readFileSync(recordPath, 'utf-8');
+                    const payload = JSON.parse(raw);
+                    return {
+                        deckId: normalizeNonEmptyString(payload?.deckId, entry.name),
+                        reason: normalizeNonEmptyString(payload?.reason, 'unknown'),
+                        quarantinedAt: normalizeNonEmptyString(payload?.quarantinedAt, ''),
+                        status: 'quarantined',
+                    };
+                } catch {
+                    return {
+                        deckId: entry.name,
+                        reason: 'invalid-quarantine-record',
+                        quarantinedAt: '',
+                        status: 'quarantined',
+                    };
+                }
+            })
+            .sort((a, b) => {
+                const dateCompare = String(b.quarantinedAt || '').localeCompare(String(a.quarantinedAt || ''));
+                if (dateCompare !== 0) return dateCompare;
+                return a.deckId.localeCompare(b.deckId);
+            });
+    }
+
     createDeck(payload = {}) {
         const normalizedPayload = normalizeDeckPayload(payload);
         const requestedId = typeof payload?.id === 'string' ? payload.id.trim() : '';

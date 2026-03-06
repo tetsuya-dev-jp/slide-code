@@ -36,4 +36,24 @@ describe('DeckStorage quarantine', () => {
         expect(fs.existsSync(path.join(quarantined[0].targetDir, 'deck.json'))).toBe(true);
         expect(fs.existsSync(path.join(quarantined[0].targetDir, 'quarantine.json'))).toBe(true);
     });
+
+    test('lists quarantined deck issues for dashboard visibility', () => {
+        const rootDir = createTempDir();
+        const decksDir = path.join(rootDir, 'decks');
+        const quarantineDir = path.join(rootDir, 'quarantine');
+        const invalidDeckDir = path.join(decksDir, 'broken-deck');
+        fs.mkdirSync(invalidDeckDir, { recursive: true });
+        fs.writeFileSync(path.join(invalidDeckDir, 'deck.json'), '{not-json', 'utf-8');
+
+        const storage = new DeckStorage(decksDir);
+        storage.quarantineInvalidDecks(quarantineDir);
+
+        expect(storage.listQuarantinedDeckIssues(quarantineDir)).toEqual([
+            expect.objectContaining({
+                deckId: 'broken-deck',
+                reason: expect.stringContaining('invalid-deck:'),
+                status: 'quarantined',
+            }),
+        ]);
+    });
 });

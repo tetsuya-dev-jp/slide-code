@@ -113,4 +113,41 @@ describe('API contracts', () => {
     expect(zipRes.headers.get('content-disposition')).toContain("filename*=UTF-8''");
     expect(zipBuffer.subarray(0, 4).toString('binary')).toBe('PK\u0003\u0004');
   });
+
+  test('deck issues endpoint returns quarantined deck metadata', async () => {
+    const storage = {
+      listQuarantinedDeckIssues() {
+        return [{
+          deckId: 'broken-deck',
+          reason: 'invalid-deck:Unexpected token',
+          quarantinedAt: '2026-03-07T00:00:00.000Z',
+          status: 'quarantined',
+        }];
+      },
+    };
+
+    const baseUrl = await startServer({
+      runtimeConfig: {
+        decksDir: '/tmp/decks',
+        templatesDir: '/tmp/templates',
+        sharedTemplatesDir: '',
+        quarantineDir: '/tmp/quarantine',
+        terminal: { baseCwd: '/tmp', shell: '/bin/bash' },
+      },
+      storage,
+    });
+
+    const res = await fetch(`${baseUrl}/api/decks/issues`);
+    const payload = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(payload).toEqual([
+      {
+        deckId: 'broken-deck',
+        reason: 'invalid-deck:Unexpected token',
+        quarantinedAt: '2026-03-07T00:00:00.000Z',
+        status: 'quarantined',
+      },
+    ]);
+  });
 });

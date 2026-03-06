@@ -71,6 +71,11 @@ export async function listDecks() {
     return requestJson('/decks', { fallbackMessage: 'Failed to list decks' });
 }
 
+/** List quarantined or broken deck issues */
+export async function listDeckIssues() {
+    return requestJson('/decks/issues', { fallbackMessage: 'Failed to list deck issues' });
+}
+
 /** Get a full deck by ID */
 export async function getDeck(id) {
     return requestJson(`/decks/${id}`, { fallbackMessage: 'Deck not found' });

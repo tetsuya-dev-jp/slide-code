@@ -1426,6 +1426,62 @@ body.resizing-v {
   gap: 8px;
 }
 
+.deck-issues {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  border-radius: var(--radius-lg);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.deck-issues-header {
+  margin-bottom: 12px;
+}
+
+.deck-issues-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.deck-issues-subtitle {
+  margin: 4px 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.deck-issues-list {
+  display: grid;
+  gap: 10px;
+}
+
+.deck-issue-card {
+  padding: 14px 16px;
+  border: 1px solid rgba(245, 158, 11, 0.22);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+}
+
+.deck-issue-card strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text-primary);
+}
+
+.deck-issue-card p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.deck-issue-meta {
+  margin-top: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
 /* Deck Grid */
 .deck-grid {
   display: grid;

@@ -133,6 +133,11 @@ export function registerApiRoutes(app, { getContext, applyLatestRuntimeConfig })
         res.json(storage.listDecksMeta());
     }));
 
+    app.get('/api/decks/issues', withApiErrorHandling((_req, res) => {
+        const { storage, runtimeConfig } = getContext();
+        res.json(storage.listQuarantinedDeckIssues(runtimeConfig.quarantineDir));
+    }));
+
     app.get('/api/decks/:id', withApiErrorHandling((req, res) => {
         const { storage } = getContext();
         res.json(storage.readDeck(req.params.id));
