@@ -4,6 +4,7 @@
  */
 
 import hljs from 'highlight.js';
+import { splitHighlightedHtmlLines } from './highlighted-lines.js';
 
 export class CodePane {
     constructor(codeBodyEl, langBadgeEl, copyBtnEl) {
@@ -34,7 +35,7 @@ export class CodePane {
         }
 
         // Split into lines and add line numbers
-        const lines = highlighted.split('\n');
+        const lines = splitHighlightedHtmlLines(highlighted);
         // Remove trailing empty line
         if (lines.length > 0 && lines[lines.length - 1] === '') {
             lines.pop();
