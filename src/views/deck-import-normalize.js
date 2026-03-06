@@ -3,6 +3,7 @@ import {
   createDefaultSlide,
   normalizeHighlightLines,
   normalizeLineRange,
+  resolveDeckFile,
 } from '../core/deck-utils.js';
 
 export function normalizeImportedDeck(data, filename) {
@@ -25,6 +26,7 @@ export function normalizeImportedDeck(data, filename) {
       .map((file, index) => {
         const fallbackFile = createDefaultFile(index);
         return {
+          id: typeof file.id === 'string' && file.id.trim() ? file.id.trim() : fallbackFile.id,
           name: typeof file.name === 'string' && file.name.trim() ? file.name.trim() : fallbackFile.name,
           language: typeof file.language === 'string' && file.language.trim() ? file.language.trim() : fallbackFile.language,
           code: typeof file.code === 'string' ? file.code : '',
@@ -36,20 +38,16 @@ export function normalizeImportedDeck(data, filename) {
     normalizedFiles.push(createDefaultFile(0));
   }
 
-  const fileNames = new Set(normalizedFiles.map(file => file.name));
-  const fallbackFileRef = normalizedFiles[0].name;
+  const fallbackFile = normalizedFiles[0];
 
   const normalizedSlides = Array.isArray(data.slides)
     ? data.slides
       .filter(slide => slide && typeof slide === 'object')
       .map((slide, index) => {
-        const requestedFileRef = typeof slide.fileRef === 'string'
-          ? slide.fileRef
-          : fallbackFileRef;
-        const fileRef = requestedFileRef === ''
-          ? ''
-          : (fileNames.has(requestedFileRef) ? requestedFileRef : fallbackFileRef);
-        const file = normalizedFiles.find(item => item.name === fileRef);
+        const explicitEmpty = slide.fileId === '' || slide.fileRef === '';
+        const file = explicitEmpty
+          ? null
+          : (resolveDeckFile(normalizedFiles, slide) || fallbackFile);
         const lineRange = file
           ? normalizeLineRange(slide.lineRange, (file.code || '').split('\n').length)
           : [1, 1];
@@ -60,8 +58,12 @@ export function normalizeImportedDeck(data, filename) {
           })
           : [];
 
+        const fileId = file?.id || '';
+        const fileRef = file?.name || '';
+
         return {
-          title: typeof slide.title === 'string' && slide.title.trim() ? slide.title.trim() : createDefaultSlide(index, fileRef).title,
+          title: typeof slide.title === 'string' && slide.title.trim() ? slide.title.trim() : createDefaultSlide(index, fileRef, fileId).title,
+          fileId,
           fileRef,
           lineRange,
           highlightLines,
@@ -71,7 +73,7 @@ export function normalizeImportedDeck(data, filename) {
     : [];
 
   if (normalizedSlides.length === 0) {
-    normalizedSlides.push(createDefaultSlide(0, fallbackFileRef));
+    normalizedSlides.push(createDefaultSlide(0, fallbackFile.name, fallbackFile.id));
   }
 
   const normalizedAssets = Array.isArray(data.assets)

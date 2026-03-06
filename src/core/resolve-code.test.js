@@ -5,13 +5,15 @@ describe('resolveSlideCode', () => {
   test('returns sliced code and relative highlight lines', () => {
     const deck = {
       files: [{
+        id: 'file-main',
         name: 'main.py',
         language: 'python',
         code: 'one\ntwo\nthree\nfour',
       }],
     };
     const slide = {
-      fileRef: 'main.py',
+      fileId: 'file-main',
+      fileRef: 'renamed.py',
       lineRange: [2, 4],
       highlightLines: [1, 2, 4],
     };
@@ -26,6 +28,16 @@ describe('resolveSlideCode', () => {
   test('falls back when referenced file is missing', () => {
     expect(resolveSlideCode({ fileRef: 'missing.py' }, { files: [] })).toEqual({
       code: '',
+      language: 'python',
+      highlightLines: [],
+    });
+  });
+
+  test('falls back to legacy fileRef when fileId is missing', () => {
+    expect(resolveSlideCode({ fileRef: 'main.py' }, {
+      files: [{ id: 'file-1', name: 'main.py', language: 'python', code: 'one' }],
+    })).toEqual({
+      code: 'one',
       language: 'python',
       highlightLines: [],
     });

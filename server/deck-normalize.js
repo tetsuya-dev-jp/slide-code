@@ -1,12 +1,22 @@
+import crypto from 'crypto';
 import path from 'path';
 
 export const DECK_SCHEMA_VERSION = 2;
 
 export const DEFAULT_FILE = {
+    id: 'file-main',
     name: 'main.py',
     language: 'python',
     code: '',
 };
+
+function createOpaqueId(prefix = 'id') {
+    if (typeof crypto.randomUUID === 'function') {
+        return `${prefix}-${crypto.randomUUID()}`;
+    }
+
+    return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 export function normalizeString(value, fallback = '') {
     return typeof value === 'string' ? value : fallback;
@@ -63,6 +73,21 @@ function makeUniqueRelativePath(rawPath, usedNames, fallbackPath) {
     }
 }
 
+function makeUniqueOpaqueId(rawId, usedIds, prefix = 'id') {
+    const normalized = normalizeNonEmptyString(rawId, '');
+    if (normalized && !usedIds.has(normalized)) {
+        usedIds.add(normalized);
+        return normalized;
+    }
+
+    let candidate = createOpaqueId(prefix);
+    while (usedIds.has(candidate)) {
+        candidate = createOpaqueId(prefix);
+    }
+    usedIds.add(candidate);
+    return candidate;
+}
+
 export function inferLanguageFromFilename(filename) {
     const lower = filename.toLowerCase();
     if (lower.endsWith('.py')) return 'python';
@@ -92,20 +117,25 @@ export function resolvePathInsideRoot(rootDir, relativePath) {
 function normalizeFiles(files) {
     const source = Array.isArray(files) ? files : [];
     const usedNames = new Set();
+    const usedIds = new Set();
     const normalized = [];
 
     source.forEach((entry, index) => {
         if (!entry || typeof entry !== 'object') return;
 
         const fallbackName = index === 0 ? DEFAULT_FILE.name : `file${index + 1}.txt`;
+        const id = makeUniqueOpaqueId(entry.id, usedIds, 'file');
         const name = makeUniqueRelativePath(entry.name, usedNames, fallbackName);
         const language = normalizeNonEmptyString(entry.language, inferLanguageFromFilename(name));
         const code = normalizeString(entry.code, '');
-        normalized.push({ name, language, code });
+        normalized.push({ id, name, language, code });
     });
 
     if (normalized.length === 0) {
-        normalized.push({ ...DEFAULT_FILE });
+        normalized.push({
+            ...DEFAULT_FILE,
+            id: makeUniqueOpaqueId(DEFAULT_FILE.id, usedIds, 'file'),
+        });
     }
 
     return normalized;
@@ -147,27 +177,37 @@ function normalizeHighlightLines(highlightLines, start, end) {
 
 function normalizeSlides(slides, files) {
     const source = Array.isArray(slides) ? slides : [];
-    const fileNames = new Set(files.map(file => file.name));
-    const fallbackFileRef = files[0]?.name || DEFAULT_FILE.name;
-    const linesByFile = new Map(files.map(file => [file.name, lineCountOfFile(file)]));
+    const fileIds = new Set(files.map(file => file.id));
+    const filesById = new Map(files.map(file => [file.id, file]));
+    const filesByName = new Map(files.map(file => [file.name, file]));
+    const fallbackFile = files[0] || DEFAULT_FILE;
 
     const normalized = source.map((entry, index) => {
         const title = normalizeNonEmptyString(entry?.title, `スライド ${index + 1}`);
+        const requestedFileId = typeof entry?.fileId === 'string'
+            ? entry.fileId
+            : '';
         const requestedFileRef = typeof entry?.fileRef === 'string'
             ? entry.fileRef
-            : fallbackFileRef;
-        const fileRef = requestedFileRef === ''
-            ? ''
-            : (fileNames.has(requestedFileRef) ? requestedFileRef : fallbackFileRef);
-        const maxLine = fileRef ? (linesByFile.get(fileRef) || 1) : 1;
-        const lineRange = fileRef ? normalizeLineRange(entry?.lineRange, maxLine) : [1, 1];
-        const highlightLines = fileRef
+            : '';
+        const explicitEmpty = entry?.fileId === '' || entry?.fileRef === '';
+        const resolvedFile = explicitEmpty
+            ? null
+            : (fileIds.has(requestedFileId)
+                ? filesById.get(requestedFileId)
+                : (filesByName.get(requestedFileRef) || fallbackFile));
+        const fileId = resolvedFile?.id || '';
+        const fileRef = resolvedFile?.name || '';
+        const maxLine = resolvedFile ? lineCountOfFile(resolvedFile) : 1;
+        const lineRange = resolvedFile ? normalizeLineRange(entry?.lineRange, maxLine) : [1, 1];
+        const highlightLines = resolvedFile
             ? normalizeHighlightLines(entry?.highlightLines, lineRange[0], lineRange[1])
             : [];
         const markdown = normalizeString(entry?.markdown, '');
 
         return {
             title,
+            fileId,
             fileRef,
             lineRange,
             highlightLines,
@@ -178,7 +218,8 @@ function normalizeSlides(slides, files) {
     if (normalized.length === 0) {
         normalized.push({
             title: 'スライド 1',
-            fileRef: fallbackFileRef,
+            fileId: fallbackFile.id,
+            fileRef: fallbackFile.name,
             lineRange: [1, 1],
             highlightLines: [],
             markdown: '',

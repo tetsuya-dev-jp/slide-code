@@ -14,6 +14,8 @@ import {
   normalizeLineRange as clampLineRange,
   normalizeRelativeDirectory as normalizeDeckRelativeDirectory,
   parseHighlightLinesInput as parseHighlightInputText,
+  resolveDeckFile,
+  syncSlideFileReference,
 } from '../core/deck-utils.js';
 import { MarkdownPane } from '../panes/markdown.js';
 import { initEditorDeckSettings } from './editor-deck-settings.js';
@@ -48,8 +50,8 @@ export function initEditor(router) {
     dark: 'slidecode-dark',
     light: 'vs',
   };
-  const EMPTY_FILE_REF_VALUE = '';
-  const EMPTY_FILE_REF_LABEL = '参照なし';
+  const EMPTY_FILE_ID_VALUE = '';
+  const EMPTY_FILE_ID_LABEL = '参照なし';
 
   function ensureMonacoThemes() {
     monaco.editor.defineTheme(MONACO_THEME.dark, {
@@ -88,6 +90,7 @@ export function initEditor(router) {
   let changeVersion = 0;
   let autosaveTimer = null;
   let saveQueue = Promise.resolve();
+  let showRequestId = 0;
 
   const AUTOSAVE_DELAY_MS = 1500;
   const saveButtonEl = document.getElementById('editorSaveBtn');
@@ -172,6 +175,27 @@ export function initEditor(router) {
     return true;
   }
 
+  function hasUnsavedChanges() {
+    return dirty;
+  }
+
+  function confirmLeave({ from, to } = {}) {
+    if (!dirty || from === to) {
+      return true;
+    }
+
+    const shouldLeave = window.confirm('保存していない変更があります。移動すると失われる可能性があります。続けますか？');
+    if (!shouldLeave) {
+      return false;
+    }
+
+    clearAutosaveTimer();
+    clearDirty();
+    changeVersion = 0;
+    setSaveStatus('saved');
+    return true;
+  }
+
   function requestPersistDeck({
     source = 'manual',
     fallbackMessage = '保存に失敗しました',
@@ -234,6 +258,39 @@ export function initEditor(router) {
 
   // --- File Tabs ---
 
+  function getFileById(fileId) {
+    if (!deck || typeof fileId !== 'string' || !fileId.trim()) return null;
+    return deck.files.find(file => file.id === fileId) || null;
+  }
+
+  function getResolvedSlideFile(slide) {
+    if (!deck || !slide) return null;
+    return resolveDeckFile(deck.files, slide);
+  }
+
+  function hasSelectedFileId(fileId) {
+    return typeof fileId === 'string' && fileId.trim().length > 0;
+  }
+
+  function clearLoadedFile() {
+    loading = true;
+    fileIndex = -1;
+    document.getElementById('editorFileName').value = '';
+    document.getElementById('editorFileLang').value = '';
+
+    if (monacoEditor) {
+      monacoEditor.updateOptions({ readOnly: true });
+      monacoEditor.setValue('');
+      monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId('plaintext'));
+      updateMonacoDecorations();
+    }
+
+    document.querySelectorAll('.editor-file-tab').forEach(tab => {
+      tab.classList.remove('active');
+    });
+    loading = false;
+  }
+
   function renderFileTabs() {
     const tabs = document.getElementById('editorFileTabs');
     tabs.innerHTML = deck.files.map((file, i) => `
@@ -256,15 +313,15 @@ export function initEditor(router) {
     const select = document.getElementById('editorFileRef');
     const currentVal = select.value;
     select.innerHTML = [
-      `<option value="${EMPTY_FILE_REF_VALUE}">${EMPTY_FILE_REF_LABEL}</option>`,
+      `<option value="${EMPTY_FILE_ID_VALUE}">${EMPTY_FILE_ID_LABEL}</option>`,
       ...deck.files.map(f =>
-        `<option value="${escapeHtml(f.name)}">${escapeHtml(f.name)}</option>`,
+        `<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`,
       ),
     ].join('');
-    if (currentVal === EMPTY_FILE_REF_VALUE || deck.files.some(f => f.name === currentVal)) {
+    if (currentVal === EMPTY_FILE_ID_VALUE || deck.files.some(f => f.id === currentVal)) {
       select.value = currentVal;
     } else {
-      select.value = EMPTY_FILE_REF_VALUE;
+      select.value = EMPTY_FILE_ID_VALUE;
     }
   }
 
@@ -273,36 +330,36 @@ export function initEditor(router) {
     setHighlightInput([]);
   }
 
-  function hasSelectedFileRef(fileRef) {
-    return typeof fileRef === 'string' && fileRef.trim().length > 0;
-  }
-
   function getSlideMetaText(slide) {
     const lineRange = slide.lineRange || [1, 1];
-    const fileRef = slide.fileRef || '';
+    const file = getResolvedSlideFile(slide);
 
-    if (!hasSelectedFileRef(fileRef)) {
+    if (!file) {
       return '参照なし';
     }
 
-    return `${escapeHtml(fileRef)} L${lineRange[0]}–${lineRange[1]}`;
+    return `${escapeHtml(file.name)} L${lineRange[0]}–${lineRange[1]}`;
   }
 
   function getDraftSlideStateFromForm() {
-    const fileRef = document.getElementById('editorFileRef').value;
-    if (!hasSelectedFileRef(fileRef)) {
+    const fileId = document.getElementById('editorFileRef').value;
+    if (!hasSelectedFileId(fileId)) {
       return {
-        fileRef: EMPTY_FILE_REF_VALUE,
+        fileId: EMPTY_FILE_ID_VALUE,
+        fileRef: '',
         lineRange: [1, 1],
         highlightLines: [],
       };
     }
 
+    const file = getFileById(fileId);
+
     const lineStart = parseInt(document.getElementById('editorLineStart').value, 10);
     const lineEnd = parseInt(document.getElementById('editorLineEnd').value, 10);
 
     return {
-      fileRef,
+      fileId,
+      fileRef: file?.name || '',
       lineRange: [
         Number.isFinite(lineStart) ? lineStart : 1,
         Number.isFinite(lineEnd) ? lineEnd : (Number.isFinite(lineStart) ? lineStart : 1),
@@ -333,7 +390,7 @@ export function initEditor(router) {
     if (!summaryEl) return;
 
     const draft = slideState || getDraftSlideStateFromForm();
-    if (!hasSelectedFileRef(draft?.fileRef)) {
+    if (!hasSelectedFileId(draft?.fileId)) {
       summaryEl.textContent = '参照なし';
       return;
     }
@@ -356,7 +413,7 @@ export function initEditor(router) {
     if (!chipsEl) return;
 
     const draft = slideState || getDraftSlideStateFromForm();
-    if (!hasSelectedFileRef(draft?.fileRef)) {
+    if (!hasSelectedFileId(draft?.fileId)) {
       chipsEl.innerHTML = '<span class="editor-chip-placeholder">参照なし</span>';
       return;
     }
@@ -399,8 +456,8 @@ export function initEditor(router) {
   function resetRangeToWholeFile() {
     if (!deck) return;
 
-    const fileRef = document.getElementById('editorFileRef').value;
-    const targetFile = deck.files.find(file => file.name === fileRef);
+    const fileId = document.getElementById('editorFileRef').value;
+    const targetFile = getFileById(fileId);
     if (!targetFile) return;
 
     const lineCount = (targetFile.code || '').split('\n').length;
@@ -444,14 +501,26 @@ export function initEditor(router) {
     updateMonacoDecorations(normalized);
 
     const currentFile = deck.files[fileIndex];
-    if (reveal && monacoEditor && currentFile && currentFile.name === targetFile.name) {
+    if (reveal && monacoEditor && currentFile && currentFile.id === targetFile.id) {
       monacoEditor.revealLineInCenter(normalized.lineRange[0]);
     }
   }
 
-  function loadFileByName(fileName) {
-    const nextIndex = deck.files.findIndex(file => file.name === fileName);
-    if (nextIndex < 0 || nextIndex === fileIndex) return;
+  function loadFileById(fileId) {
+    if (!hasSelectedFileId(fileId)) {
+      saveCurrentFile();
+      clearLoadedFile();
+      return;
+    }
+
+    const nextIndex = deck.files.findIndex(file => file.id === fileId);
+    if (nextIndex < 0) {
+      saveCurrentFile();
+      clearLoadedFile();
+      return;
+    }
+
+    if (nextIndex === fileIndex) return;
     saveCurrentFile();
     loadFile(nextIndex);
   }
@@ -461,7 +530,8 @@ export function initEditor(router) {
 
     const slide = slideState || deck.slides[slideIndex];
     const file = deck.files[fileIndex];
-    if (!slide || !file || slide.fileRef !== file.name) {
+    const targetFile = slide ? getResolvedSlideFile(slide) : null;
+    if (!slide || !file || !targetFile || targetFile.id !== file.id) {
       monacoDecorations = monacoEditor.deltaDecorations(monacoDecorations, []);
       return;
     }
@@ -523,10 +593,7 @@ export function initEditor(router) {
     fileIndex = index;
     const file = deck.files[index];
     if (!file) {
-      document.getElementById('editorFileName').value = '';
-      document.getElementById('editorFileLang').value = '';
-      if (monacoEditor) monacoEditor.setValue('');
-      loading = false;
+      clearLoadedFile();
       return;
     }
 
@@ -534,6 +601,7 @@ export function initEditor(router) {
     document.getElementById('editorFileLang').value = file.language || '';
 
     if (monacoEditor) {
+      monacoEditor.updateOptions({ readOnly: false });
       monacoEditor.setValue(file.code || '');
       monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(file.language || 'python'));
       updateMonacoDecorations();
@@ -555,7 +623,10 @@ export function initEditor(router) {
 
     if (oldName !== file.name) {
       deck.slides.forEach(slide => {
-        if (slide.fileRef === oldName) slide.fileRef = file.name;
+        if (slide.fileId === file.id || (!slide.fileId && slide.fileRef === oldName)) {
+          slide.fileRef = file.name;
+          slide.fileId = file.id;
+        }
       });
       updateFileRefOptions();
     }
@@ -567,8 +638,7 @@ export function initEditor(router) {
   function renderSlideList() {
     const list = document.getElementById('editorSlideList');
     list.innerHTML = deck.slides.map((slide, i) => {
-      const fileRef = slide.fileRef || '';
-      const file = deck.files?.find(f => f.name === fileRef);
+      const file = getResolvedSlideFile(slide);
       const lang = file?.language || '';
       const langIcon = getLangIcon(lang);
       return `
@@ -689,15 +759,21 @@ export function initEditor(router) {
     const slide = deck.slides[index];
     if (!slide) { loading = false; return; }
 
+    const { fileId, fileRef } = syncSlideFileReference(slide, deck.files, {
+      fallbackToFirstFile: false,
+    });
+    slide.fileId = fileId;
+    slide.fileRef = fileRef;
+
     document.getElementById('editorSlideTitle').value = slide.title || '';
-    document.getElementById('editorFileRef').value = slide.fileRef || '';
+    document.getElementById('editorFileRef').value = slide.fileId || '';
     const [lineStart, lineEnd] = slide.lineRange || [1, 1];
     document.getElementById('editorLineStart').value = lineStart;
     document.getElementById('editorLineEnd').value = lineEnd;
     document.getElementById('editorHighlight').value = (slide.highlightLines || []).join(', ');
     document.getElementById('editorMarkdown').value = slide.markdown || '';
 
-    loadFileByName(slide.fileRef || '');
+    loadFileById(slide.fileId || '');
 
     document.querySelectorAll('.editor-slide-item').forEach((item, i) => {
       item.classList.toggle('active', i === index);
@@ -712,10 +788,11 @@ export function initEditor(router) {
   function saveCurrentSlide() {
     if (!deck || !deck.slides[slideIndex]) return;
     const slide = deck.slides[slideIndex];
-    const fileRef = document.getElementById('editorFileRef').value;
+    const fileId = document.getElementById('editorFileRef').value;
     slide.title = document.getElementById('editorSlideTitle').value;
-    slide.fileRef = hasSelectedFileRef(fileRef) ? fileRef : EMPTY_FILE_REF_VALUE;
-    if (slide.fileRef) {
+    slide.fileId = hasSelectedFileId(fileId) ? fileId : EMPTY_FILE_ID_VALUE;
+    slide.fileRef = getFileById(slide.fileId)?.name || '';
+    if (slide.fileId) {
       const lineStart = parseInt(document.getElementById('editorLineStart').value) || 1;
       const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
       slide.lineRange = [lineStart, lineEnd];
@@ -773,6 +850,10 @@ export function initEditor(router) {
   function replaceHash(path) {
     const nextHash = `#${path}`;
     if (window.location.hash === nextHash) return;
+    if (typeof router.replace === 'function') {
+      router.replace(path);
+      return;
+    }
     window.history.replaceState(window.history.state, '', nextHash);
   }
 
@@ -895,7 +976,8 @@ export function initEditor(router) {
       for (const file of files) {
         const code = await file.text();
         const language = detectLanguage(file.name);
-        deck.files.push({ name: file.name, language, code });
+        const nextFile = createDefaultFile(deck.files.length);
+        deck.files.push({ ...nextFile, name: file.name, language, code });
       }
       fileIndex = deck.files.length - 1;
       renderFileTabs();
@@ -910,13 +992,18 @@ export function initEditor(router) {
         showToast('最後のファイルは削除できません');
         return;
       }
+      const deletedFile = deck.files[fileIndex];
       const deletedName = deck.files[fileIndex].name;
+      const deletedId = deletedFile.id;
       deck.files.splice(fileIndex, 1);
       if (fileIndex >= deck.files.length) {
         fileIndex = deck.files.length - 1;
       }
       deck.slides.forEach(slide => {
-        if (slide.fileRef === deletedName) slide.fileRef = '';
+        if (slide.fileId === deletedId || (!slide.fileId && slide.fileRef === deletedName)) {
+          slide.fileId = '';
+          slide.fileRef = '';
+        }
       });
       renderFileTabs();
       loadFile(fileIndex);
@@ -927,6 +1014,8 @@ export function initEditor(router) {
     document.getElementById('editorFileName').addEventListener('change', () => {
       saveCurrentFile();
       renderFileTabs();
+      renderSlideList();
+      updateCodePreview({ saveFile: false, reveal: false });
     });
 
     document.getElementById('editorFileLang').addEventListener('change', () => {
@@ -939,11 +1028,11 @@ export function initEditor(router) {
 
     // Slide fields
     document.getElementById('editorFileRef').addEventListener('change', () => {
-      const fileRef = document.getElementById('editorFileRef').value;
-      if (!hasSelectedFileRef(fileRef)) {
+      const fileId = document.getElementById('editorFileRef').value;
+      if (!hasSelectedFileId(fileId)) {
         resetSelectionInputsForNoReference();
       }
-      loadFileByName(fileRef);
+      loadFileById(fileId);
       updateCodePreview({ saveFile: false, reveal: true });
       markDirty();
     });
@@ -990,7 +1079,11 @@ export function initEditor(router) {
     document.getElementById('addSlideBtn').addEventListener('click', () => {
       saveCurrentSlide();
       const firstFile = deck.files[0];
-      deck.slides.push(createDefaultSlide(deck.slides.length, firstFile ? firstFile.name : ''));
+      deck.slides.push(createDefaultSlide(
+        deck.slides.length,
+        firstFile ? firstFile.name : '',
+        firstFile ? firstFile.id : '',
+      ));
       slideIndex = deck.slides.length - 1;
       renderSlideList();
       loadSlide(slideIndex);
@@ -1079,8 +1172,8 @@ export function initEditor(router) {
     const canEditCurrentSlideFile = () => {
       if (!deck) return false;
       const activeFile = deck.files[fileIndex];
-      const fileRef = document.getElementById('editorFileRef').value;
-      return Boolean(activeFile && activeFile.name === fileRef);
+      const fileId = document.getElementById('editorFileRef').value;
+      return Boolean(activeFile && activeFile.id === fileId);
     };
 
     const setHighlightLine = (line, shouldHighlight) => {
@@ -1190,6 +1283,7 @@ export function initEditor(router) {
   setupEventListeners();
 
   async function show(deckId) {
+    const requestId = ++showRequestId;
     clearAutosaveTimer();
     clearDirty();
     changeVersion = 0;
@@ -1197,7 +1291,9 @@ export function initEditor(router) {
     persistedDeckId = null;
     try {
       loading = true;
-      deck = await api.getDeck(deckId);
+      const loadedDeck = await api.getDeck(deckId);
+      if (requestId !== showRequestId) return;
+      deck = loadedDeck;
       ensureDeckShape(deck);
       persistedDeckId = deck.id;
       slideIndex = 0;
@@ -1217,16 +1313,21 @@ export function initEditor(router) {
         window.dispatchEvent(new Event('resize'));
       });
     } catch {
+      if (requestId !== showRequestId) return;
       setSaveStatus('error');
       showToast('デッキの読み込みに失敗しました');
       router.navigate('/');
     } finally {
-      loading = false;
+      if (requestId === showRequestId) {
+        loading = false;
+      }
     }
   }
 
   return {
     show,
+    hasUnsavedChanges,
+    confirmLeave,
     get monacoEditor() { return monacoEditor; },
     applyTheme(isDark) {
       if (monacoEditor) monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);

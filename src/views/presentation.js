@@ -24,6 +24,7 @@ export function initPresentation(router) {
   let codePane, shellPane, markdownPane;
   let presentationDeck = null;
   let currentDeckId = null;
+  let showRequestId = 0;
 
   function init() {
     if (initialized) return;
@@ -288,16 +289,19 @@ export function initPresentation(router) {
   }
 
   async function show(deckId) {
+    const requestId = ++showRequestId;
     const previousDeckId = currentDeckId;
     currentDeckId = deckId;
     activeSlideKey = '';
     init();
     try {
       const deck = await api.getDeck(deckId);
+      if (requestId !== showRequestId) return;
       presentationDeck = deck;
       syncShellDeckSession(previousDeckId, deckId);
       slideManager.load(deck.slides);
     } catch {
+      if (requestId !== showRequestId) return;
       currentDeckId = null;
       showToast('デッキの読み込みに失敗しました');
       router.navigate('/');

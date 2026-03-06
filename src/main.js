@@ -35,6 +35,7 @@ const viewPromises = {
   presentation: null,
   editor: null,
 };
+let navigationSequence = 0;
 
 const viewLoaders = {
   dashboard: () => import('./views/dashboard.js').then(({ initDashboard }) => initDashboard(router)),
@@ -93,6 +94,32 @@ async function getView(name) {
   return viewInstances[name];
 }
 
+async function activateView(name, show) {
+  const navigationId = ++navigationSequence;
+  showView(name);
+
+  const view = await getView(name);
+  if (navigationId !== navigationSequence) {
+    return view;
+  }
+
+  await show(view, navigationId);
+  return view;
+}
+
+router
+  .setLeaveGuard(({ from, to }) => {
+    const editor = viewInstances.editor;
+    if (!editor?.confirmLeave) return true;
+    return editor.confirmLeave({ from, to });
+  })
+  .setErrorHandler((err, context) => {
+    console.error(err);
+    if (context?.path && context.path !== '/') {
+      void router.navigate('/');
+    }
+  });
+
 // Theme toggle
 document.getElementById('themeToggle').addEventListener('click', () => {
   const next = theme.toggle();
@@ -107,19 +134,19 @@ document.getElementById('themeToggle').addEventListener('click', () => {
 
 router
   .on('/', async () => {
-    showView('dashboard');
-    const dashboard = await getView('dashboard');
-    dashboard.show();
+    await activateView('dashboard', async (dashboard, navigationId) => {
+      await dashboard.show({ navigationId });
+    });
   })
   .on('/deck/:id', async ({ id }) => {
-    showView('presentation');
-    const presentation = await getView('presentation');
-    presentation.show(id);
+    await activateView('presentation', async (presentation, navigationId) => {
+      await presentation.show(id, { navigationId });
+    });
   })
   .on('/deck/:id/edit', async ({ id }) => {
-    showView('editor');
-    const editor = await getView('editor');
-    editor.show(id);
+    await activateView('editor', async (editor, navigationId) => {
+      await editor.show(id, { navigationId });
+    });
   })
   .start();
 

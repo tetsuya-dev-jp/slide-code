@@ -25,6 +25,7 @@ export function initDashboard(router) {
   let autoSyncFolderName = true;
   let modalTriggerEl = null;
   let savedTemplateDeckIds = new Set();
+  let showRequestId = 0;
 
   async function loadTemplateOptions() {
     if (!modalTemplate) return;
@@ -362,6 +363,7 @@ export function initDashboard(router) {
   }
 
   async function show() {
+    const requestId = ++showRequestId;
     const grid = document.getElementById('deckGrid');
     grid.innerHTML = '<div class="deck-loading">読み込み中...</div>';
     try {
@@ -369,9 +371,11 @@ export function initDashboard(router) {
         api.listDecks(),
         api.listTemplates().catch(() => null),
       ]);
+      if (requestId !== showRequestId) return;
       savedTemplateDeckIds = collectSavedTemplateDeckIds(templates);
       renderDeckGrid(decks);
     } catch (err) {
+      if (requestId !== showRequestId) return;
       grid.innerHTML = '<div class="deck-error">デッキの読み込みに失敗しました</div>';
       console.error(err);
     }

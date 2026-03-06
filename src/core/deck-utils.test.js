@@ -7,6 +7,7 @@ import {
   normalizeLineRange,
   normalizeRelativeDirectory,
   parseHighlightLinesInput,
+  resolveDeckFile,
 } from './deck-utils.js';
 
 describe('deck-utils', () => {
@@ -33,26 +34,36 @@ describe('deck-utils', () => {
 
   test('normalizeDraftSlideState resolves target file and clamps range', () => {
     const result = normalizeDraftSlideState({
-      fileRef: 'main.py',
+      fileId: 'file-main',
       lineRange: [2, 9],
       highlightLines: [1, 3, 3, 5],
     }, [
-      { name: 'main.py', code: 'a\nb\nc', language: 'python' },
+      { id: 'file-main', name: 'main.py', code: 'a\nb\nc', language: 'python' },
     ]);
 
+    expect(result?.targetFile.id).toBe('file-main');
     expect(result?.targetFile.name).toBe('main.py');
     expect(result?.normalized.lineRange).toEqual([2, 3]);
     expect(result?.normalized.highlightLines).toEqual([1, 3, 5]);
   });
 
-  test('ensureDeckShape fills missing files, slides, assets, and terminal', () => {
+  test('ensureDeckShape fills missing ids, slides, assets, and terminal', () => {
     const deck = ensureDeckShape({ title: 'demo' });
 
     expect(deck.files).toHaveLength(1);
+    expect(deck.files[0].id).toMatch(/^file-/);
     expect(deck.slides).toHaveLength(1);
+    expect(deck.slides[0].fileId).toBe(deck.files[0].id);
     expect(deck.slides[0].fileRef).toBe(deck.files[0].name);
     expect(deck.assets).toEqual([]);
     expect(deck.terminal).toEqual({ cwd: '' });
+  });
+
+  test('resolveDeckFile falls back from fileId to legacy fileRef', () => {
+    const files = [{ id: 'file-1', name: 'main.py', language: 'python', code: '' }];
+
+    expect(resolveDeckFile(files, { fileId: 'file-1' })?.name).toBe('main.py');
+    expect(resolveDeckFile(files, { fileRef: 'main.py' })?.id).toBe('file-1');
   });
 
   test('normalizeRelativeDirectory strips traversal and leading slashes', () => {

@@ -9,7 +9,7 @@ async function waitForEditorReady(page, title) {
   await expect(page.locator('#editorDeckName')).toContainText(title);
   await expect(page.locator('.editor-slide-item')).toHaveCount(1);
   await expect(page.locator('#editorSlideTitle')).toHaveValue('スライド 1');
-  await expect(page.locator('#editorFileRef')).toHaveValue('main.py');
+  await expect(page.locator('#editorFileRef')).not.toHaveValue('');
 }
 
 async function createDeck(page, titlePrefix = 'Smoke') {
@@ -95,4 +95,47 @@ test('presentation は参照なしスライドで空の code pane を初期非�
 
   await page.locator('.toggle-btn[data-pane="code"]').click();
   await expect(page.locator('#paneCode')).not.toHaveClass(/hidden/);
+});
+
+test('editor は未保存変更の画面遷移を確認し、キャンセル時は留まる', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Dirty Guard');
+
+  await page.locator('#editorSlideTitle').fill('未保存の変更');
+
+  const dismissDialog = page.waitForEvent('dialog');
+  await page.evaluate(() => {
+    globalThis.location.hash = '#/';
+  });
+  const firstDialog = await dismissDialog;
+  await firstDialog.dismiss();
+
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}\/edit$`));
+  await expect(page.locator('#viewEditor')).toBeVisible();
+
+  const acceptDialog = page.waitForEvent('dialog');
+  await page.evaluate(() => {
+    globalThis.location.hash = '#/';
+  });
+  const secondDialog = await acceptDialog;
+  await secondDialog.accept();
+
+  await expect(page.locator('#viewDashboard')).toBeVisible();
+});
+
+test('editor はファイル名変更後もスライド参照を維持できる', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Stable File');
+
+  await page.locator('#addFileBtn').click();
+  await expect(page.locator('.editor-file-tab')).toHaveCount(2);
+
+  await page.locator('#editorFileName').fill('helpers.py');
+  await page.locator('#editorSlideTitle').click();
+  await page.locator('#editorFileRef').selectOption({ index: 2 });
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await page.reload();
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}\/edit$`));
+  await waitForEditorReady(page, 'Stable File Deck');
+  await expect(page.locator('.editor-slide-meta')).toContainText('helpers.py');
 });

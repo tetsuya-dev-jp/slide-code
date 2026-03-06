@@ -1,14 +1,14 @@
-import { normalizeHighlightLines, normalizeLineRange } from './deck-utils.js';
+import { normalizeHighlightLines, normalizeLineRange, resolveDeckFile } from './deck-utils.js';
 
 /**
  * Resolve a slide's code from the deck's files array
- * @param {Object} slide - Slide with fileRef + lineRange
+ * @param {Object} slide - Slide with fileId/fileRef + lineRange
  * @param {Object} deck - Deck with files array
  * @returns {{ code: string, language: string, highlightLines: number[] }}
  */
 export function resolveSlideCode(slide, deck) {
   const files = deck?.files || [];
-  const file = files.find(f => f.name === slide.fileRef);
+  const file = resolveDeckFile(files, slide);
   if (!file) return { code: '', language: 'python', highlightLines: [] };
 
   const lines = (file.code || '').split('\n');

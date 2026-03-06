@@ -47,6 +47,7 @@ function toDeckManifest(deck) {
         updatedAt: deck.updatedAt,
         terminal: deck.terminal,
         files: deck.files.map(file => ({
+            id: file.id,
             name: file.name,
             language: file.language,
         })),
@@ -165,6 +166,7 @@ export class DeckStorage {
             const fallbackName = index === 0 ? DEFAULT_FILE.name : `file${index + 1}.txt`;
             const name = normalizeRelativePath(file?.name, fallbackName);
             const language = normalizeNonEmptyString(file?.language, inferLanguageFromFilename(name));
+            const id = normalizeNonEmptyString(file?.id, `file-${index + 1}`);
 
             let code = '';
             try {
@@ -176,7 +178,7 @@ export class DeckStorage {
                 code = '';
             }
 
-            return { name, language, code };
+            return { id, name, language, code };
         });
 
         const normalizedPayload = normalizeDeckPayload({

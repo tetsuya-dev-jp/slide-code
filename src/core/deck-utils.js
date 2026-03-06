@@ -1,5 +1,55 @@
 export const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
+function createOpaqueId(prefix = 'id') {
+  if (typeof globalThis.crypto?.randomUUID === 'function') {
+    return `${prefix}-${globalThis.crypto.randomUUID()}`;
+  }
+
+  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function ensureUniqueFileId(candidate, usedIds) {
+  const normalized = typeof candidate === 'string' ? candidate.trim() : '';
+  if (normalized && !usedIds.has(normalized)) {
+    usedIds.add(normalized);
+    return normalized;
+  }
+
+  let nextId = createOpaqueId('file');
+  while (usedIds.has(nextId)) {
+    nextId = createOpaqueId('file');
+  }
+  usedIds.add(nextId);
+  return nextId;
+}
+
+export function resolveDeckFile(files, reference) {
+  const normalizedFiles = Array.isArray(files) ? files : [];
+  const requestedFileId = typeof reference?.fileId === 'string' ? reference.fileId.trim() : '';
+  if (requestedFileId) {
+    const byId = normalizedFiles.find(file => file.id === requestedFileId);
+    if (byId) return byId;
+  }
+
+  const requestedFileRef = typeof reference?.fileRef === 'string' ? reference.fileRef.trim() : '';
+  if (!requestedFileRef) return null;
+  return normalizedFiles.find(file => file.name === requestedFileRef) || null;
+}
+
+export function syncSlideFileReference(slide, files, { fallbackToFirstFile = true } = {}) {
+  const normalizedFiles = Array.isArray(files) ? files : [];
+  const fallbackFile = fallbackToFirstFile ? normalizedFiles[0] || null : null;
+  const explicitEmpty = slide?.fileId === '' || slide?.fileRef === '';
+  const resolvedFile = resolveDeckFile(normalizedFiles, slide);
+  const targetFile = explicitEmpty ? null : (resolvedFile || fallbackFile);
+
+  return {
+    targetFile,
+    fileId: targetFile?.id || '',
+    fileRef: targetFile?.name || '',
+  };
+}
+
 export function normalizeDeckFolderName(value) {
   if (typeof value !== 'string') return '';
   return value.trim().replace(/\s+/g, '-');
@@ -76,7 +126,7 @@ export function compactLineGroups(lines) {
 
 export function normalizeDraftSlideState(draft, files) {
   const normalizedFiles = Array.isArray(files) ? files : [];
-  const targetFile = normalizedFiles.find(file => file.name === draft?.fileRef);
+  const targetFile = resolveDeckFile(normalizedFiles, draft);
   if (!targetFile) return null;
 
   const lineRange = normalizeLineRange(draft?.lineRange, getFileLineCount(targetFile));
@@ -84,6 +134,7 @@ export function normalizeDraftSlideState(draft, files) {
     targetFile,
     normalized: {
       ...draft,
+      fileId: targetFile.id,
       fileRef: targetFile.name,
       lineRange,
       highlightLines: normalizeHighlightLines(draft?.highlightLines),
@@ -93,15 +144,16 @@ export function normalizeDraftSlideState(draft, files) {
 
 export function createDefaultFile(index = 0) {
   if (index === 0) {
-    return { name: 'main.py', language: 'python', code: '' };
+    return { id: createOpaqueId('file'), name: 'main.py', language: 'python', code: '' };
   }
 
-  return { name: `file${index + 1}.txt`, language: 'plaintext', code: '' };
+  return { id: createOpaqueId('file'), name: `file${index + 1}.txt`, language: 'plaintext', code: '' };
 }
 
-export function createDefaultSlide(index = 0, fileRef = '') {
+export function createDefaultSlide(index = 0, fileRef = '', fileId = '') {
   return {
     title: `スライド ${index + 1}`,
+    fileId,
     fileRef,
     lineRange: [1, 1],
     highlightLines: [],
@@ -114,10 +166,31 @@ export function ensureDeckShape(deck) {
 
   if (!Array.isArray(deck.files) || deck.files.length === 0) {
     deck.files = [createDefaultFile(0)];
+  } else {
+    const usedIds = new Set();
+    deck.files = deck.files.map((file, index) => {
+      const fallbackFile = createDefaultFile(index);
+      return {
+        ...fallbackFile,
+        ...(file && typeof file === 'object' ? file : {}),
+        id: ensureUniqueFileId(file?.id, usedIds),
+      };
+    });
   }
 
   if (!Array.isArray(deck.slides) || deck.slides.length === 0) {
-    deck.slides = [createDefaultSlide(0, deck.files[0].name)];
+    deck.slides = [createDefaultSlide(0, deck.files[0].name, deck.files[0].id)];
+  } else {
+    deck.slides = deck.slides.map((slide, index) => {
+      const normalizedSlide = slide && typeof slide === 'object' ? slide : createDefaultSlide(index);
+      const { fileId, fileRef } = syncSlideFileReference(normalizedSlide, deck.files);
+      return {
+        ...createDefaultSlide(index, fileRef, fileId),
+        ...normalizedSlide,
+        fileId,
+        fileRef,
+      };
+    });
   }
 
   if (!Array.isArray(deck.assets)) {

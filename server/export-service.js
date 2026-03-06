@@ -19,7 +19,11 @@ function normalizeFileName(value, fallback) {
 
 function resolveSlideCode(slide, deck) {
     const files = deck?.files || [];
-    const file = files.find(item => item.name === slide.fileRef);
+    const requestedFileId = typeof slide?.fileId === 'string' ? slide.fileId.trim() : '';
+    const requestedFileRef = typeof slide?.fileRef === 'string' ? slide.fileRef.trim() : '';
+    const file = requestedFileId
+        ? (files.find(item => item.id === requestedFileId) || files.find(item => item.name === requestedFileRef))
+        : files.find(item => item.name === requestedFileRef);
     if (!file) return { code: '', language: 'plaintext', lineStart: 1, lineEnd: 1 };
 
     const lines = (file.code || '').split('\n');
