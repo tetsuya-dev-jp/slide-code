@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { URL } from 'url';
 import { WebSocketServer } from 'ws';
 import { resolvePathWithinBase } from './path-config-utils.js';
 
@@ -13,18 +14,15 @@ function isAllowedOrigin(origin, allowedOrigins) {
     return allowedOrigins.has(origin);
 }
 
-function readAuthMessage(raw) {
+function readWsParamsFromRequest(req, wsPort) {
     try {
-        const msg = JSON.parse(raw.toString());
-        if (!msg || msg.type !== 'auth' || typeof msg.token !== 'string') {
-            return null;
-        }
+        const host = req.headers.host || `localhost:${wsPort}`;
+        const url = new URL(req.url || '/', `ws://${host}`);
         return {
-            token: msg.token,
-            deckId: typeof msg.deckId === 'string' ? msg.deckId : '',
+            deckId: url.searchParams.get('deckId') || '',
         };
     } catch {
-        return null;
+        return { deckId: '' };
     }
 }
 
@@ -49,11 +47,6 @@ export async function startTerminalWsServer(getContext) {
     const { runtimeConfig } = getContext();
     if (!runtimeConfig.terminal.enabled) {
         console.log('Terminal server disabled (set TERMINAL_ENABLED=true to enable).');
-        return null;
-    }
-
-    if (!runtimeConfig.terminal.wsToken) {
-        console.warn('Terminal server disabled because TERMINAL_WS_TOKEN is not configured.');
         return null;
     }
 
@@ -91,7 +84,7 @@ export async function startTerminalWsServer(getContext) {
             return;
         }
 
-        let authenticated = false;
+        const wsParams = readWsParamsFromRequest(req, currentRuntimeConfig.terminal.wsPort);
         let ptyProcess = null;
         let idleTimer = null;
 
@@ -109,14 +102,7 @@ export async function startTerminalWsServer(getContext) {
             }, currentRuntimeConfig.terminal.idleTimeoutMs);
         };
 
-        const authTimer = setTimeout(() => {
-            if (!authenticated) {
-                ws.close(1008, 'Authentication timeout');
-            }
-        }, currentRuntimeConfig.terminal.authTimeoutMs);
-
         function cleanup() {
-            clearTimeout(authTimer);
             clearIdleTimer();
             if (ptyProcess) {
                 ptyProcess.kill();
@@ -124,54 +110,41 @@ export async function startTerminalWsServer(getContext) {
             }
         }
 
+        try {
+            const baseCwd = fs.existsSync(currentRuntimeConfig.terminal.baseCwd)
+                ? currentRuntimeConfig.terminal.baseCwd
+                : (currentRuntimeConfig.homeDir || process.cwd());
+            const cwd = resolveDeckTerminalCwd(storage, wsParams.deckId, baseCwd);
+
+            ptyProcess = pty.spawn(currentRuntimeConfig.terminal.shell, [], {
+                name: 'xterm-256color',
+                cols: 80,
+                rows: 24,
+                cwd,
+                env: { ...process.env, TERM: 'xterm-256color' },
+            });
+
+            ptyProcess.onData((data) => {
+                try {
+                    ws.send(JSON.stringify({ type: 'output', data }));
+                } catch {
+                    // Ignore client disconnect race.
+                }
+            });
+
+            ptyProcess.onExit(() => {
+                ws.close();
+            });
+
+            resetIdleTimer();
+        } catch {
+            cleanup();
+            ws.close(1011, 'Terminal startup failed');
+            return;
+        }
+
         ws.on('message', (raw) => {
             try {
-                if (!authenticated) {
-                    const auth = readAuthMessage(raw);
-                    if (!auth || auth.token !== currentRuntimeConfig.terminal.wsToken) {
-                        ws.close(1008, 'Unauthorized');
-                        return;
-                    }
-
-                    try {
-                        authenticated = true;
-                        clearTimeout(authTimer);
-
-                        const baseCwd = fs.existsSync(currentRuntimeConfig.terminal.baseCwd)
-                            ? currentRuntimeConfig.terminal.baseCwd
-                            : (currentRuntimeConfig.homeDir || process.cwd());
-                        const cwd = resolveDeckTerminalCwd(storage, auth.deckId, baseCwd);
-
-                        ptyProcess = pty.spawn(currentRuntimeConfig.terminal.shell, [], {
-                            name: 'xterm-256color',
-                            cols: 80,
-                            rows: 24,
-                            cwd,
-                            env: { ...process.env, TERM: 'xterm-256color' },
-                        });
-
-                        ptyProcess.onData((data) => {
-                            try {
-                                ws.send(JSON.stringify({ type: 'output', data }));
-                            } catch {
-                                // Ignore client disconnect race.
-                            }
-                        });
-
-                        ptyProcess.onExit(() => {
-                            ws.close();
-                        });
-
-                        ws.send(JSON.stringify({ type: 'ready' }));
-                        resetIdleTimer();
-                        return;
-                    } catch {
-                        authenticated = false;
-                        ws.close(1011, 'Terminal startup failed');
-                        return;
-                    }
-                }
-
                 resetIdleTimer();
 
                 const msg = JSON.parse(raw.toString());

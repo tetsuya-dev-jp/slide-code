@@ -64,9 +64,14 @@ function defaultWsUrl() {
     return `${protocol}//${host}:${port}`;
 }
 
-function buildWsUrl(wsUrl) {
+function buildWsUrl(wsUrl, deckId = '') {
     try {
         const url = new URL(wsUrl, window.location.href);
+        if (deckId) {
+            url.searchParams.set('deckId', deckId);
+        } else {
+            url.searchParams.delete('deckId');
+        }
         return url.toString();
     } catch {
         return wsUrl;
@@ -78,8 +83,7 @@ export class ShellPane {
         this.shellBody = shellBodyEl;
         this.baseWsUrl = options.wsUrl || defaultWsUrl();
         this.deckId = typeof options.deckId === 'string' ? options.deckId : '';
-        this.wsUrl = buildWsUrl(this.baseWsUrl);
-        this.wsToken = import.meta.env?.VITE_TERMINAL_WS_TOKEN || '';
+        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
         this.isDark = options.isDark !== false;
 
         this.terminal = null;
@@ -104,7 +108,7 @@ export class ShellPane {
     }
 
     _refreshConnection() {
-        this.wsUrl = buildWsUrl(this.baseWsUrl);
+        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
         this._connect();
     }
 
@@ -168,22 +172,17 @@ export class ShellPane {
 
         ws.onopen = () => {
             if (this.ws !== ws) return;
-            this.connected = false;
-            this._send({ type: 'auth', token: this.wsToken, deckId: this.deckId });
+            this.connected = true;
+            const dims = this.fitAddon.proposeDimensions();
+            if (dims) {
+                this._send({ type: 'resize', cols: dims.cols, rows: dims.rows });
+            }
         };
 
         ws.onmessage = (event) => {
             if (this.ws !== ws) return;
             try {
                 const msg = JSON.parse(event.data);
-                if (msg.type === 'ready') {
-                    this.connected = true;
-                    const dims = this.fitAddon.proposeDimensions();
-                    if (dims) {
-                        this._send({ type: 'resize', cols: dims.cols, rows: dims.rows });
-                    }
-                    return;
-                }
                 if (msg.type === 'output') {
                     this.terminal.write(msg.data);
                 }

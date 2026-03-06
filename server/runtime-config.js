@@ -144,11 +144,9 @@ function createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir, defau
             enabled: false,
             wsHost: DEFAULT_BIND_HOST,
             wsPort: 3001,
-            wsToken: '',
             allowedOrigins: [],
             maxConnections: 4,
             maxPayloadBytes: 65536,
-            authTimeoutMs: 10000,
             idleTimeoutMs: 900000,
         },
         api: {
@@ -268,10 +266,6 @@ export function loadRuntimeConfig() {
         3000,
     );
 
-    const wsToken = typeof process.env.TERMINAL_WS_TOKEN === 'string' && process.env.TERMINAL_WS_TOKEN.length > 0
-        ? process.env.TERMINAL_WS_TOKEN
-        : (typeof configTerminal.wsToken === 'string' ? configTerminal.wsToken : '');
-
     const origins = deriveAllowedOrigins(
         process.env.TERMINAL_WS_ALLOWED_ORIGINS,
         configTerminal.allowedOrigins,
@@ -290,11 +284,6 @@ export function loadRuntimeConfig() {
     const maxPayloadBytes = parsePositiveInteger(
         process.env.TERMINAL_MAX_PAYLOAD_BYTES || configTerminal.maxPayloadBytes,
         65536,
-    );
-
-    const authTimeoutMs = parsePositiveInteger(
-        process.env.TERMINAL_AUTH_TIMEOUT_MS || configTerminal.authTimeoutMs,
-        10000,
     );
 
     const idleTimeoutMs = parsePositiveInteger(
@@ -321,12 +310,10 @@ export function loadRuntimeConfig() {
             enabled: terminalEnabled,
             wsHost,
             wsPort,
-            wsToken,
             allowedOrigins: origins.values,
             hasExplicitOriginConfig: origins.hasExplicit,
             maxConnections,
             maxPayloadBytes,
-            authTimeoutMs,
             idleTimeoutMs,
         },
     };
