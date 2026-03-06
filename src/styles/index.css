@@ -1058,6 +1058,13 @@ html, body {
   color: var(--text-tertiary);
 }
 
+.modal-copy {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text-secondary);
+}
+
 .modal-field label {
   font-size: 12px;
   font-weight: 600;
@@ -1361,6 +1368,15 @@ body.resizing-v {
 .btn-secondary:hover {
   background: var(--bg-tertiary);
   border-color: var(--border-accent);
+}
+
+.btn-danger {
+  background: var(--accent-danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  filter: brightness(1.05);
 }
 
 .btn-icon {

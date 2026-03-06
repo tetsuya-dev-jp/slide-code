@@ -588,6 +588,17 @@
       </div>
     </div>
 
+    <div class="modal-overlay" id="deckDeleteModal" hidden>
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckDeleteTitle">
+        <h3 class="modal-title" id="deckDeleteTitle">デッキを削除</h3>
+        <p class="modal-copy" id="deckDeleteMessage">この操作は元に戻せません。</p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="deckDeleteCancel">キャンセル</button>
+          <button type="button" class="btn btn-danger" id="deckDeleteConfirm">削除する</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="editorDeckSettingsModal" hidden>
       <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorDeckSettingsTitle">
         <h3 class="modal-title" id="editorDeckSettingsTitle">デッキ設定</h3>

@@ -3,12 +3,14 @@ import { createDeckFolderSlug, DECK_FOLDER_PATTERN, normalizeDeckFolderName } fr
 import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
+import { initDashboardDeleteModal } from './dashboard-delete-modal.js';
 import { initDashboardExportModal } from './dashboard-export-modal.js';
 import { normalizeImportedDeck } from './deck-import-normalize.js';
 import { applyTemplateButtonState, collectSavedTemplateDeckIds, parseTemplateSelection } from './dashboard-template-state.js';
 
 export function initDashboard(router) {
   initDashboardConfigModal({ onSaved: show });
+  const { confirmDelete } = initDashboardDeleteModal();
   const { openExportModal } = initDashboardExportModal();
   const deckIssuesEl = document.getElementById('deckIssues');
   const modalEl      = document.getElementById('deckModal');
@@ -227,8 +229,9 @@ export function initDashboard(router) {
     }
   }
 
-  async function handleDeleteDeck(id) {
-    if (!confirm('このデッキを削除しますか？')) return;
+  async function handleDeleteDeck(id, title, triggerEl) {
+    const confirmed = await confirmDelete(title, triggerEl);
+    if (!confirmed) return;
     try {
       await api.deleteDeck(id);
       showToast('削除しました');
@@ -319,8 +322,11 @@ export function initDashboard(router) {
       grid.innerHTML = `
         <div class="deck-empty">
           <p>まだデッキがありません</p>
-          <button class="btn btn-primary" onclick="document.getElementById('newDeckBtn').click()">最初のデッキを作成</button>
+          <button class="btn btn-primary" id="createFirstDeckBtn">最初のデッキを作成</button>
         </div>`;
+      grid.querySelector('#createFirstDeckBtn')?.addEventListener('click', () => {
+        document.getElementById('newDeckBtn')?.click();
+      });
       return;
     }
 
@@ -352,7 +358,7 @@ export function initDashboard(router) {
           <button class="btn-icon deck-export" data-id="${deck.id}" title="エクスポート" aria-label="デッキ「${escapeHtml(deck.title)}」をエクスポート">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           </button>
-          <button class="btn-icon deck-delete" data-id="${deck.id}" title="削除" aria-label="デッキ「${escapeHtml(deck.title)}」を削除">
+          <button class="btn-icon deck-delete" data-id="${deck.id}" data-title="${escapeHtml(deck.title)}" title="削除" aria-label="デッキ「${escapeHtml(deck.title)}」を削除">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
           </button>
         </div>
@@ -399,7 +405,7 @@ export function initDashboard(router) {
       btn.addEventListener('click', () => openExportModal(btn.dataset.id, btn));
     });
     grid.querySelectorAll('.deck-delete').forEach(btn => {
-      btn.addEventListener('click', () => handleDeleteDeck(btn.dataset.id));
+      btn.addEventListener('click', () => handleDeleteDeck(btn.dataset.id, btn.getAttribute('data-title') || '', btn));
     });
   }
 
