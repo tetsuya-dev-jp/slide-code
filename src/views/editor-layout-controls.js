@@ -1,3 +1,5 @@
+import { getStoredItem, setStoredItem } from '../utils/storage.js';
+
 export function setupEditorLayoutControls({ getMonacoEditor }) {
   setupSidebarHandle({ getMonacoEditor });
   setupEditorResizer({ getMonacoEditor });
@@ -54,11 +56,11 @@ function setupEditorResizer({ getMonacoEditor }) {
     const clamped = clampWidth(width);
     bodyEl.style.setProperty('--editor-narrative-width', `${clamped}px`);
     if (persist) {
-      localStorage.setItem(STORAGE_KEY, String(Math.round(clamped)));
+      setStoredItem(STORAGE_KEY, String(Math.round(clamped)));
     }
   };
 
-  const savedWidth = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+  const savedWidth = parseInt(getStoredItem(STORAGE_KEY), 10);
   if (Number.isFinite(savedWidth)) {
     bodyEl.style.setProperty('--editor-narrative-width', `${savedWidth}px`);
   } else {
@@ -147,7 +149,7 @@ function setupSidebarHandle({ getMonacoEditor }) {
     const clamped = clampSidebarWidth(width);
     bodyEl.style.setProperty('--editor-sidebar-width', `${clamped}px`);
     if (persist) {
-      localStorage.setItem(WIDTH_KEY, String(Math.round(clamped)));
+      setStoredItem(WIDTH_KEY, String(Math.round(clamped)));
     }
   };
 
@@ -158,19 +160,19 @@ function setupSidebarHandle({ getMonacoEditor }) {
     sidebarHandleBtn.setAttribute('aria-label', collapsed ? '左パネルを表示' : '左パネルを隠す');
 
     if (persist) {
-      localStorage.setItem(COLLAPSED_KEY, collapsed ? '1' : '0');
+      setStoredItem(COLLAPSED_KEY, collapsed ? '1' : '0');
     }
 
     window.dispatchEvent(new Event('resize'));
     layoutMonaco(getMonacoEditor);
   };
 
-  const savedWidth = parseInt(localStorage.getItem(WIDTH_KEY), 10);
+  const savedWidth = parseInt(getStoredItem(WIDTH_KEY), 10);
   if (Number.isFinite(savedWidth)) {
     bodyEl.style.setProperty('--editor-sidebar-width', `${savedWidth}px`);
   }
 
-  setCollapsed(localStorage.getItem(COLLAPSED_KEY) === '1');
+  setCollapsed(getStoredItem(COLLAPSED_KEY) === '1');
 
   let dragging = false;
 
@@ -259,11 +261,11 @@ function setupMarkdownResizer() {
     const clamped = clampHeight(height);
     containerEl.style.setProperty('--editor-markdown-input-height', `${clamped}px`);
     if (persist) {
-      localStorage.setItem(STORAGE_KEY, String(Math.round(clamped)));
+      setStoredItem(STORAGE_KEY, String(Math.round(clamped)));
     }
   };
 
-  const savedHeight = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+  const savedHeight = parseInt(getStoredItem(STORAGE_KEY), 10);
   if (Number.isFinite(savedHeight)) {
     containerEl.style.setProperty('--editor-markdown-input-height', `${savedHeight}px`);
   }

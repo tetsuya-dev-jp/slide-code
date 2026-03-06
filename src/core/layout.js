@@ -4,6 +4,8 @@
  * Supports 5 layout presets and drag-and-drop pane swapping
  */
 
+import { getStoredItem, setStoredItem } from '../utils/storage.js';
+
 // ============================
 // Layout Presets
 // ============================
@@ -244,7 +246,7 @@ export class LayoutManager {
      * Save to localStorage
      */
     save() {
-        localStorage.setItem('slidecode-layout', JSON.stringify({
+        setStoredItem('slidecode-layout', JSON.stringify({
             layoutId: this.currentLayoutId,
             paneOrder: this.paneOrder,
         }));
@@ -255,7 +257,7 @@ export class LayoutManager {
      */
     restore() {
         try {
-            const data = JSON.parse(localStorage.getItem('slidecode-layout'));
+            const data = JSON.parse(getStoredItem('slidecode-layout'));
             if (data && LAYOUTS[data.layoutId]) {
                 this.currentLayoutId = data.layoutId;
             }

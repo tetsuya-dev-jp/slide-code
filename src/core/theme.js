@@ -3,20 +3,22 @@
  * Handles dark/light theme switching with localStorage persistence
  */
 
+import { getStoredItem, setStoredItem } from '../utils/storage.js';
+
 const HLJS_THEMES = {
   dark: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css',
   light: 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css',
 };
 
 function getPreferred() {
-  const stored = localStorage.getItem('slidecode-theme');
+  const stored = getStoredItem('slidecode-theme');
   if (stored) return stored;
   return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
 }
 
 function apply(theme) {
   document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('slidecode-theme', theme);
+  setStoredItem('slidecode-theme', theme);
 
   const hljsLink = document.getElementById('hljs-theme');
   if (hljsLink) hljsLink.href = HLJS_THEMES[theme] || HLJS_THEMES.dark;
