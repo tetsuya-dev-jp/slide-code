@@ -91,6 +91,7 @@ export class ShellPane {
         this.ws = null;
         this.connected = false;
         this._resizeObserver = null;
+        this.onStatusChange = typeof options.onStatusChange === 'function' ? options.onStatusChange : null;
 
         this._init();
     }
@@ -105,6 +106,19 @@ export class ShellPane {
 
     reconnect() {
         this._refreshConnection();
+    }
+
+    clear() {
+        this.terminal?.clear();
+    }
+
+    reset() {
+        this.terminal?.clear();
+        this._refreshConnection();
+    }
+
+    _setStatus(state, message = '') {
+        this.onStatusChange?.({ state, message });
     }
 
     _refreshConnection() {
@@ -173,6 +187,7 @@ export class ShellPane {
         ws.onopen = () => {
             if (this.ws !== ws) return;
             this.connected = true;
+            this._setStatus('connected', '接続中');
             const dims = this.fitAddon.proposeDimensions();
             if (dims) {
                 this._send({ type: 'resize', cols: dims.cols, rows: dims.rows });
@@ -193,12 +208,14 @@ export class ShellPane {
             if (this.ws !== ws) return;
             this.connected = false;
             const reason = event?.reason ? `: ${event.reason}` : '';
+            this._setStatus('closed', '切断');
             this.terminal.write(`\r\n\x1b[90m[接続が切れました${reason} — 再接続してください]\x1b[0m\r\n`);
         };
 
         ws.onerror = () => {
             if (this.ws !== ws) return;
             this.connected = false;
+            this._setStatus('error', '接続エラー');
         };
     }
 

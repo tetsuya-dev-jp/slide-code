@@ -35,6 +35,7 @@ export function initPresentation(router) {
   let currentDeckId = null;
   let showRequestId = 0;
   let layoutPickerBtnEl, layoutDropdownEl;
+  let slideJumpInputEl, fullscreenBtnEl, shellStatusEl;
 
   function init() {
     if (initialized) return;
@@ -43,6 +44,9 @@ export function initPresentation(router) {
     contentEl = document.getElementById('content');
     layoutPickerBtnEl = document.getElementById('layoutPickerBtn');
     layoutDropdownEl = document.getElementById('layoutDropdown');
+    slideJumpInputEl = document.getElementById('slideJumpInput');
+    fullscreenBtnEl = document.getElementById('fullscreenBtn');
+    shellStatusEl = document.getElementById('shellStatus');
     resizer = new Resizer(contentEl);
     layoutManager = new LayoutManager(contentEl);
 
@@ -53,7 +57,15 @@ export function initPresentation(router) {
     );
     shellPane = new ShellPane(
       document.getElementById('shellBody'),
-      { isDark: theme.isDark, deckId: currentDeckId || '' },
+      {
+        isDark: theme.isDark,
+        deckId: currentDeckId || '',
+        onStatusChange: ({ state, message }) => {
+          if (!shellStatusEl) return;
+          shellStatusEl.dataset.state = state;
+          shellStatusEl.textContent = message;
+        },
+      },
     );
     markdownPane = new MarkdownPane(document.getElementById('markdownBody'), {
       resolveAssetUrl: (assetPath) => {
@@ -80,6 +92,10 @@ export function initPresentation(router) {
       if (!slide) return;
       document.getElementById('slideTitle').textContent = slide.title || '';
       document.getElementById('slideCounter').textContent = `${position} / ${total}`;
+      if (slideJumpInputEl) {
+        slideJumpInputEl.max = String(total || 1);
+        slideJumpInputEl.value = String(position);
+      }
       document.getElementById('prevBtn').disabled = !hasPrev;
       document.getElementById('nextBtn').disabled = !hasNext;
 
@@ -106,9 +122,32 @@ export function initPresentation(router) {
   function setupNavigation() {
     document.getElementById('prevBtn').addEventListener('click', () => slideManager.prev());
     document.getElementById('nextBtn').addEventListener('click', () => slideManager.next());
+    document.getElementById('slideJumpBtn').addEventListener('click', () => {
+      const nextIndex = Math.max((parseInt(slideJumpInputEl?.value, 10) || 1) - 1, 0);
+      slideManager.goTo(nextIndex);
+    });
+    slideJumpInputEl?.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        document.getElementById('slideJumpBtn').click();
+      }
+    });
     document.getElementById('editDeckBtn').addEventListener('click', () => {
       if (!currentDeckId) return;
       router.navigate(`/deck/${currentDeckId}/edit`);
+    });
+    document.getElementById('shellReconnectBtn').addEventListener('click', () => shellPane?.reconnect());
+    document.getElementById('shellClearBtn').addEventListener('click', () => shellPane?.clear());
+    document.getElementById('shellResetBtn').addEventListener('click', () => shellPane?.reset());
+    fullscreenBtnEl?.addEventListener('click', async () => {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen?.();
+      } else {
+        await document.exitFullscreen?.();
+      }
+    });
+    document.addEventListener('fullscreenchange', () => {
+      fullscreenBtnEl?.setAttribute('aria-pressed', document.fullscreenElement ? 'true' : 'false');
     });
   }
 
@@ -330,6 +369,18 @@ export function initPresentation(router) {
         case 'ArrowDown':
           e.preventDefault();
           slideManager.next();
+          break;
+        case 'f':
+        case 'F':
+          if (e.ctrlKey || e.metaKey || e.altKey) break;
+          e.preventDefault();
+          fullscreenBtnEl?.click();
+          break;
+        case 'r':
+        case 'R':
+          if (e.ctrlKey || e.metaKey || e.altKey) break;
+          e.preventDefault();
+          shellPane?.reconnect();
           break;
         case '1':
         case '2':

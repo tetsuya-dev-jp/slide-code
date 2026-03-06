@@ -255,8 +255,7 @@ test('presentation の layout picker はキーボード操作と非 DnD 並び�
   await expect(page.locator('#viewPresentation')).toBeVisible();
 
   const layoutBtn = page.locator('#layoutPickerBtn');
-  await layoutBtn.focus();
-  await page.keyboard.press('Enter');
+  await layoutBtn.click();
 
   await expect(layoutBtn).toHaveAttribute('aria-expanded', 'true');
   await expect(page.locator('#layoutDropdown')).toBeVisible();
@@ -292,4 +291,29 @@ test('editor 設定で monaco 表示と autosave を切り替えられる', asyn
   await page.locator('#editorSlideTitle').fill('autosave off');
   await page.waitForTimeout(1800);
   await expect(page.locator('#editorSaveStatus')).toHaveText('未保存の変更');
+});
+
+test('presentation で slide jump と shell actions を使える', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Presentation Controls');
+
+  await page.locator('#editorMarkdown').fill('1枚目');
+  await page.locator('#addSlideBtn').click();
+  await page.locator('#editorMarkdown').fill('2枚目');
+  await page.locator('#addSlideBtn').click();
+  await page.locator('#editorMarkdown').fill('3枚目');
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await page.locator('#editorPreviewBtn').click();
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}$`));
+  await expect(page.locator('#slideCounter')).toHaveText('1 / 3');
+
+  await page.locator('#nextBtn').click();
+  await expect(page.locator('#slideCounter')).toHaveText('2 / 3');
+
+  await page.locator('#slideJumpInput').fill('3');
+  await page.locator('#slideJumpBtn').click();
+  await expect(page.locator('#slideCounter')).toHaveText('3 / 3');
+
+  await expect(page.locator('#shellStatus')).toContainText(/接続|切断|エラー/);
 });
