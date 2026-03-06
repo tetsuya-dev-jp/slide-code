@@ -6,6 +6,19 @@ import {
     normalizeString,
     resolvePathInsideRoot,
 } from './deck-normalize.js';
+import { replaceDirectoryAtomic } from './fs-atomic.js';
+
+const MAX_ASSET_BYTES = 5 * 1024 * 1024;
+const ALLOWED_ASSET_MIME_TYPES = new Set([
+    'image/png',
+    'image/jpeg',
+    'image/gif',
+    'image/webp',
+    'image/avif',
+    'application/pdf',
+    'text/plain',
+    'application/json',
+]);
 
 function guessMimeTypeFromPath(assetPath) {
     const ext = path.extname(assetPath).toLowerCase();
@@ -49,15 +62,51 @@ function copyDirectoryRecursive(sourceDir, targetDir) {
 export function copyDeckAssetsDirectory(storage, sourceDeckId, targetDeckId) {
     const sourceAssetsDir = storage.getDeckAssetsDir(sourceDeckId);
     const targetAssetsDir = storage.getDeckAssetsDir(targetDeckId);
-    fs.rmSync(targetAssetsDir, { recursive: true, force: true });
-    copyDirectoryRecursive(sourceAssetsDir, targetAssetsDir);
+    replaceDirectoryAtomic(targetAssetsDir, (tempDir) => {
+        copyDirectoryRecursive(sourceAssetsDir, tempDir);
+    });
 }
 
 export function copyDeckAssetsFromStorage(storage, sourceStorage, sourceDeckId, targetDeckId) {
     const sourceAssetsDir = sourceStorage.getDeckAssetsDir(sourceDeckId);
     const targetAssetsDir = storage.getDeckAssetsDir(targetDeckId);
-    fs.rmSync(targetAssetsDir, { recursive: true, force: true });
-    copyDirectoryRecursive(sourceAssetsDir, targetAssetsDir);
+    replaceDirectoryAtomic(targetAssetsDir, (tempDir) => {
+        copyDirectoryRecursive(sourceAssetsDir, tempDir);
+    });
+}
+
+function isAllowedAssetMimeType(mimeType) {
+    return ALLOWED_ASSET_MIME_TYPES.has(mimeType);
+}
+
+function normalizeAssetMimeType(inputMimeType, assetPath) {
+    return normalizeNonEmptyString(inputMimeType, guessMimeTypeFromPath(assetPath)).toLowerCase();
+}
+
+function assertSupportedAsset(assetPath, mimeType, buffer) {
+    if (buffer.length === 0) {
+        const err = new Error('invalid-asset-content');
+        err.code = 'EINVAL';
+        throw err;
+    }
+
+    if (buffer.length > MAX_ASSET_BYTES) {
+        const err = new Error('asset-too-large');
+        err.code = 'EINVAL';
+        throw err;
+    }
+
+    if (!isAllowedAssetMimeType(mimeType)) {
+        const err = new Error('unsupported-asset-type');
+        err.code = 'EINVAL';
+        throw err;
+    }
+
+    if (path.extname(assetPath).toLowerCase() === '.svg' || mimeType === 'image/svg+xml') {
+        const err = new Error('unsupported-asset-type');
+        err.code = 'EINVAL';
+        throw err;
+    }
 }
 
 export function resolveUniqueDeckAssetPath(storage, deckId, requestedPath) {
@@ -85,17 +134,10 @@ export function upsertDeckAsset(storage, deckId, payload = {}) {
     const buffer = Buffer.isBuffer(input.buffer)
         ? input.buffer
         : Buffer.from(normalizeString(input.contentBase64, ''), 'base64');
-    if (buffer.length === 0) {
-        const err = new Error('invalid-asset-content');
-        err.code = 'EINVAL';
-        throw err;
-    }
+    const mimeType = normalizeAssetMimeType(input.mimeType, assetPath);
+    assertSupportedAsset(assetPath, mimeType, buffer);
 
     const absolutePath = storage.getAssetAbsolutePath(deckId, assetPath);
-    fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
-    fs.writeFileSync(absolutePath, buffer);
-
-    const mimeType = normalizeNonEmptyString(input.mimeType, guessMimeTypeFromPath(assetPath));
     const kind = normalizeNonEmptyString(input.kind, mimeType.startsWith('image/') ? 'image' : 'file');
     const size = buffer.length;
 
@@ -104,11 +146,23 @@ export function upsertDeckAsset(storage, deckId, payload = {}) {
         .map(({ exists: _exists, ...asset }) => asset);
     persistedAssets.push({ path: assetPath, mimeType, kind, size });
 
-    storage.writeDeck({
-        ...existing,
-        assets: persistedAssets,
-        updatedAt: new Date().toISOString(),
-    });
+    let persisted = false;
+
+    try {
+        fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+        fs.writeFileSync(absolutePath, buffer);
+
+        storage.writeDeck({
+            ...existing,
+            assets: persistedAssets,
+            updatedAt: new Date().toISOString(),
+        });
+        persisted = true;
+    } finally {
+        if (!persisted) {
+            fs.rmSync(absolutePath, { force: true });
+        }
+    }
 
     return { path: assetPath, mimeType, kind, size, exists: true };
 }
@@ -136,17 +190,44 @@ export function deleteDeckAsset(storage, deckId, assetPath) {
     const deck = storage.readDeck(deckId);
     const normalizedPath = normalizeAssetPath(assetPath, 'asset.bin');
     const absolutePath = storage.getAssetAbsolutePath(deckId, normalizedPath);
+    const existedInManifest = (deck.assets || []).some(asset => asset.path === normalizedPath);
+    const existedOnDisk = fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile();
 
-    if (fs.existsSync(absolutePath) && fs.statSync(absolutePath).isFile()) {
-        fs.rmSync(absolutePath, { force: true });
+    if (!existedInManifest && !existedOnDisk) {
+        const err = new Error('asset-not-found');
+        err.code = 'ENOENT';
+        throw err;
+    }
+
+    const backupPath = existedOnDisk
+        ? path.join(storage.getDeckDir(deckId), `.asset-delete-${Date.now()}-${path.basename(normalizedPath)}`)
+        : '';
+
+    if (existedOnDisk) {
+        fs.mkdirSync(path.dirname(backupPath), { recursive: true });
+        fs.renameSync(absolutePath, backupPath);
     }
 
     const nextAssets = (deck.assets || [])
         .filter(asset => asset.path !== normalizedPath)
         .map(({ exists: _exists, ...asset }) => asset);
-    storage.writeDeck({
-        ...deck,
-        assets: nextAssets,
-        updatedAt: new Date().toISOString(),
-    });
+
+    let persisted = false;
+
+    try {
+        storage.writeDeck({
+            ...deck,
+            assets: nextAssets,
+            updatedAt: new Date().toISOString(),
+        });
+        persisted = true;
+    } finally {
+        if (persisted) {
+            if (backupPath) {
+                fs.rmSync(backupPath, { force: true });
+            }
+        } else if (backupPath && fs.existsSync(backupPath) && !fs.existsSync(absolutePath)) {
+            fs.renameSync(backupPath, absolutePath);
+        }
+    }
 }

@@ -1,20 +1,7 @@
 export const SAMPLE_DECK_ID = 'sample-python-loop';
 
-const SAMPLE_SVG = [
-    '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360">',
-    '  <rect width="640" height="360" fill="#0f172a" />',
-    '  <rect x="40" y="60" width="180" height="80" rx="12" fill="#1d4ed8" />',
-    '  <rect x="230" y="60" width="180" height="80" rx="12" fill="#059669" />',
-    '  <rect x="420" y="60" width="180" height="80" rx="12" fill="#b45309" />',
-    '  <text x="130" y="105" text-anchor="middle" fill="#ffffff" font-size="18" font-family="Inter, sans-serif">Code</text>',
-    '  <text x="320" y="105" text-anchor="middle" fill="#ffffff" font-size="18" font-family="Inter, sans-serif">Shell</text>',
-    '  <text x="510" y="105" text-anchor="middle" fill="#ffffff" font-size="18" font-family="Inter, sans-serif">Markdown</text>',
-    '  <line x1="220" y1="100" x2="230" y2="100" stroke="#94a3b8" stroke-width="4" />',
-    '  <line x1="410" y1="100" x2="420" y2="100" stroke="#94a3b8" stroke-width="4" />',
-    '  <rect x="70" y="210" width="500" height="90" rx="10" fill="#111827" stroke="#334155"/>',
-    '  <text x="320" y="250" text-anchor="middle" fill="#e5e7eb" font-size="16" font-family="JetBrains Mono, monospace">slide.markdown + assets</text>',
-    '</svg>',
-].join('');
+const SAMPLE_PNG_BASE64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO5W5mQAAAAASUVORK5CYII=';
+const SAMPLE_PNG_BUFFER = Buffer.from(SAMPLE_PNG_BASE64, 'base64');
 
 export function createSampleDeckPayload() {
     return {
@@ -67,7 +54,7 @@ export function createSampleDeckPayload() {
                     '',
                     '`enumerate(..., start=1)` を使うと、要素と番号を同時に取得できます。',
                     '',
-                    '![構成図](asset://images/overview.svg)',
+                    '![構成図](asset://images/overview.png)',
                 ].join('\n'),
             },
             {
@@ -100,10 +87,10 @@ export function createSampleDeckPayload() {
         },
         assets: [
             {
-                path: 'images/overview.svg',
-                mimeType: 'image/svg+xml',
+                path: 'images/overview.png',
+                mimeType: 'image/png',
                 kind: 'image',
-                size: Buffer.byteLength(SAMPLE_SVG),
+                size: SAMPLE_PNG_BUFFER.length,
             },
         ],
     };
@@ -112,10 +99,10 @@ export function createSampleDeckPayload() {
 export function createSampleDeckAssets() {
     return [
         {
-            path: 'images/overview.svg',
-            mimeType: 'image/svg+xml',
+            path: 'images/overview.png',
+            mimeType: 'image/png',
             kind: 'image',
-            buffer: Buffer.from(SAMPLE_SVG, 'utf-8'),
+            buffer: SAMPLE_PNG_BUFFER,
         },
     ];
 }

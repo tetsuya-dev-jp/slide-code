@@ -16,6 +16,14 @@ function asQueryString(value) {
     return typeof value === 'string' ? value : '';
 }
 
+function headerSafeFilename(value, fallback = 'asset.bin') {
+    const compact = String(value || '')
+        .trim()
+        .replace(/[\r\n]/g, '')
+        .replace(/[\\/:*?"<>|]/g, '_');
+    return compact || fallback;
+}
+
 const CREATE_DECK_FROM_TEMPLATE_ERROR_RULES = [
     {
         status: 400,
@@ -61,7 +69,11 @@ const UPSERT_ASSET_ERROR_RULES = [
     {
         status: 400,
         error: 'Invalid asset payload',
-        match: err => err?.message === 'invalid-deck-id' || err?.code === 'EINVAL' || err?.message === 'invalid-asset-content',
+        match: err => err?.message === 'invalid-deck-id'
+            || err?.code === 'EINVAL'
+            || err?.message === 'invalid-asset-content'
+            || err?.message === 'asset-too-large'
+            || err?.message === 'unsupported-asset-type',
     },
     {
         status: 404,
@@ -176,6 +188,12 @@ export function registerExtraRoutes(app, getContext) {
         const asset = storage.readAsset(req.params.id, requestedPath);
         res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
         res.setHeader('Cache-Control', 'no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+        res.setHeader('Content-Disposition', `inline; filename="${headerSafeFilename(asset.path)}"`);
+        if (asset.mimeType === 'image/svg+xml') {
+            res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
+        }
         res.send(asset.buffer);
     }, READ_ASSET_FILE_ERROR_RULES));
 
