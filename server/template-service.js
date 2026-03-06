@@ -110,8 +110,13 @@ export function createDeckFromTemplate({
         ? deckStorage.createDeckWithId(requestedDeckId, payloadForDeck)
         : deckStorage.createDeck(payloadForDeck);
 
-    deckStorage.copyAssetsFromStorage(sourceStorage, templateDeck.id, createdDeck.id);
-    return createdDeck;
+    try {
+        deckStorage.copyAssetsFromStorage(sourceStorage, templateDeck.id, createdDeck.id);
+        return createdDeck;
+    } catch (err) {
+        deckStorage.deleteDeck(createdDeck.id);
+        throw err;
+    }
 }
 
 export function saveTemplateFromDeck({
@@ -145,18 +150,23 @@ export function saveTemplateFromDeck({
         assets: deck.assets,
     });
 
-    localTemplateStorage.copyAssetsFromStorage(deckStorage, deck.id, createdTemplate.id);
-    return withSource(
-        {
-            id: createdTemplate.id,
-            title: createdTemplate.title,
-            description: createdTemplate.description,
-            slideCount: createdTemplate.slides.length,
-            createdAt: createdTemplate.createdAt,
-            updatedAt: createdTemplate.updatedAt,
-        },
-        'local',
-    );
+    try {
+        localTemplateStorage.copyAssetsFromStorage(deckStorage, deck.id, createdTemplate.id);
+        return withSource(
+            {
+                id: createdTemplate.id,
+                title: createdTemplate.title,
+                description: createdTemplate.description,
+                slideCount: createdTemplate.slides.length,
+                createdAt: createdTemplate.createdAt,
+                updatedAt: createdTemplate.updatedAt,
+            },
+            'local',
+        );
+    } catch (err) {
+        localTemplateStorage.deleteDeck(createdTemplate.id);
+        throw err;
+    }
 }
 
 export function removeTemplatesFromDeck({

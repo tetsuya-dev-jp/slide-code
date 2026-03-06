@@ -79,7 +79,7 @@ function mapApiError(err, rules) {
 
     return {
         status: 500,
-        error: err instanceof Error ? err.message : String(err),
+        error: 'Internal server error',
     };
 }
 
@@ -94,6 +94,9 @@ export function withApiErrorHandling(handler, rules = []) {
                 }
 
                 const mapped = mapApiError(err, rules);
+                if (mapped.status >= 500) {
+                    console.error(err);
+                }
                 res.status(mapped.status).json({ error: mapped.error });
             });
     };

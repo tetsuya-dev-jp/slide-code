@@ -13,6 +13,26 @@ import { registerExtraRoutes } from './extra-routes.js';
 import { createSampleDeckAssets, createSampleDeckPayload, SAMPLE_DECK_ID } from './sample-deck.js';
 import { startTerminalWsServer } from './terminal-ws-server.js';
 
+function applyDynamicCors(getContext) {
+    return cors({
+        origin(origin, callback) {
+            const { runtimeConfig } = getContext();
+            if (!origin || runtimeConfig.apiAllowedOrigins.includes(origin)) {
+                callback(null, true);
+                return;
+            }
+            callback(new Error('origin-not-allowed'));
+        },
+    });
+}
+
+function quarantineInvalidDecks() {
+    const quarantined = storage.quarantineInvalidDecks(runtimeConfig.quarantineDir);
+    if (quarantined.length > 0) {
+        console.warn(`Quarantined ${quarantined.length} invalid deck(s) in ${runtimeConfig.quarantineDir}`);
+    }
+}
+
 let runtimeConfig = loadRuntimeConfig();
 let storage = new DeckStorage(runtimeConfig.decksDir);
 storage.ensureReady();
@@ -50,15 +70,14 @@ function applyLatestRuntimeConfig() {
     sharedTemplateStorage = runtimeConfig.sharedTemplatesDir
         ? new DeckStorage(runtimeConfig.sharedTemplatesDir)
         : null;
-    storage.removeLegacyDecks();
+    quarantineInvalidDecks();
     ensureSampleDeck();
 }
 
-storage.removeLegacyDecks();
+quarantineInvalidDecks();
 ensureSampleDeck();
 
 const app = express();
-app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
 function getContext() {
@@ -70,6 +89,17 @@ function getContext() {
     };
 }
 
+const corsMiddleware = applyDynamicCors(getContext);
+app.use((req, res, next) => {
+    corsMiddleware(req, res, (err) => {
+        if (err) {
+            res.status(403).json({ error: 'Origin not allowed' });
+            return;
+        }
+        next();
+    });
+});
+
 registerApiRoutes(app, {
     getContext,
     applyLatestRuntimeConfig,
@@ -79,8 +109,8 @@ registerFsRoutes(app, () => runtimeConfig);
 
 registerExtraRoutes(app, getContext);
 
-const apiServer = app.listen(runtimeConfig.apiPort, () => {
-    console.log(`API server listening on http://localhost:${runtimeConfig.apiPort}`);
+const apiServer = app.listen(runtimeConfig.apiPort, runtimeConfig.apiHost, () => {
+    console.log(`API server listening on http://${runtimeConfig.apiHost}:${runtimeConfig.apiPort}`);
     console.log(`Deck storage: ${runtimeConfig.decksDir}`);
     console.log(`Config file: ${runtimeConfig.configFilePath}`);
 });

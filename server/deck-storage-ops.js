@@ -1,5 +1,7 @@
 import fs from 'fs';
+import path from 'path';
 import { DECK_SCHEMA_VERSION, normalizeDeckPayload, normalizeNonEmptyString } from './deck-normalize.js';
+import { writeJsonAtomic } from './fs-atomic.js';
 
 function assertValidDeckId(deckId) {
     const normalized = normalizeNonEmptyString(deckId, '');
@@ -93,8 +95,13 @@ export function duplicateDeck(storage, deckId, payload = {}) {
     };
 
     storage.writeDeck(duplicatedDeck);
-    storage.copyAssetsDirectory(safeDeckId, nextDeckId);
-    return duplicatedDeck;
+    try {
+        storage.copyAssetsDirectory(safeDeckId, nextDeckId);
+        return duplicatedDeck;
+    } catch (err) {
+        fs.rmSync(storage.getDeckDir(nextDeckId), { recursive: true, force: true });
+        throw err;
+    }
 }
 
 export function updateDeck(storage, deckId, partialPayload = {}) {
@@ -130,32 +137,60 @@ export function updateDeck(storage, deckId, partialPayload = {}) {
     };
     storage.writeDeck(updated);
 
-    if (nextDeckId !== safeDeckId) {
-        storage.copyAssetsDirectory(safeDeckId, nextDeckId);
-        fs.rmSync(storage.getDeckDir(safeDeckId), { recursive: true, force: true });
+    if (nextDeckId === safeDeckId) {
+        return updated;
     }
 
-    return updated;
+    try {
+        storage.copyAssetsDirectory(safeDeckId, nextDeckId);
+        fs.rmSync(storage.getDeckDir(safeDeckId), { recursive: true, force: true });
+        return updated;
+    } catch (err) {
+        fs.rmSync(storage.getDeckDir(nextDeckId), { recursive: true, force: true });
+        throw err;
+    }
 }
 
-export function removeLegacyDecks(storage) {
-    let removedCount = 0;
+function moveDeckToQuarantine(storage, deckId, quarantineDir, reason) {
+    const sourceDir = storage.getDeckDir(deckId);
+    const quarantineDecksDir = path.join(quarantineDir, 'decks');
+    fs.mkdirSync(quarantineDecksDir, { recursive: true });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const targetDir = path.join(quarantineDecksDir, `${deckId}-${timestamp}`);
+    fs.renameSync(sourceDir, targetDir);
+
+    writeJsonAtomic(path.join(targetDir, 'quarantine.json'), {
+        deckId,
+        quarantinedAt: new Date().toISOString(),
+        reason,
+    });
+
+    return targetDir;
+}
+
+export function quarantineInvalidDecks(storage, quarantineDir) {
+    const quarantined = [];
+
     storage.listDeckIds().forEach((deckId) => {
         const deckJsonPath = storage.getDeckJsonPath(deckId);
-        let shouldRemove = false;
+        let reason = null;
 
         try {
             const raw = fs.readFileSync(deckJsonPath, 'utf-8');
             const manifest = JSON.parse(raw);
-            shouldRemove = manifest?.schemaVersion !== DECK_SCHEMA_VERSION;
-        } catch {
-            shouldRemove = true;
+            if (manifest?.schemaVersion !== DECK_SCHEMA_VERSION) {
+                reason = `unsupported-schema:${String(manifest?.schemaVersion ?? 'unknown')}`;
+            }
+        } catch (err) {
+            reason = `invalid-deck:${err instanceof Error ? err.message : String(err)}`;
         }
 
-        if (!shouldRemove) return;
-        fs.rmSync(storage.getDeckDir(deckId), { recursive: true, force: true });
-        removedCount += 1;
+        if (!reason) return;
+
+        const targetDir = moveDeckToQuarantine(storage, deckId, quarantineDir, reason);
+        quarantined.push({ deckId, reason, targetDir });
     });
 
-    return removedCount;
+    return quarantined;
 }

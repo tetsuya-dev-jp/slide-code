@@ -22,11 +22,12 @@ import {
 } from './deck-assets.js';
 import {
     duplicateDeck as duplicateDeckOp,
-    removeLegacyDecks as removeLegacyDecksOp,
+    quarantineInvalidDecks as quarantineInvalidDecksOp,
     resolveUniqueCopyTitle as resolveUniqueCopyTitleOp,
     resolveUniqueDeckId as resolveUniqueDeckIdOp,
     updateDeck as updateDeckOp,
 } from './deck-storage-ops.js';
+import { replaceDirectoryAtomic, writeJsonAtomic } from './fs-atomic.js';
 
 function assertValidDeckId(deckId) {
     const normalized = normalizeNonEmptyString(deckId, '');
@@ -69,6 +70,26 @@ function makeNotFoundError(message) {
     const err = new Error(message);
     err.code = 'ENOENT';
     return err;
+}
+
+function copyDirectoryContents(sourceDir, targetDir) {
+    if (!fs.existsSync(sourceDir) || !fs.statSync(sourceDir).isDirectory()) {
+        fs.mkdirSync(targetDir, { recursive: true });
+        return;
+    }
+
+    fs.mkdirSync(targetDir, { recursive: true });
+    const entries = fs.readdirSync(sourceDir, { withFileTypes: true });
+    entries.forEach((entry) => {
+        const sourcePath = path.join(sourceDir, entry.name);
+        const targetPath = path.join(targetDir, entry.name);
+        if (entry.isDirectory()) {
+            copyDirectoryContents(sourcePath, targetPath);
+            return;
+        }
+        fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+        fs.copyFileSync(sourcePath, targetPath);
+    });
 }
 
 export class DeckStorage {
@@ -198,26 +219,24 @@ export class DeckStorage {
     writeDeck(deck) {
         const safeDeckId = assertValidDeckId(deck.id);
         const deckDir = this.getDeckDir(safeDeckId);
-        const filesDir = this.getDeckFilesDir(safeDeckId);
-        const assetsDir = this.getDeckAssetsDir(safeDeckId);
-        fs.mkdirSync(deckDir, { recursive: true });
-
-        fs.rmSync(filesDir, { recursive: true, force: true });
-        fs.mkdirSync(filesDir, { recursive: true });
-        fs.mkdirSync(assetsDir, { recursive: true });
-
-        deck.files.forEach((file) => {
-            const filePath = resolvePathInsideRoot(filesDir, file.name);
-            fs.mkdirSync(path.dirname(filePath), { recursive: true });
-            fs.writeFileSync(filePath, normalizeString(file.code, ''), 'utf-8');
-        });
-
         const manifest = toDeckManifest(deck);
-        fs.writeFileSync(
-            path.join(deckDir, 'deck.json'),
-            `${JSON.stringify(manifest, null, 2)}\n`,
-            'utf-8',
-        );
+        const currentAssetsDir = this.getDeckAssetsDir(safeDeckId);
+
+        replaceDirectoryAtomic(deckDir, (tempDeckDir) => {
+            const filesDir = path.join(tempDeckDir, 'files');
+            const assetsDir = path.join(tempDeckDir, 'assets');
+
+            fs.mkdirSync(filesDir, { recursive: true });
+            copyDirectoryContents(currentAssetsDir, assetsDir);
+
+            deck.files.forEach((file) => {
+                const filePath = resolvePathInsideRoot(filesDir, file.name);
+                fs.mkdirSync(path.dirname(filePath), { recursive: true });
+                fs.writeFileSync(filePath, normalizeString(file.code, ''), 'utf-8');
+            });
+
+            writeJsonAtomic(path.join(tempDeckDir, 'deck.json'), manifest);
+        });
     }
 
     listDecksMeta() {
@@ -338,7 +357,7 @@ export class DeckStorage {
         fs.rmSync(deckDir, { recursive: true, force: true });
     }
 
-    removeLegacyDecks() {
-        return removeLegacyDecksOp(this);
+    quarantineInvalidDecks(quarantineDir) {
+        return quarantineInvalidDecksOp(this, quarantineDir);
     }
 }

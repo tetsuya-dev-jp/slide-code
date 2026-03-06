@@ -64,23 +64,9 @@ function defaultWsUrl() {
     return `${protocol}//${host}:${port}`;
 }
 
-function buildWsUrl(wsUrl, deckId = '') {
-    const token = import.meta.env?.VITE_TERMINAL_WS_TOKEN;
-
+function buildWsUrl(wsUrl) {
     try {
         const url = new URL(wsUrl, window.location.href);
-        if (token) {
-            url.searchParams.set('token', token);
-        } else {
-            url.searchParams.delete('token');
-        }
-
-        if (deckId) {
-            url.searchParams.set('deckId', deckId);
-        } else {
-            url.searchParams.delete('deckId');
-        }
-
         return url.toString();
     } catch {
         return wsUrl;
@@ -92,7 +78,8 @@ export class ShellPane {
         this.shellBody = shellBodyEl;
         this.baseWsUrl = options.wsUrl || defaultWsUrl();
         this.deckId = typeof options.deckId === 'string' ? options.deckId : '';
-        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
+        this.wsUrl = buildWsUrl(this.baseWsUrl);
+        this.wsToken = import.meta.env?.VITE_TERMINAL_WS_TOKEN || '';
         this.isDark = options.isDark !== false;
 
         this.terminal = null;
@@ -117,7 +104,7 @@ export class ShellPane {
     }
 
     _refreshConnection() {
-        this.wsUrl = buildWsUrl(this.baseWsUrl, this.deckId);
+        this.wsUrl = buildWsUrl(this.baseWsUrl);
         this._connect();
     }
 
@@ -181,28 +168,33 @@ export class ShellPane {
 
         ws.onopen = () => {
             if (this.ws !== ws) return;
-            this.connected = true;
-            // Send initial size
-            const dims = this.fitAddon.proposeDimensions();
-            if (dims) {
-                this._send({ type: 'resize', cols: dims.cols, rows: dims.rows });
-            }
+            this.connected = false;
+            this._send({ type: 'auth', token: this.wsToken, deckId: this.deckId });
         };
 
         ws.onmessage = (event) => {
             if (this.ws !== ws) return;
             try {
                 const msg = JSON.parse(event.data);
+                if (msg.type === 'ready') {
+                    this.connected = true;
+                    const dims = this.fitAddon.proposeDimensions();
+                    if (dims) {
+                        this._send({ type: 'resize', cols: dims.cols, rows: dims.rows });
+                    }
+                    return;
+                }
                 if (msg.type === 'output') {
                     this.terminal.write(msg.data);
                 }
             } catch (_) { /* ignore */ }
         };
 
-        ws.onclose = () => {
+        ws.onclose = (event) => {
             if (this.ws !== ws) return;
             this.connected = false;
-            this.terminal.write('\r\n\x1b[90m[接続が切れました — リロードで再接続]\x1b[0m\r\n');
+            const reason = event?.reason ? `: ${event.reason}` : '';
+            this.terminal.write(`\r\n\x1b[90m[接続が切れました${reason} — 再接続してください]\x1b[0m\r\n`);
         };
 
         ws.onerror = () => {

@@ -1,5 +1,9 @@
+import fs from 'fs';
+import path from 'path';
+import { DeckStorage } from './deck-storage.js';
 import {
     readRawConfigFile,
+    resolveSystemPath,
     sanitizeConfigValue,
     writeRawConfigFile,
 } from './path-config-utils.js';
@@ -29,6 +33,46 @@ function createConfigResponse(runtimeConfig) {
     };
 }
 
+function resolveConfigDirectoryCandidate(rawValue, homeDir) {
+    const value = sanitizeConfigValue(rawValue);
+    if (!value) {
+        throw createApiError(400, 'Invalid config value');
+    }
+    if (value === '~') return homeDir;
+    if (value.startsWith('~/') || value.startsWith('~\\')) {
+        return path.join(homeDir, value.slice(2));
+    }
+    if (path.isAbsolute(value)) return value;
+    return path.resolve(homeDir, value);
+}
+
+function ensureWritableDirectory(dirPath) {
+    fs.mkdirSync(dirPath, { recursive: true });
+    fs.accessSync(dirPath, fs.constants.R_OK | fs.constants.W_OK);
+}
+
+function validateConfigPayload(runtimeConfig, payload) {
+    const homeDir = runtimeConfig.homeDir || process.cwd();
+    const resolvedDecksDir = resolveConfigDirectoryCandidate(payload.decksDir, homeDir);
+    const resolvedTemplatesDir = resolveConfigDirectoryCandidate(payload.templatesDir, homeDir);
+    const resolvedSharedTemplatesDir = payload.sharedTemplatesDir
+        ? resolveConfigDirectoryCandidate(payload.sharedTemplatesDir, homeDir)
+        : '';
+
+    resolveSystemPath(payload.terminalBaseCwd, homeDir);
+    ensureWritableDirectory(resolvedDecksDir);
+    ensureWritableDirectory(resolvedTemplatesDir);
+    if (resolvedSharedTemplatesDir) {
+        ensureWritableDirectory(resolvedSharedTemplatesDir);
+    }
+
+    new DeckStorage(resolvedDecksDir).ensureReady();
+    new DeckStorage(resolvedTemplatesDir).ensureReady();
+    if (resolvedSharedTemplatesDir) {
+        new DeckStorage(resolvedSharedTemplatesDir).ensureReady();
+    }
+}
+
 export function registerApiRoutes(app, { getContext, applyLatestRuntimeConfig }) {
     app.get('/api/config', (_req, res) => {
         const { runtimeConfig } = getContext();
@@ -48,12 +92,19 @@ export function registerApiRoutes(app, { getContext, applyLatestRuntimeConfig })
             throw createApiError(400, 'Invalid config value');
         }
 
+        validateConfigPayload(runtimeConfig, {
+            decksDir,
+            templatesDir,
+            sharedTemplatesDir,
+            terminalBaseCwd,
+        });
+
         const currentRawConfig = readRawConfigFile(runtimeConfig.configFilePath);
         const currentRawTerminal = currentRawConfig.terminal && typeof currentRawConfig.terminal === 'object'
             ? currentRawConfig.terminal
             : {};
 
-        writeRawConfigFile(runtimeConfig.configFilePath, {
+        const nextRawConfig = {
             ...currentRawConfig,
             decksDir,
             templatesDir,
@@ -63,9 +114,17 @@ export function registerApiRoutes(app, { getContext, applyLatestRuntimeConfig })
                 baseCwd: terminalBaseCwd,
                 shell: terminalShell,
             },
-        });
+        };
 
-        applyLatestRuntimeConfig();
+        try {
+            writeRawConfigFile(runtimeConfig.configFilePath, nextRawConfig);
+            applyLatestRuntimeConfig();
+        } catch (err) {
+            writeRawConfigFile(runtimeConfig.configFilePath, currentRawConfig);
+            applyLatestRuntimeConfig();
+            throw err;
+        }
+
         const { runtimeConfig: latestRuntimeConfig } = getContext();
         res.json(createConfigResponse(latestRuntimeConfig));
     }));

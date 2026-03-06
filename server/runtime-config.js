@@ -4,6 +4,7 @@ import path from 'path';
 
 const APP_NAME = /** @type {string} */ ('slidecode');
 const LEGACY_APP_NAME = /** @type {string} */ ('codestage');
+const DEFAULT_BIND_HOST = '127.0.0.1';
 
 const DEFAULT_LOCAL_ALLOWED_ORIGINS = [
     'http://localhost:5173',
@@ -64,6 +65,14 @@ function parsePort(rawPort, fallbackPort) {
     return parsed;
 }
 
+function parsePositiveInteger(rawValue, fallbackValue) {
+    const parsed = Number.parseInt(rawValue, 10);
+    if (!Number.isFinite(parsed) || parsed < 1) {
+        return fallbackValue;
+    }
+    return parsed;
+}
+
 function parseBoolean(rawValue, fallbackValue) {
     if (typeof rawValue === 'boolean') return rawValue;
     if (typeof rawValue !== 'string') return fallbackValue;
@@ -79,6 +88,12 @@ function normalizeStringArray(values) {
     return values
         .map((value) => (typeof value === 'string' ? value.trim() : ''))
         .filter(Boolean);
+}
+
+function normalizeHost(rawValue, fallbackHost) {
+    if (typeof rawValue !== 'string') return fallbackHost;
+    const value = rawValue.trim();
+    return value || fallbackHost;
 }
 
 function readJsonFile(filePath, fallbackValue) {
@@ -117,29 +132,37 @@ function migrateLegacyAppPaths(xdgConfigHome, xdgDataHome) {
     );
 }
 
-function createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir) {
+function createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir, defaultQuarantineDir) {
     return {
         decksDir: defaultDecksDir,
         templatesDir: defaultTemplatesDir,
         sharedTemplatesDir: '',
+        quarantineDir: defaultQuarantineDir,
         terminal: {
             baseCwd: '~',
             shell: '',
-            enabled: 'auto',
+            enabled: false,
+            wsHost: DEFAULT_BIND_HOST,
             wsPort: 3001,
             wsToken: '',
             allowedOrigins: [],
+            maxConnections: 4,
+            maxPayloadBytes: 65536,
+            authTimeoutMs: 10000,
+            idleTimeoutMs: 900000,
         },
         api: {
+            host: DEFAULT_BIND_HOST,
             port: 3000,
+            allowedOrigins: [],
         },
     };
 }
 
-function ensureConfigFile(configFilePath, defaultDecksDir, defaultTemplatesDir) {
+function ensureConfigFile(configFilePath, defaultDecksDir, defaultTemplatesDir, defaultQuarantineDir) {
     if (fs.existsSync(configFilePath)) return;
     fs.mkdirSync(path.dirname(configFilePath), { recursive: true });
-    const template = createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir);
+    const template = createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir, defaultQuarantineDir);
     fs.writeFileSync(configFilePath, `${JSON.stringify(template, null, 2)}\n`, 'utf-8');
 }
 
@@ -176,7 +199,8 @@ export function loadRuntimeConfig() {
     const configFilePath = path.join(configDir, 'config.json');
     const defaultDecksDir = path.join(xdgDataHome, APP_NAME, 'decks');
     const defaultTemplatesDir = path.join(xdgDataHome, APP_NAME, 'templates');
-    ensureConfigFile(configFilePath, defaultDecksDir, defaultTemplatesDir);
+    const defaultQuarantineDir = path.join(xdgDataHome, APP_NAME, 'quarantine');
+    ensureConfigFile(configFilePath, defaultDecksDir, defaultTemplatesDir, defaultQuarantineDir);
 
     const rawConfig = readJsonFile(configFilePath, {});
     const config = rawConfig && typeof rawConfig === 'object' ? rawConfig : {};
@@ -200,6 +224,12 @@ export function loadRuntimeConfig() {
         homeDir,
     );
 
+    const quarantineDir = resolvePathSetting(
+        process.env.QUARANTINE_DIR || config.quarantineDir,
+        defaultQuarantineDir,
+        homeDir,
+    );
+
     const baseCwd = resolvePathSetting(
         process.env.TERMINAL_CWD || configTerminal.baseCwd,
         homeDir,
@@ -212,10 +242,20 @@ export function loadRuntimeConfig() {
         homeDir,
     );
 
-    const terminalEnabledFallback = process.env.NODE_ENV !== 'production';
+    const terminalEnabledFallback = false;
     const terminalEnabled = parseBoolean(
         process.env.TERMINAL_ENABLED,
         parseBoolean(configTerminal.enabled, terminalEnabledFallback),
+    );
+
+    const apiHost = normalizeHost(
+        process.env.API_HOST || configApi.host,
+        DEFAULT_BIND_HOST,
+    );
+
+    const wsHost = normalizeHost(
+        process.env.TERMINAL_WS_HOST || configTerminal.wsHost,
+        DEFAULT_BIND_HOST,
     );
 
     const wsPort = parsePort(
@@ -237,6 +277,31 @@ export function loadRuntimeConfig() {
         configTerminal.allowedOrigins,
     );
 
+    const apiOrigins = deriveAllowedOrigins(
+        process.env.API_ALLOWED_ORIGINS,
+        configApi.allowedOrigins,
+    );
+
+    const maxConnections = parsePositiveInteger(
+        process.env.TERMINAL_MAX_CONNECTIONS || configTerminal.maxConnections,
+        4,
+    );
+
+    const maxPayloadBytes = parsePositiveInteger(
+        process.env.TERMINAL_MAX_PAYLOAD_BYTES || configTerminal.maxPayloadBytes,
+        65536,
+    );
+
+    const authTimeoutMs = parsePositiveInteger(
+        process.env.TERMINAL_AUTH_TIMEOUT_MS || configTerminal.authTimeoutMs,
+        10000,
+    );
+
+    const idleTimeoutMs = parsePositiveInteger(
+        process.env.TERMINAL_IDLE_TIMEOUT_MS || configTerminal.idleTimeoutMs,
+        900000,
+    );
+
     return {
         homeDir,
         xdgConfigHome,
@@ -245,15 +310,24 @@ export function loadRuntimeConfig() {
         decksDir,
         templatesDir,
         sharedTemplatesDir,
+        quarantineDir,
+        apiHost,
         apiPort,
+        apiAllowedOrigins: apiOrigins.values,
+        apiHasExplicitOriginConfig: apiOrigins.hasExplicit,
         terminal: {
             shell,
             baseCwd,
             enabled: terminalEnabled,
+            wsHost,
             wsPort,
             wsToken,
             allowedOrigins: origins.values,
             hasExplicitOriginConfig: origins.hasExplicit,
+            maxConnections,
+            maxPayloadBytes,
+            authTimeoutMs,
+            idleTimeoutMs,
         },
     };
 }

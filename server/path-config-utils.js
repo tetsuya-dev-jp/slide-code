@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { writeJsonAtomic } from './fs-atomic.js';
 
 export function normalizeRequestedPath(rawPath) {
     if (typeof rawPath !== 'string') return '';
@@ -80,7 +81,7 @@ export function readRawConfigFile(configFilePath) {
 
 export function writeRawConfigFile(configFilePath, config) {
     fs.mkdirSync(path.dirname(configFilePath), { recursive: true });
-    fs.writeFileSync(configFilePath, `${JSON.stringify(config, null, 2)}\n`, 'utf-8');
+    writeJsonAtomic(configFilePath, config);
 }
 
 export function sanitizeConfigValue(value, { allowEmpty = false } = {}) {
