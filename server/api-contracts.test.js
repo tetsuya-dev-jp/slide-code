@@ -66,10 +66,13 @@ describe('API contracts', () => {
 
   test('print export returns printable HTML and pdf export is rejected', async () => {
     const storage = {
+      getDeckJsonPath() {
+        return '/tmp/missing-deck.json';
+      },
       readDeck() {
         return {
           id: 'demo',
-          title: 'Demo Deck',
+          title: 'デモ Deck',
           description: 'demo',
           files: [{ id: 'file-1', name: 'main.py', language: 'python', code: 'print(1)' }],
           slides: [{ title: 'Slide 1', fileId: 'file-1', fileRef: 'main.py', lineRange: [1, 1], highlightLines: [], markdown: 'hello' }],
@@ -98,5 +101,16 @@ describe('API contracts', () => {
     const pdfPayload = await pdfRes.json();
     expect(pdfRes.status).toBe(400);
     expect(pdfPayload.error).toBe('PDF export is not supported; use print export');
+
+    const htmlRes = await fetch(`${baseUrl}/api/decks/demo/export/html`);
+    expect(htmlRes.status).toBe(200);
+    expect(htmlRes.headers.get('content-disposition')).toContain("filename*=UTF-8''");
+
+    const zipRes = await fetch(`${baseUrl}/api/decks/demo/export/zip`);
+    const zipBuffer = Buffer.from(await zipRes.arrayBuffer());
+    expect(zipRes.status).toBe(200);
+    expect(zipRes.headers.get('content-type')).toContain('application/zip');
+    expect(zipRes.headers.get('content-disposition')).toContain("filename*=UTF-8''");
+    expect(zipBuffer.subarray(0, 4).toString('binary')).toBe('PK\u0003\u0004');
   });
 });

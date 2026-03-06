@@ -24,6 +24,24 @@ function headerSafeFilename(value, fallback = 'asset.bin') {
     return compact || fallback;
 }
 
+function headerAsciiFilename(value, fallback = 'download.bin') {
+    const compact = headerSafeFilename(value, fallback)
+        .replace(/[^\x20-\x7E]/g, '_');
+    return compact || fallback;
+}
+
+function encodeHeaderFilename(value) {
+    return encodeURIComponent(value)
+        .replace(/['()*]/g, char => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+function createContentDisposition(dispositionType, filename, fallback = 'download.bin') {
+    const safeFilename = headerSafeFilename(filename, fallback);
+    const asciiFilename = headerAsciiFilename(safeFilename, fallback);
+    const encodedFilename = encodeHeaderFilename(safeFilename);
+    return `${dispositionType}; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`;
+}
+
 const CREATE_DECK_FROM_TEMPLATE_ERROR_RULES = [
     {
         status: 400,
@@ -190,7 +208,7 @@ export function registerExtraRoutes(app, getContext) {
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-        res.setHeader('Content-Disposition', `inline; filename="${headerSafeFilename(asset.path)}"`);
+        res.setHeader('Content-Disposition', createContentDisposition('inline', asset.path, 'asset.bin'));
         if (asset.mimeType === 'image/svg+xml') {
             res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
         }
@@ -208,7 +226,7 @@ export function registerExtraRoutes(app, getContext) {
                 printMode: false,
             });
             res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            res.setHeader('Content-Disposition', createContentDisposition('attachment', result.filename, 'deck.html'));
             return res.send(result.html);
         }
 
@@ -233,7 +251,7 @@ export function registerExtraRoutes(app, getContext) {
                 deckId: req.params.id,
             });
             res.setHeader('Content-Type', 'application/zip');
-            res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
+            res.setHeader('Content-Disposition', createContentDisposition('attachment', result.filename, 'deck.zip'));
             return res.send(result.buffer);
         }
 

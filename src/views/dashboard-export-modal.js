@@ -7,8 +7,13 @@ function downloadBlob(blob, filename) {
   const anchor = document.createElement('a');
   anchor.href = url;
   anchor.download = filename;
+  anchor.style.display = 'none';
+  document.body.appendChild(anchor);
   anchor.click();
-  URL.revokeObjectURL(url);
+  anchor.remove();
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 1000);
 }
 
 export function initDashboardExportModal() {
@@ -28,11 +33,7 @@ export function initDashboardExportModal() {
 
   async function exportDeck(id, format) {
     try {
-      if (format === 'json') {
-        const deck = await api.getDeck(id);
-        const blob = new Blob([JSON.stringify(deck, null, 2)], { type: 'application/json' });
-        downloadBlob(blob, `${deck.title || 'deck'}.json`);
-      } else if (format === 'print') {
+      if (format === 'print') {
         const printUrl = api.getDeckExportUrl(id, 'print');
         const printWindow = window.open(printUrl, '_blank', 'noopener');
         if (!printWindow) {
@@ -61,7 +62,7 @@ export function initDashboardExportModal() {
   function openExportModal(deckId, triggerEl = document.activeElement) {
     exportDeckId = deckId;
     exportTriggerEl = triggerEl instanceof HTMLElement ? triggerEl : null;
-    exportFormatEl.value = 'json';
+    exportFormatEl.value = 'html';
     exportModalEl.hidden = false;
     exportFormatEl.focus();
   }
@@ -74,7 +75,7 @@ export function initDashboardExportModal() {
   exportFormEl.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!exportDeckId) return;
-    const format = exportFormatEl.value || 'json';
+    const format = exportFormatEl.value || 'html';
     await exportDeck(exportDeckId, format);
     closeExportModal({ restore: false });
   });

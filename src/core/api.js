@@ -45,6 +45,27 @@ async function requestBlob(path, { fallbackMessage } = {}) {
     return res;
 }
 
+function parseContentDispositionFilename(disposition) {
+    if (!disposition) return '';
+
+    const encodedMatch = disposition.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
+    if (encodedMatch?.[1]) {
+        try {
+            return decodeURIComponent(encodedMatch[1]);
+        } catch {
+            // Fall back to filename parsing below.
+        }
+    }
+
+    const quotedMatch = disposition.match(/filename\s*=\s*"([^"]+)"/i);
+    if (quotedMatch?.[1]) {
+        return quotedMatch[1];
+    }
+
+    const bareMatch = disposition.match(/filename\s*=\s*([^;]+)/i);
+    return bareMatch?.[1]?.trim() || '';
+}
+
 /** List all decks (metadata only) */
 export async function listDecks() {
     return requestJson('/decks', { fallbackMessage: 'Failed to list decks' });
@@ -168,11 +189,10 @@ export async function downloadDeckExport(id, format) {
     });
 
     const disposition = res.headers.get('content-disposition') || '';
-    const filenameMatch = disposition.match(/filename="([^"]+)"/i);
     const blob = await res.blob();
     return {
         blob,
-        filename: filenameMatch?.[1] || `deck.${format}`,
+        filename: parseContentDispositionFilename(disposition) || `deck.${format}`,
     };
 }
 

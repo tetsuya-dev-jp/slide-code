@@ -139,3 +139,24 @@ test('editor はファイル名変更後もスライド参照を維持できる'
   await waitForEditorReady(page, 'Stable File Deck');
   await expect(page.locator('.editor-slide-meta')).toContainText('helpers.py');
 });
+
+test('dashboard は JSON なしで zip export をダウンロードできる', async ({ page }) => {
+  const { title } = await createDeck(page, 'ZIP書き出し');
+
+  await page.goto('/');
+  await expect(page.locator('#viewDashboard')).toBeVisible();
+
+  const deckCard = page.locator('.deck-card', { hasText: title }).first();
+  await deckCard.locator('.deck-export').click();
+  await expect(page.locator('#deckExportFormat option')).toHaveCount(3);
+  await expect(page.locator('#deckExportFormat')).not.toContainText('JSON');
+  await page.locator('#deckExportFormat').selectOption('zip');
+
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#deckExportForm button[type="submit"]').click();
+  const download = await downloadPromise;
+  const suggestedFilename = download.suggestedFilename();
+
+  await expect(suggestedFilename).toContain('.zip');
+  await expect(suggestedFilename).toContain(title.replace(/\s+/g, '_'));
+});
