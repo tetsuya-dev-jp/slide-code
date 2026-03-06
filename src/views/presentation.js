@@ -13,13 +13,20 @@ import { MarkdownPane } from '../panes/markdown.js';
 import { resolveSlideCode } from '../core/resolve-code.js';
 import { showToast } from '../utils/helpers.js';
 import { theme } from '../core/theme.js';
+import {
+  applyPaneToggle,
+  createPanePreferences,
+  getSlidePaneDefaults,
+  resolvePaneVisibility,
+} from './presentation-pane-state.js';
 
 export function initPresentation(router) {
   const slideManager = new SlideManager();
   const paneState = { code: true, shell: true, markdown: true };
+  let panePreferences = createPanePreferences();
+  let slidePaneDefaults = { ...paneState };
 
   let initialized = false;
-  let activeSlideKey = '';
   let contentEl, resizer, layoutManager;
   let codePane, shellPane, markdownPane;
   let presentationDeck = null;
@@ -64,7 +71,7 @@ export function initPresentation(router) {
   }
 
   function setupSlideChangeHandler() {
-    slideManager.onChange(({ slide, index, position, total, hasPrev, hasNext }) => {
+    slideManager.onChange(({ slide, position, total, hasPrev, hasNext }) => {
       if (!slide) return;
       document.getElementById('slideTitle').textContent = slide.title || '';
       document.getElementById('slideCounter').textContent = `${position} / ${total}`;
@@ -77,21 +84,13 @@ export function initPresentation(router) {
       const resolved = resolveSlideCode(slide, presentationDeck);
       codePane.render(resolved.code, resolved.language, resolved.highlightLines);
       markdownPane.render(slide.markdown);
-      syncPaneVisibilityForSlide(index, slide, resolved);
+      syncPaneVisibilityForSlide(slide, resolved);
     });
   }
 
-  function syncPaneVisibilityForSlide(index, slide, resolved) {
-    const slideKey = `${currentDeckId || ''}:${index}`;
-    if (slideKey === activeSlideKey) return;
-
-    activeSlideKey = slideKey;
-    const hasCode = Boolean(resolved.code && resolved.code.trim());
-    const hasMarkdown = Boolean(typeof slide?.markdown === 'string' && slide.markdown.trim());
-
-    paneState.code = hasCode;
-    paneState.markdown = hasMarkdown;
-    paneState.shell = hasCode || !hasMarkdown;
+  function syncPaneVisibilityForSlide(slide, resolved) {
+    slidePaneDefaults = getSlidePaneDefaults(slide, resolved);
+    Object.assign(paneState, resolvePaneVisibility(panePreferences, slidePaneDefaults));
 
     updatePaneVisibility();
   }
@@ -109,12 +108,19 @@ export function initPresentation(router) {
     document.querySelectorAll('.toggle-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const pane = btn.dataset.pane;
-        const visibleCount = Object.values(paneState).filter(Boolean).length;
-        if (visibleCount <= 1 && paneState[pane]) {
+        const next = applyPaneToggle({
+          pane,
+          preferences: panePreferences,
+          visibility: paneState,
+          defaults: slidePaneDefaults,
+        });
+        if (!next.allowed) {
           showToast('少なくとも1つのペインを表示する必要があります');
           return;
         }
-        paneState[pane] = !paneState[pane];
+
+        panePreferences = next.preferences;
+        Object.assign(paneState, next.visibility);
         updatePaneVisibility();
       });
     });
@@ -215,8 +221,15 @@ export function initPresentation(router) {
           if (e.ctrlKey || e.metaKey) break;
           const paneNames = ['code', 'shell', 'markdown'];
           const pane = paneNames[parseInt(e.key) - 1];
-          paneState[pane] = !paneState[pane];
-          if (!Object.values(paneState).some(Boolean)) paneState[pane] = true;
+          const next = applyPaneToggle({
+            pane,
+            preferences: panePreferences,
+            visibility: paneState,
+            defaults: slidePaneDefaults,
+          });
+          if (!next.allowed) break;
+          panePreferences = next.preferences;
+          Object.assign(paneState, next.visibility);
           updatePaneVisibility();
           break;
         }
@@ -292,7 +305,8 @@ export function initPresentation(router) {
     const requestId = ++showRequestId;
     const previousDeckId = currentDeckId;
     currentDeckId = deckId;
-    activeSlideKey = '';
+    panePreferences = createPanePreferences();
+    slidePaneDefaults = { code: true, shell: true, markdown: true };
     init();
     try {
       const deck = await api.getDeck(deckId);

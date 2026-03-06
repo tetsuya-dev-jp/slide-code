@@ -74,6 +74,48 @@ test('presentation でスライド移動と pane toggle が動く', async ({ pag
   await expect(page.locator('#paneShell')).not.toHaveClass(/hidden/);
 });
 
+test('presentation は手動の pane toggle を slide 移動後も保持する', async ({ page }) => {
+  const { folder } = await createDeck(page, 'Presentation Persist');
+
+  await page.locator('#editorMarkdown').fill('1枚目の解説');
+  await page.locator('#addSlideBtn').click();
+  await page.locator('#editorFileRef').selectOption('');
+  await page.locator('#editorMarkdown').fill('2枚目は markdown only');
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await page.locator('#editorPreviewBtn').click();
+  await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}$`));
+  await expect(page.locator('#viewPresentation')).toBeVisible();
+
+  const shellPane = page.locator('#paneShell');
+  const shellWasHidden = await shellPane.evaluate((el) => el.classList.contains('hidden'));
+  await page.locator('.toggle-btn[data-pane="shell"]').click();
+  if (shellWasHidden) {
+    await expect(shellPane).not.toHaveClass(/hidden/);
+  } else {
+    await expect(shellPane).toHaveClass(/hidden/);
+  }
+
+  await page.locator('#nextBtn').click();
+  await expect(page.locator('#slideCounter')).toHaveText('2 / 2');
+  if (shellWasHidden) {
+    await expect(shellPane).not.toHaveClass(/hidden/);
+  } else {
+    await expect(shellPane).toHaveClass(/hidden/);
+  }
+  await expect(page.locator('#paneCode')).toHaveClass(/hidden/);
+  await expect(page.locator('#paneMarkdown')).not.toHaveClass(/hidden/);
+
+  await page.locator('#prevBtn').click();
+  await expect(page.locator('#slideCounter')).toHaveText('1 / 2');
+  if (shellWasHidden) {
+    await expect(shellPane).not.toHaveClass(/hidden/);
+  } else {
+    await expect(shellPane).toHaveClass(/hidden/);
+  }
+});
+
 test('presentation は参照なしスライドで空の code pane を初期非表示にできる', async ({ page }) => {
   const { folder } = await createDeck(page, 'Markdown Only');
 
