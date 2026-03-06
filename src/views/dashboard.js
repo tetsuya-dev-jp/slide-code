@@ -7,6 +7,7 @@ import { initDashboardDeleteModal } from './dashboard-delete-modal.js';
 import { initDashboardExportModal } from './dashboard-export-modal.js';
 import { normalizeImportedDeck } from './deck-import-normalize.js';
 import { applyTemplateButtonState, collectSavedTemplateDeckIds, parseTemplateSelection } from './dashboard-template-state.js';
+import { getRecentDecks } from '../core/preferences.js';
 
 export function initDashboard(router) {
   initDashboardConfigModal({ onSaved: show });
@@ -23,12 +24,89 @@ export function initDashboard(router) {
   const modalTemplate = document.getElementById('deckModalTemplate');
   const modalSubmit  = document.getElementById('deckModalSubmit');
   const modalCancel  = document.getElementById('deckModalCancel');
+  const deckSearchInput = document.getElementById('deckSearchInput');
+  const deckSortSelect = document.getElementById('deckSortSelect');
+  const deckStatusFilter = document.getElementById('deckStatusFilter');
+  const deckSummaryEl = document.getElementById('deckSummary');
 
   let editingDeckId = null;
   let autoSyncFolderName = true;
   let modalTriggerEl = null;
   let savedTemplateDeckIds = new Set();
   let showRequestId = 0;
+  let allDecks = [];
+
+  function getRecentDeckMap() {
+    return new Map(getRecentDecks().map((entry) => [entry.id, entry]));
+  }
+
+  function compareDecks(sortBy, recentDeckMap) {
+    return (left, right) => {
+      if (sortBy === 'updated-asc') {
+        return (left.updatedAt || 0) - (right.updatedAt || 0);
+      }
+      if (sortBy === 'title-asc') {
+        return (left.title || '').localeCompare(right.title || '', 'ja');
+      }
+      if (sortBy === 'recent-opened') {
+        const leftRecent = recentDeckMap.get(left.id)?.lastOpenedAt || 0;
+        const rightRecent = recentDeckMap.get(right.id)?.lastOpenedAt || 0;
+        if (leftRecent !== rightRecent) {
+          return rightRecent - leftRecent;
+        }
+      }
+      return (right.updatedAt || 0) - (left.updatedAt || 0);
+    };
+  }
+
+  function getFilteredDecks() {
+    const searchQuery = deckSearchInput?.value?.trim().toLowerCase() || '';
+    const sortBy = deckSortSelect?.value || 'recent-opened';
+    const filterBy = deckStatusFilter?.value || 'all';
+    const recentDeckMap = getRecentDeckMap();
+
+    return allDecks
+      .filter((deck) => {
+        if (filterBy === 'recent' && !recentDeckMap.has(deck.id)) {
+          return false;
+        }
+        if (filterBy === 'templates' && !savedTemplateDeckIds.has(deck.id)) {
+          return false;
+        }
+        if (!searchQuery) {
+          return true;
+        }
+
+        const haystack = [deck.title, deck.description, deck.id]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+        return haystack.includes(searchQuery);
+      })
+      .sort(compareDecks(sortBy, recentDeckMap));
+  }
+
+  function updateDeckSummary(filteredDecks) {
+    if (!deckSummaryEl) return;
+
+    if (!allDecks.length) {
+      deckSummaryEl.textContent = '';
+      return;
+    }
+
+    const total = allDecks.length;
+    const filtered = filteredDecks.length;
+    const recentCount = getRecentDecks().length;
+    deckSummaryEl.textContent = filtered === total
+      ? `${total}件のデッキ${recentCount ? ` / 最近開いた ${recentCount}件` : ''}`
+      : `${filtered} / ${total}件を表示中`;
+  }
+
+  function refreshDeckGrid() {
+    const filteredDecks = getFilteredDecks();
+    updateDeckSummary(filteredDecks);
+    renderDeckGrid(filteredDecks);
+  }
 
   function getImportErrorMessage(error) {
     if (error instanceof SyntaxError) {
@@ -354,8 +432,8 @@ export function initDashboard(router) {
     if (decks.length === 0) {
       grid.innerHTML = `
         <div class="deck-empty">
-          <p>まだデッキがありません</p>
-          <button class="btn btn-primary" id="createFirstDeckBtn">最初のデッキを作成</button>
+          <p>${allDecks.length === 0 ? 'まだデッキがありません' : '条件に一致するデッキがありません'}</p>
+          <button class="btn btn-primary" id="createFirstDeckBtn">${allDecks.length === 0 ? '最初のデッキを作成' : '新規デッキを作成'}</button>
         </div>`;
       grid.querySelector('#createFirstDeckBtn')?.addEventListener('click', () => {
         document.getElementById('newDeckBtn')?.click();
@@ -442,10 +520,18 @@ export function initDashboard(router) {
     });
   }
 
+  [deckSearchInput, deckSortSelect, deckStatusFilter].forEach((control) => {
+    control?.addEventListener('input', refreshDeckGrid);
+    control?.addEventListener('change', refreshDeckGrid);
+  });
+
   async function show() {
     const requestId = ++showRequestId;
     const grid = document.getElementById('deckGrid');
     grid.innerHTML = '<div class="deck-loading">読み込み中...</div>';
+    if (deckSummaryEl) {
+      deckSummaryEl.textContent = '';
+    }
     renderDeckIssues([]);
     try {
       const [decks, issues, templates] = await Promise.all([
@@ -454,11 +540,13 @@ export function initDashboard(router) {
         api.listTemplates().catch(() => null),
       ]);
       if (requestId !== showRequestId) return;
+      allDecks = Array.isArray(decks) ? decks : [];
       savedTemplateDeckIds = collectSavedTemplateDeckIds(templates);
       renderDeckIssues(issues);
-      renderDeckGrid(decks);
+      refreshDeckGrid();
     } catch (err) {
       if (requestId !== showRequestId) return;
+      allDecks = [];
       renderDeckIssues([]);
       grid.innerHTML = '<div class="deck-error">デッキの読み込みに失敗しました</div>';
       console.error(err);

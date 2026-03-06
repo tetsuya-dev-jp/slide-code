@@ -1469,6 +1469,53 @@ body.resizing-v {
   gap: 8px;
 }
 
+.dashboard-controls {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) repeat(2, minmax(180px, 220px));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.dashboard-search,
+.dashboard-filter-group {
+  display: grid;
+  gap: 6px;
+}
+
+.dashboard-control-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.dashboard-search input,
+.dashboard-select {
+  width: 100%;
+}
+
+.dashboard-search input {
+  padding: 8px 12px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: var(--font-sans);
+}
+
+.dashboard-search input:focus {
+  outline: none;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 2px var(--focus-ring);
+}
+
+.dashboard-summary {
+  min-height: 20px;
+  margin-bottom: 14px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
 .deck-issues {
   margin-bottom: 20px;
   padding: 16px;
@@ -1625,6 +1672,12 @@ body.resizing-v {
 
 .deck-empty .btn {
   margin-top: 16px;
+}
+
+@media (max-width: 768px) {
+  .dashboard-controls {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ============================================

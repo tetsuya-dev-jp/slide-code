@@ -245,6 +245,30 @@
         <section class="deck-issues" id="deckIssues" hidden>
           <!-- Quarantined deck issues rendered here -->
         </section>
+        <section class="dashboard-controls" aria-label="デッキ一覧の整理">
+          <div class="dashboard-search">
+            <label class="dashboard-control-label" for="deckSearchInput">検索</label>
+            <input type="search" id="deckSearchInput" placeholder="タイトル・説明・IDで検索" />
+          </div>
+          <div class="dashboard-filter-group">
+            <label class="dashboard-control-label" for="deckSortSelect">並び順</label>
+            <select id="deckSortSelect" class="editor-select dashboard-select">
+              <option value="recent-opened">最近開いた順</option>
+              <option value="updated-desc">更新が新しい順</option>
+              <option value="updated-asc">更新が古い順</option>
+              <option value="title-asc">タイトル A-Z</option>
+            </select>
+          </div>
+          <div class="dashboard-filter-group">
+            <label class="dashboard-control-label" for="deckStatusFilter">表示</label>
+            <select id="deckStatusFilter" class="editor-select dashboard-select">
+              <option value="all">すべて</option>
+              <option value="recent">最近開いたもの</option>
+              <option value="templates">テンプレート保存済み</option>
+            </select>
+          </div>
+        </section>
+        <div class="dashboard-summary" id="deckSummary" aria-live="polite"></div>
         <div class="deck-grid" id="deckGrid">
           <!-- Deck cards rendered here -->
         </div>

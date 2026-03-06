@@ -34,6 +34,9 @@ vi.mock('./dashboard-template-state.js', () => ({
   collectSavedTemplateDeckIds: vi.fn(() => new Set()),
   parseTemplateSelection: vi.fn(() => null),
 }));
+vi.mock('../core/preferences.js', () => ({
+  getRecentDecks: vi.fn(() => []),
+}));
 
 const { initDashboard } = await import('./dashboard.js');
 
@@ -44,6 +47,19 @@ function flush() {
 function buildDom() {
   document.body.innerHTML = `
     <section id="deckIssues" hidden></section>
+    <input id="deckSearchInput" type="search" />
+    <select id="deckSortSelect">
+      <option value="recent-opened">recent</option>
+      <option value="updated-desc">updated desc</option>
+      <option value="updated-asc">updated asc</option>
+      <option value="title-asc">title asc</option>
+    </select>
+    <select id="deckStatusFilter">
+      <option value="all">all</option>
+      <option value="recent">recent</option>
+      <option value="templates">templates</option>
+    </select>
+    <div id="deckSummary"></div>
     <div id="deckGrid"></div>
     <button id="newDeckBtn" type="button">new</button>
     <button id="importBtn" type="button">import</button>
@@ -208,5 +224,45 @@ describe('dashboard', () => {
 
     expect(hint.textContent).toContain('ZIP');
     expect(details.textContent).toContain('deck.json / files / assets');
+  });
+
+  test('filters and sorts dashboard decks on the client side', async () => {
+    api.listDecks.mockResolvedValue([
+      { id: 'beta', title: 'Beta Deck', description: 'second item', slideCount: 3, updatedAt: 20 },
+      { id: 'alpha', title: 'Alpha Deck', description: 'first item', slideCount: 2, updatedAt: 10 },
+    ]);
+
+    const { getRecentDecks } = await import('../core/preferences.js');
+    getRecentDecks.mockReturnValue([{ id: 'beta', title: 'Beta Deck', lastOpenedAt: 100 }]);
+
+    const { show } = initDashboard({ navigate: vi.fn() });
+    await show();
+    await flush();
+
+    const titles = [...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent);
+    expect(titles).toEqual(['Beta Deck', 'Alpha Deck']);
+    expect(document.getElementById('deckSummary').textContent).toContain('最近開いた 1件');
+
+    const search = document.getElementById('deckSearchInput');
+    search.value = 'alpha';
+    search.dispatchEvent(new Event('input'));
+
+    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Alpha Deck']);
+    expect(document.getElementById('deckSummary').textContent).toContain('1 / 2件');
+
+    search.value = '';
+    search.dispatchEvent(new Event('input'));
+
+    const sort = document.getElementById('deckSortSelect');
+    sort.value = 'title-asc';
+    sort.dispatchEvent(new Event('change'));
+
+    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Alpha Deck', 'Beta Deck']);
+
+    const filter = document.getElementById('deckStatusFilter');
+    filter.value = 'recent';
+    filter.dispatchEvent(new Event('change'));
+
+    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Beta Deck']);
   });
 });

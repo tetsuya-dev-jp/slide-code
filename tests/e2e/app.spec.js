@@ -16,7 +16,7 @@ async function createDeck(page, titlePrefix = 'Smoke') {
   const title = `${titlePrefix} Deck`;
   const folder = uniqueId('smoke');
 
-  await page.goto('/');
+  await page.goto('/#/');
   await expect(page.locator('#viewDashboard')).toBeVisible();
   await page.locator('#newDeckBtn').click();
   await page.locator('#deckModalName').fill(title);
@@ -185,7 +185,7 @@ test('editor はファイル名変更後もスライド参照を維持できる'
 test('dashboard は JSON なしで zip export をダウンロードできる', async ({ page }) => {
   const { title } = await createDeck(page, 'ZIP書き出し');
 
-  await page.goto('/');
+  await page.goto('/#/');
   await expect(page.locator('#viewDashboard')).toBeVisible();
 
   const deckCard = page.locator('.deck-card', { hasText: title }).first();
@@ -223,4 +223,26 @@ test('root から再表示すると最後の presentation route と slide を復
   await expect(page).toHaveURL(new RegExp(`#\/deck\/${folder}$`));
   await expect(page.locator('#viewPresentation')).toBeVisible();
   await expect(page.locator('#slideCounter')).toHaveText('2 / 2');
+});
+
+test('dashboard で recent filter と title sort を切り替えられる', async ({ page }) => {
+  const first = await createDeck(page, 'Recent Alpha');
+  await page.goto('/#/');
+  await expect(page.locator('#viewDashboard')).toBeVisible();
+
+  const second = await createDeck(page, 'Recent Beta');
+  await page.goto('/#/');
+  await expect(page.locator('#viewDashboard')).toBeVisible();
+
+  await page.locator('#deckStatusFilter').selectOption('recent');
+  await expect(page.locator('.deck-card')).toHaveCount(2);
+  await expect(page.locator('.deck-card-title').first()).toHaveText(second.title);
+
+  await page.locator('#deckSearchInput').fill('Alpha');
+  await expect(page.locator('.deck-card')).toHaveCount(1);
+  await expect(page.locator('.deck-card-title').first()).toHaveText(first.title);
+
+  await page.locator('#deckSearchInput').fill('');
+  await page.locator('#deckSortSelect').selectOption('title-asc');
+  await expect(page.locator('.deck-card-title').first()).toHaveText(first.title);
 });
