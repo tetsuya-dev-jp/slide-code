@@ -14,6 +14,24 @@
       } catch {
         // Ignore storage/matchMedia issues and keep defaults.
       }
+
+      const showBootFallback = (reason = 'unknown') => {
+        if (document.documentElement.getAttribute('data-app-ready') === 'true') return;
+        document.documentElement.setAttribute('data-app-ready', 'error');
+        document.documentElement.setAttribute('data-app-error', reason);
+      };
+
+      window.__codestageShowBootFallback = showBootFallback;
+      window.__codestageBootTimeout = window.setTimeout(() => {
+        showBootFallback('timeout');
+      }, 2500);
+
+      window.addEventListener('error', (event) => {
+        const target = event.target;
+        if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+          showBootFallback('asset-load');
+        }
+      }, true);
     })();
   </script>
   <style>
@@ -32,9 +50,87 @@
       opacity: 0;
     }
 
-    html[data-app-ready="true"] body {
+    html[data-app-ready="true"] body,
+    html[data-app-ready="error"] body {
       visibility: visible;
       opacity: 1;
+    }
+
+    #appBootFallback {
+      display: none;
+    }
+
+    html[data-app-ready="error"] #app {
+      display: none;
+    }
+
+    html[data-app-ready="error"] #appBootFallback {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      box-sizing: border-box;
+      background: inherit;
+    }
+
+    .boot-fallback-card {
+      max-width: 560px;
+      width: 100%;
+      padding: 28px;
+      border-radius: 20px;
+      background: rgba(17, 24, 39, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: #f8fafc;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+    }
+
+    html[data-theme="light"] .boot-fallback-card {
+      background: rgba(255, 255, 255, 0.96);
+      border-color: rgba(15, 23, 42, 0.08);
+      color: #0f172a;
+      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+    }
+
+    .boot-fallback-card h2 {
+      margin: 0 0 10px;
+      font-size: 24px;
+    }
+
+    .boot-fallback-card p {
+      margin: 0 0 14px;
+      line-height: 1.6;
+      color: inherit;
+      opacity: 0.88;
+    }
+
+    .boot-fallback-meta {
+      margin-bottom: 20px;
+      font-size: 12px;
+      opacity: 0.7;
+    }
+
+    .boot-fallback-actions {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .boot-fallback-actions a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 16px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 600;
+      color: #081018;
+      background: #b7ff1a;
+    }
+
+    html[data-theme="light"] .boot-fallback-actions a {
+      color: #081018;
+      background: #9fe600;
     }
   </style>
   <link rel="icon" type="image/svg+xml" href="/logo.svg" />
@@ -570,6 +666,34 @@
     <!-- Hidden file input for import -->
     <input type="file" id="importFileInput" accept=".json" style="display:none;" />
   </div>
+
+  <div id="appBootFallback" aria-live="assertive">
+    <section class="boot-fallback-card" role="alert">
+      <h2>アプリの起動に失敗しました</h2>
+      <p>JavaScript の読み込み中に問題が発生した可能性があります。再読み込みしても直らない場合は、ブラウザ拡張やネットワーク設定も確認してください。</p>
+      <div class="boot-fallback-meta">状態: <span id="appBootFallbackReason"></span></div>
+      <div class="boot-fallback-actions">
+        <a href="">再読み込み</a>
+      </div>
+    </section>
+  </div>
+  <script>
+    (() => {
+      const reasonEl = document.getElementById('appBootFallbackReason');
+      if (!reasonEl) return;
+
+      const updateReason = () => {
+        const reason = document.documentElement.getAttribute('data-app-error') || 'unknown';
+        reasonEl.textContent = reason;
+      };
+
+      updateReason();
+      new MutationObserver(updateReason).observe(document.documentElement, {
+        attributes: true,
+        attributeFilter: ['data-app-error'],
+      });
+    })();
+  </script>
 
   <script type="module" src="/src/main.js"></script>
 </body>
