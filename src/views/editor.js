@@ -111,6 +111,7 @@ export function initEditor(router) {
       if (!deckId) return `asset://${assetPath}`;
       return api.getDeckAssetUrl(deckId, assetPath);
     },
+    resetScrollOnRender: false,
   });
   let deckSettingsController = null;
   let assetsModal = null;
