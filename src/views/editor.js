@@ -31,6 +31,7 @@ import { initEditorDeckSettings } from './editor-deck-settings.js';
 import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
 import { initEditorPreferencesModal } from './editor-preferences-modal.js';
+import { reconcileDeckAfterSave } from './editor-save-state.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
@@ -293,7 +294,7 @@ export function initEditor(router) {
       setSaveStatus('saving');
 
       try {
-        await persistDeckToServer();
+        await persistDeckToServer(saveVersion);
         const unchangedSinceSaveStarted = clearDirty(saveVersion);
         renderSlideList();
 
@@ -936,7 +937,7 @@ export function initEditor(router) {
     window.history.replaceState(window.history.state, '', nextHash);
   }
 
-  async function persistDeckToServer() {
+  async function persistDeckToServer(saveVersion) {
     if (!deck) throw new Error('deck-not-loaded');
     if (!validateCurrentFileName()) {
       throw Object.assign(new Error('invalid-file-name'), { status: 400 });
@@ -950,18 +951,25 @@ export function initEditor(router) {
     const preferredSlideIndex = slideIndex;
     const preferredFileId = deck.files[fileIndex]?.id || '';
     const saved = await api.updateDeck(currentDeckId, deck);
-    const renamed = saved.id !== currentDeckId;
-    deck = saved;
-    persistedDeckId = saved.id;
+    const reconciliation = reconcileDeckAfterSave({
+      currentDeck: deck,
+      savedDeck: saved,
+      requestDeckId: currentDeckId,
+      hasLocalChanges: saveVersion !== changeVersion,
+    });
+    deck = reconciliation.deck;
+    persistedDeckId = reconciliation.persistedDeckId;
 
     setEditorDeckName(deck.title);
-    syncEditorAfterDeckNormalization(preferredFileId, preferredSlideIndex);
-
-    if (renamed) {
-      replaceHash(`/deck/${deck.id}/edit`);
+    if (reconciliation.shouldSyncEditor) {
+      syncEditorAfterDeckNormalization(preferredFileId, preferredSlideIndex);
     }
 
-    return { renamed };
+    if (reconciliation.renamed) {
+      replaceHash(`/deck/${persistedDeckId}/edit`);
+    }
+
+    return { renamed: reconciliation.renamed };
   }
 
   function focusDeckFolderSettingWithError(message) {
