@@ -31,6 +31,7 @@ import { initEditorDeckSettings } from './editor-deck-settings.js';
 import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
 import { isFileAlreadyLoaded } from './editor-file-selection.js';
+import { createMarkdownEditor } from './editor-markdown-editor.js';
 import { initEditorPreferencesModal } from './editor-preferences-modal.js';
 import { reconcileDeckAfterSave } from './editor-save-state.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
@@ -118,6 +119,7 @@ export function initEditor(router) {
   let deckSettingsController = null;
   let assetsModal = null;
   let editorPreferencesModal = null;
+  let markdownEditor = null;
   let fileValidationState = { message: '', normalizedName: '' };
 
   // --- Dirty state ---
@@ -865,7 +867,7 @@ export function initEditor(router) {
     document.getElementById('editorLineStart').value = lineStart;
     document.getElementById('editorLineEnd').value = lineEnd;
     document.getElementById('editorHighlight').value = (slide.highlightLines || []).join(', ');
-    document.getElementById('editorMarkdown').value = slide.markdown || '';
+    markdownEditor?.setValue(slide.markdown || '');
 
     loadFileById(slide.fileId || '');
 
@@ -896,23 +898,17 @@ export function initEditor(router) {
       slide.lineRange = [1, 1];
       slide.highlightLines = [];
     }
-    slide.markdown = document.getElementById('editorMarkdown').value;
+    slide.markdown = markdownEditor?.getValue() || '';
   }
 
   function insertAssetReference(assetPath) {
-    const markdownEl = document.getElementById('editorMarkdown');
-    if (!markdownEl) return;
-
     const reference = `asset://${assetPath}`;
-    const start = Number.isFinite(markdownEl.selectionStart) ? markdownEl.selectionStart : markdownEl.value.length;
-    const end = Number.isFinite(markdownEl.selectionEnd) ? markdownEl.selectionEnd : start;
-    markdownEl.value = `${markdownEl.value.slice(0, start)}${reference}${markdownEl.value.slice(end)}`;
-    const cursor = start + reference.length;
-    markdownEl.setSelectionRange(cursor, cursor);
-    markdownEl.focus();
+    if (!markdownEditor) return;
+
+    markdownEditor.insertText(reference);
 
     if (deck?.slides?.[slideIndex]) {
-      deck.slides[slideIndex].markdown = markdownEl.value;
+      deck.slides[slideIndex].markdown = markdownEditor.getValue();
     }
     updateMarkdownPreview();
     assetsModal?.refreshBrokenReferences();
@@ -926,8 +922,17 @@ export function initEditor(router) {
   }
 
   function updateMarkdownPreview() {
-    const md = document.getElementById('editorMarkdown').value;
+    const md = markdownEditor?.getValue() || '';
     mdPreviewPane.render(md);
+  }
+
+  function handleMarkdownChange(value) {
+    if (deck?.slides?.[slideIndex]) {
+      deck.slides[slideIndex].markdown = value;
+    }
+    updateMarkdownPreview();
+    assetsModal?.refreshBrokenReferences();
+    markDirty();
   }
 
   function applyDeckMetaFromForm() {
@@ -1034,7 +1039,15 @@ export function initEditor(router) {
 
   function setupEventListeners() {
     const debouncedCodePreview = debounce(updateCodePreview, 300);
-    const debouncedMarkdownPreview = debounce(updateMarkdownPreview, 300);
+    const debouncedMarkdownChange = debounce(handleMarkdownChange, 180);
+
+    markdownEditor = createMarkdownEditor({
+      parent: document.getElementById('editorMarkdown'),
+      placeholderText: 'マークダウンで解説を入力...',
+      onChange: (value) => {
+        debouncedMarkdownChange(value);
+      },
+    });
 
     setupEditorLayoutControls({
       getMonacoEditor: () => monacoEditor,
@@ -1173,14 +1186,6 @@ export function initEditor(router) {
     document.getElementById('editorLineStart').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorLineEnd').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
     document.getElementById('editorHighlight').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
-    document.getElementById('editorMarkdown').addEventListener('input', () => {
-      if (deck?.slides?.[slideIndex]) {
-        deck.slides[slideIndex].markdown = document.getElementById('editorMarkdown').value;
-      }
-      debouncedMarkdownPreview();
-      assetsModal?.refreshBrokenReferences();
-      markDirty();
-    });
     document.getElementById('toggleHighlightInputBtn').addEventListener('click', () => {
       const rowEl = document.getElementById('editorHighlightInputRow');
       const nextVisible = rowEl ? rowEl.hidden : true;
@@ -1473,8 +1478,7 @@ export function initEditor(router) {
       const currentSlide = deck?.slides?.[slideIndex];
       if (!currentSlide) return;
 
-      const markdownInput = document.getElementById('editorMarkdown');
-      const markdown = markdownInput ? markdownInput.value : (currentSlide.markdown || '');
+      const markdown = markdownEditor ? markdownEditor.getValue() : (currentSlide.markdown || '');
       mdPreviewPane.render(markdown);
     },
   };

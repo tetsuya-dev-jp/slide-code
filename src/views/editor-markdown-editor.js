@@ -1,0 +1,296 @@
+import { EditorState, Prec } from '@codemirror/state';
+import {
+  EditorView,
+  keymap,
+  placeholder,
+  drawSelection,
+  highlightActiveLine,
+} from '@codemirror/view';
+import { markdown } from '@codemirror/lang-markdown';
+import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from '@codemirror/commands';
+
+function isListMarker(text) {
+  return /^(?:[-*+]\s+|\d+[.)]\s+|>\s+|- \[[ xX]\]\s+)/.test(text);
+}
+
+export function getListContinuation(text) {
+  const taskMatch = text.match(/^(\s*)([-*+])\s+\[([ xX])\]\s+(.*)$/);
+  if (taskMatch) {
+    const [, indent, bullet, checked, body] = taskMatch;
+    if (!body.trim()) return '';
+    return `${indent}${bullet} [${checked}] `;
+  }
+
+  const bulletMatch = text.match(/^(\s*)([-*+])\s+(.*)$/);
+  if (bulletMatch) {
+    const [, indent, bullet, body] = bulletMatch;
+    if (!body.trim()) return '';
+    return `${indent}${bullet} `;
+  }
+
+  const orderedMatch = text.match(/^(\s*)(\d+)([.)])\s+(.*)$/);
+  if (orderedMatch) {
+    const [, indent, rawNumber, delimiter, body] = orderedMatch;
+    if (!body.trim()) return '';
+    return `${indent}${Number.parseInt(rawNumber, 10) + 1}${delimiter} `;
+  }
+
+  const quoteMatch = text.match(/^(\s*>\s+)(.*)$/);
+  if (quoteMatch) {
+    const [, prefix, body] = quoteMatch;
+    if (!body.trim()) return '';
+    return prefix;
+  }
+
+  return null;
+}
+
+function getIndentUnit(lineText) {
+  const match = lineText.match(/^(\s+)/);
+  if (!match?.[1]) return '  ';
+  if (match[1].includes('\t')) return '\t';
+  return '  ';
+}
+
+function getActiveLineInfo(state) {
+  const { from, to } = state.selection.main;
+  if (from !== to) return null;
+
+  const line = state.doc.lineAt(from);
+  const beforeCursor = line.text.slice(0, from - line.from);
+  const afterCursor = line.text.slice(from - line.from);
+  return { line, beforeCursor, afterCursor };
+}
+
+function insertText(view, text, from = view.state.selection.main.from, to = view.state.selection.main.to) {
+  view.dispatch({
+    changes: { from, to, insert: text },
+    selection: { anchor: from + text.length },
+    scrollIntoView: true,
+  });
+  return true;
+}
+
+function continueMarkdownList(view) {
+  const info = getActiveLineInfo(view.state);
+  if (!info) return false;
+
+  const { from } = view.state.selection.main;
+  const nextState = applyMarkdownEnter(view.state.doc.toString(), from);
+  if (!nextState) {
+    return insertNewlineAndIndent(view);
+  }
+
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: nextState.text },
+    selection: { anchor: nextState.cursor },
+    scrollIntoView: true,
+  });
+  return true;
+}
+
+function indentMarkdownList(view) {
+  const info = getActiveLineInfo(view.state);
+  if (!info || !isListMarker(info.line.text.trimStart())) return false;
+
+  return insertText(view, getIndentUnit(info.line.text), info.line.from, info.line.from);
+}
+
+function outdentMarkdownList(view) {
+  const info = getActiveLineInfo(view.state);
+  if (!info || !isListMarker(info.line.text.trimStart())) return false;
+
+  const text = info.line.text;
+  if (text.startsWith('\t')) {
+    view.dispatch({
+      changes: { from: info.line.from, to: info.line.from + 1, insert: '' },
+      selection: { anchor: Math.max(view.state.selection.main.from - 1, info.line.from) },
+      scrollIntoView: true,
+    });
+    return true;
+  }
+
+  if (text.startsWith('  ')) {
+    view.dispatch({
+      changes: { from: info.line.from, to: info.line.from + 2, insert: '' },
+      selection: { anchor: Math.max(view.state.selection.main.from - 2, info.line.from) },
+      scrollIntoView: true,
+    });
+    return true;
+  }
+
+  return false;
+}
+
+export function applyMarkdownEnter(text, cursor) {
+  const safeText = typeof text === 'string' ? text : '';
+  const safeCursor = Number.isFinite(cursor) ? Math.max(0, Math.min(cursor, safeText.length)) : safeText.length;
+  const lineStart = safeText.lastIndexOf('\n', safeCursor - 1) + 1;
+  const lineEndCandidate = safeText.indexOf('\n', safeCursor);
+  const lineEnd = lineEndCandidate >= 0 ? lineEndCandidate : safeText.length;
+  const lineText = safeText.slice(lineStart, lineEnd);
+  const continuation = getListContinuation(lineText);
+
+  if (continuation === null) return null;
+
+  if (continuation === '') {
+    const nextValue = `${safeText.slice(0, lineStart)}\n${safeText.slice(lineEnd)}`;
+    return { text: nextValue, cursor: lineStart + 1 };
+  }
+
+  const nextValue = `${safeText.slice(0, lineEnd)}\n${continuation}${safeText.slice(lineEnd)}`;
+  return { text: nextValue, cursor: lineEnd + 1 + continuation.length };
+}
+
+export function autoClosePair(open, close) {
+  return (view) => {
+    const { from, to } = view.state.selection.main;
+    const selectedText = view.state.sliceDoc(from, to);
+    const insert = `${open}${selectedText}${close}`;
+    view.dispatch({
+      changes: { from, to, insert },
+      selection: selectedText
+        ? { anchor: from + open.length, head: from + open.length + selectedText.length }
+        : { anchor: from + open.length },
+      scrollIntoView: true,
+    });
+    return true;
+  };
+}
+
+function buildMarkdownKeymap() {
+  return [
+    { key: 'Enter', run: continueMarkdownList },
+    { key: 'Tab', run: indentMarkdownList },
+    { key: 'Shift-Tab', run: outdentMarkdownList },
+    { key: '(', run: autoClosePair('(', ')') },
+    { key: '[', run: autoClosePair('[', ']') },
+    { key: '{', run: autoClosePair('{', '}') },
+    { key: '"', run: autoClosePair('"', '"') },
+    { key: "'", run: autoClosePair("'", "'") },
+    { key: '`', run: autoClosePair('`', '`') },
+  ];
+}
+
+export function createMarkdownEditor({
+  parent,
+  initialValue = '',
+  placeholderText = '',
+  onChange,
+} = {}) {
+  let applyingExternalValue = false;
+
+  const view = new EditorView({
+    parent,
+    state: EditorState.create({
+      doc: initialValue,
+      extensions: [
+        history(),
+        drawSelection(),
+        highlightActiveLine(),
+        markdown(),
+        placeholder(placeholderText),
+        Prec.high(keymap.of(buildMarkdownKeymap())),
+        keymap.of([...defaultKeymap, ...historyKeymap]),
+        EditorView.lineWrapping,
+        EditorView.theme({
+          '&': {
+            height: '100%',
+            border: '1px solid var(--border-default)',
+            borderRadius: '8px',
+            backgroundColor: 'var(--bg-primary)',
+            color: 'var(--text-primary)',
+            fontFamily: 'var(--font-mono)',
+            fontSize: '13px',
+          },
+          '.cm-scroller': {
+            fontFamily: 'var(--font-mono)',
+            lineHeight: '1.6',
+          },
+          '.cm-content': {
+            padding: '12px 0',
+            caretColor: 'var(--text-primary)',
+          },
+          '.cm-cursor, .cm-dropCursor': {
+            borderLeftColor: 'var(--text-primary)',
+          },
+          '.cm-cursorLayer': {
+            animation: 'steps(1) cm-blink 1.2s infinite',
+          },
+          '.cm-line': {
+            padding: '0 12px',
+          },
+          '.cm-gutters': {
+            backgroundColor: 'transparent',
+            borderRight: '1px solid var(--border-subtle)',
+            color: 'var(--text-tertiary)',
+          },
+          '.cm-activeLine': {
+            backgroundColor: 'rgba(183, 255, 26, 0.08)',
+          },
+          '.cm-activeLineGutter': {
+            backgroundColor: 'rgba(183, 255, 26, 0.08)',
+          },
+          '&.cm-focused': {
+            outline: 'none',
+            borderColor: 'var(--accent-primary)',
+            boxShadow: '0 0 0 1px rgba(183, 255, 26, 0.22)',
+          },
+          '.cm-selectionBackground, .cm-content ::selection': {
+            backgroundColor: 'rgba(183, 255, 26, 0.24) !important',
+          },
+          '.cm-placeholder': {
+            color: 'var(--text-tertiary)',
+            fontStyle: 'normal',
+          },
+        }),
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged || applyingExternalValue) return;
+          onChange?.(update.state.doc.toString());
+        }),
+      ],
+    }),
+  });
+
+  return {
+    getValue() {
+      return view.state.doc.toString();
+    },
+    setValue(nextValue, { preserveSelection = false } = {}) {
+      const value = typeof nextValue === 'string' ? nextValue : '';
+      if (value === view.state.doc.toString()) return;
+      const currentSelection = view.state.selection.main;
+      applyingExternalValue = true;
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: value },
+        selection: preserveSelection
+          ? {
+            anchor: Math.min(currentSelection.anchor, value.length),
+            head: Math.min(currentSelection.head, value.length),
+          }
+          : { anchor: 0 },
+      });
+      applyingExternalValue = false;
+    },
+    focus() {
+      view.focus();
+    },
+    insertText(text) {
+      insertText(view, text);
+      view.focus();
+    },
+    setSelection(anchor, head = anchor) {
+      view.dispatch({
+        selection: { anchor, head },
+        scrollIntoView: true,
+      });
+    },
+    getSelection() {
+      const { anchor, head } = view.state.selection.main;
+      return { anchor, head };
+    },
+    destroy() {
+      view.destroy();
+    },
+  };
+}
