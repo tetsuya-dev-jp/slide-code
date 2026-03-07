@@ -30,6 +30,7 @@ import {
 import { initEditorDeckSettings } from './editor-deck-settings.js';
 import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
+import { isFileAlreadyLoaded } from './editor-file-selection.js';
 import { initEditorPreferencesModal } from './editor-preferences-modal.js';
 import { reconcileDeckAfterSave } from './editor-save-state.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
@@ -595,7 +596,21 @@ export function initEditor(router) {
       return;
     }
 
-    if (nextIndex === fileIndex) return;
+    if (nextIndex === fileIndex) {
+      const currentFile = deck.files[fileIndex];
+      const editorValue = monacoEditor ? monacoEditor.getValue() : null;
+      if (isFileAlreadyLoaded({
+        currentFile,
+        requestedFileId: fileId,
+        editorValue,
+      })) {
+        return;
+      }
+
+      loadFile(nextIndex);
+      return;
+    }
+
     saveCurrentFile();
     loadFile(nextIndex);
   }
