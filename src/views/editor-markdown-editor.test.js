@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { applyMarkdownEnter, autoClosePair, getListContinuation } from './editor-markdown-editor.js';
+import { applyMarkdownEnter, autoClosePair, getAssetImageTriggerMatch, getListContinuation } from './editor-markdown-editor.js';
 
 describe('editor markdown helpers', () => {
   test('continues common markdown list markers', () => {
@@ -41,5 +41,31 @@ describe('editor markdown helpers', () => {
       changes: { from: 0, to: 5, insert: '(hello)' },
       selection: { anchor: 1, head: 6 },
     });
+  });
+
+  test('suggests image assets inside markdown image urls', () => {
+    const match = getAssetImageTriggerMatch(
+      '![hoge](asset://dia',
+      '![hoge](asset://dia'.length,
+      [
+        { path: 'diagram.png', mimeType: 'image/png', exists: true },
+        { path: 'notes.txt', mimeType: 'text/plain', exists: true },
+        { path: 'diagram.svg', mimeType: 'image/svg+xml', exists: true },
+      ],
+    );
+
+    expect(match).toMatchObject({
+      from: '![hoge](asset://'.length,
+      options: [
+        { label: 'diagram.png', apply: 'asset://diagram.png' },
+        { label: 'diagram.svg', apply: 'asset://diagram.svg' },
+      ],
+    });
+  });
+
+  test('does not suggest assets outside markdown image syntax', () => {
+    expect(getAssetImageTriggerMatch('[link](asset://dia)', '[link](asset://dia)'.length, [
+      { path: 'diagram.png', mimeType: 'image/png', exists: true },
+    ])).toBeNull();
   });
 });

@@ -16,9 +16,7 @@ import {
   parseHighlightLinesInput as parseHighlightInputText,
   resolveDeckFile,
   resolveUniqueFilePath,
-  sanitizeRelativeFilePath,
   syncSlideFileReference,
-  validateRelativeFilePath,
 } from '../core/deck-utils.js';
 import { MarkdownPane } from '../panes/markdown.js';
 import {
@@ -31,6 +29,7 @@ import { initEditorDeckSettings } from './editor-deck-settings.js';
 import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
 import { isFileAlreadyLoaded } from './editor-file-selection.js';
+import { getEditorFileValidationState } from './editor-file-validation.js';
 import { createMarkdownEditor } from './editor-markdown-editor.js';
 import { initEditorPreferencesModal } from './editor-preferences-modal.js';
 import { reconcileDeckAfterSave } from './editor-save-state.js';
@@ -234,11 +233,13 @@ export function initEditor(router) {
   function validateCurrentFileName() {
     const file = deck?.files?.[fileIndex];
     const rawName = document.getElementById('editorFileName')?.value || '';
-    const message = validateRelativeFilePath(rawName, deck?.files || [], file?.id || '');
-    const normalizedName = sanitizeRelativeFilePath(rawName, file?.name || 'file.txt');
-    fileValidationState = { message, normalizedName };
-    setFileNameError(message);
-    return !message;
+    fileValidationState = getEditorFileValidationState({
+      currentFile: file || null,
+      rawName,
+      files: deck?.files || [],
+    });
+    setFileNameError(fileValidationState.message);
+    return !fileValidationState.message;
   }
 
   function syncEditorAfterDeckNormalization(preferredFileId = '', preferredSlideIndex = slideIndex) {
@@ -1044,6 +1045,7 @@ export function initEditor(router) {
     markdownEditor = createMarkdownEditor({
       parent: document.getElementById('editorMarkdown'),
       placeholderText: 'マークダウンで解説を入力...',
+      getAssetSuggestions: () => deck?.assets || [],
       onChange: (value) => {
         debouncedMarkdownChange(value);
       },

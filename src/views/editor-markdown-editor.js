@@ -8,6 +8,39 @@ import {
 } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
 import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from '@codemirror/commands';
+import { autocompletion } from '@codemirror/autocomplete';
+
+export function getAssetImageTriggerMatch(text, cursor, assets = []) {
+  const safeText = typeof text === 'string' ? text : '';
+  const safeCursor = Number.isFinite(cursor) ? Math.max(0, Math.min(cursor, safeText.length)) : safeText.length;
+  const beforeCursor = safeText.slice(0, safeCursor);
+  const lineStart = beforeCursor.lastIndexOf('\n') + 1;
+  const activeLine = beforeCursor.slice(lineStart);
+  const match = activeLine.match(/!\[[^\]]*\]\((?:asset:\/\/)?([^)]*)$/);
+  if (!match) return null;
+
+  const rawQuery = match[1] || '';
+  const normalizedQuery = rawQuery;
+  const imageAssets = (Array.isArray(assets) ? assets : [])
+    .filter((asset) => asset?.path && asset.exists !== false)
+    .filter((asset) => String(asset.mimeType || '').toLowerCase().startsWith('image/'));
+
+  const options = imageAssets
+    .filter((asset) => !normalizedQuery || asset.path.toLowerCase().includes(normalizedQuery.toLowerCase()))
+    .map((asset) => ({
+      label: asset.path,
+      type: 'text',
+      detail: asset.mimeType || 'image',
+      apply: `asset://${asset.path}`,
+    }));
+
+  if (!options.length) return null;
+
+  return {
+    from: safeCursor - rawQuery.length,
+    options,
+  };
+}
 
 function isListMarker(text) {
   return /^(?:[-*+]\s+|\d+[.)]\s+|>\s+|- \[[ xX]\]\s+)/.test(text);
@@ -176,6 +209,7 @@ export function createMarkdownEditor({
   parent,
   initialValue = '',
   placeholderText = '',
+  getAssetSuggestions,
   onChange,
 } = {}) {
   let applyingExternalValue = false;
@@ -190,6 +224,25 @@ export function createMarkdownEditor({
         highlightActiveLine(),
         markdown(),
         placeholder(placeholderText),
+        autocompletion({
+          activateOnTyping: true,
+          override: [
+            (context) => {
+              const match = getAssetImageTriggerMatch(
+                context.state.doc.toString(),
+                context.pos,
+                typeof getAssetSuggestions === 'function' ? getAssetSuggestions() : [],
+              );
+              if (!match) return null;
+
+              return {
+                from: match.from,
+                options: match.options,
+                filter: false,
+              };
+            },
+          ],
+        }),
         Prec.high(keymap.of(buildMarkdownKeymap())),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         EditorView.lineWrapping,
@@ -242,6 +295,42 @@ export function createMarkdownEditor({
           '.cm-placeholder': {
             color: 'var(--text-tertiary)',
             fontStyle: 'normal',
+          },
+          '.cm-tooltip': {
+            border: '1px solid var(--border-default)',
+            borderRadius: '10px',
+            backgroundColor: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            boxShadow: '0 18px 40px rgba(0, 0, 0, 0.32)',
+            overflow: 'hidden',
+          },
+          '.cm-tooltip-autocomplete > ul': {
+            fontFamily: 'var(--font-mono)',
+            backgroundColor: 'var(--bg-elevated)',
+            color: 'var(--text-primary)',
+            padding: '6px',
+          },
+          '.cm-tooltip-autocomplete > ul > li': {
+            color: 'var(--text-secondary)',
+            borderRadius: '8px',
+          },
+          '.cm-tooltip-autocomplete > ul > li[aria-selected]': {
+            backgroundColor: 'rgba(183, 255, 26, 0.16)',
+            color: 'var(--text-primary)',
+          },
+          '.cm-tooltip-autocomplete > ul > li[aria-selected] .cm-completionDetail': {
+            color: 'var(--text-secondary)',
+          },
+          '.cm-completionLabel': {
+            color: 'inherit',
+          },
+          '.cm-completionDetail': {
+            color: 'var(--text-tertiary)',
+          },
+          '.cm-completionMatchedText': {
+            color: 'var(--accent-primary)',
+            textDecoration: 'none',
+            fontWeight: '700',
           },
         }),
         EditorView.updateListener.of((update) => {
