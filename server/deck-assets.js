@@ -20,6 +20,12 @@ const ALLOWED_ASSET_MIME_TYPES = new Set([
     'application/json',
 ]);
 
+const ASSET_KIND_BY_MIME_TYPE = new Map([
+    ['application/pdf', 'document'],
+    ['application/json', 'data'],
+    ['text/plain', 'text'],
+]);
+
 function guessMimeTypeFromPath(assetPath) {
     const ext = path.extname(assetPath).toLowerCase();
     if (ext === '.png') return 'image/png';
@@ -32,6 +38,13 @@ function guessMimeTypeFromPath(assetPath) {
     if (ext === '.txt') return 'text/plain';
     if (ext === '.json') return 'application/json';
     return 'application/octet-stream';
+}
+
+export function inferAssetKind(mimeType) {
+    if (typeof mimeType !== 'string') return 'file';
+    const normalized = mimeType.trim().toLowerCase();
+    if (normalized.startsWith('image/')) return 'image';
+    return ASSET_KIND_BY_MIME_TYPE.get(normalized) || 'file';
 }
 
 function copyDirectoryRecursive(sourceDir, targetDir) {
@@ -138,7 +151,7 @@ export function upsertDeckAsset(storage, deckId, payload = {}) {
     assertSupportedAsset(assetPath, mimeType, buffer);
 
     const absolutePath = storage.getAssetAbsolutePath(deckId, assetPath);
-    const kind = normalizeNonEmptyString(input.kind, mimeType.startsWith('image/') ? 'image' : 'file');
+    const kind = inferAssetKind(mimeType);
     const size = buffer.length;
 
     const persistedAssets = (existing.assets || [])

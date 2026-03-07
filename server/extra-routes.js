@@ -16,6 +16,11 @@ function asQueryString(value) {
     return typeof value === 'string' ? value : '';
 }
 
+function asBooleanFlag(value) {
+    const normalized = asQueryString(value).trim().toLowerCase();
+    return normalized === '1' || normalized === 'true' || normalized === 'yes';
+}
+
 function headerSafeFilename(value, fallback = 'asset.bin') {
     const compact = String(value || '')
         .trim()
@@ -40,6 +45,14 @@ function createContentDisposition(dispositionType, filename, fallback = 'downloa
     const asciiFilename = headerAsciiFilename(safeFilename, fallback);
     const encodedFilename = encodeHeaderFilename(safeFilename);
     return `${dispositionType}; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`;
+}
+
+function shouldServeAssetInline(asset) {
+    const mimeType = typeof asset?.mimeType === 'string' ? asset.mimeType.toLowerCase() : '';
+    if (!mimeType) return false;
+    if (mimeType === 'image/svg+xml') return false;
+    if (mimeType.startsWith('image/')) return true;
+    return mimeType === 'application/pdf' || mimeType === 'text/plain';
 }
 
 const CREATE_DECK_FROM_TEMPLATE_ERROR_RULES = [
@@ -204,11 +217,13 @@ export function registerExtraRoutes(app, getContext) {
 
         const { storage } = getContext();
         const asset = storage.readAsset(req.params.id, requestedPath);
+        const forceDownload = asBooleanFlag(req.query.download);
+        const dispositionType = forceDownload || !shouldServeAssetInline(asset) ? 'attachment' : 'inline';
         res.setHeader('Content-Type', asset.mimeType || 'application/octet-stream');
         res.setHeader('Cache-Control', 'no-store');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-        res.setHeader('Content-Disposition', createContentDisposition('inline', asset.path, 'asset.bin'));
+        res.setHeader('Content-Disposition', createContentDisposition(dispositionType, asset.path, 'asset.bin'));
         if (asset.mimeType === 'image/svg+xml') {
             res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox");
         }

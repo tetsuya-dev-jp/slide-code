@@ -813,9 +813,10 @@
         <div class="modal-field">
           <label>アップロード</label>
           <div class="editor-inline-actions">
-            <button type="button" class="btn btn-secondary" id="editorAssetsUploadBtn">画像を追加</button>
+            <button type="button" class="btn btn-secondary" id="editorAssetsUploadBtn">素材を追加</button>
           </div>
-          <input type="file" id="editorAssetsFileInput" accept="image/*" hidden />
+          <p class="modal-hint">PNG / JPEG / GIF / WebP / AVIF / PDF / TXT / JSON を追加できます</p>
+          <input type="file" id="editorAssetsFileInput" accept=".png,.jpg,.jpeg,.gif,.webp,.avif,.pdf,.txt,.json,application/pdf,text/plain,application/json,image/png,image/jpeg,image/gif,image/webp,image/avif" hidden />
         </div>
         <div class="modal-field">
           <label>素材一覧</label>

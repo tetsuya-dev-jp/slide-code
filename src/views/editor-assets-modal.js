@@ -11,6 +11,44 @@ function arrayBufferToBase64(arrayBuffer) {
   return btoa(binary);
 }
 
+function formatAssetSize(size) {
+  const bytes = Number.parseInt(size, 10);
+  if (!Number.isFinite(bytes) || bytes < 1024) {
+    return `${Math.max(bytes || 0, 0)} B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)} KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getAssetKindLabel(asset) {
+  const kind = typeof asset?.kind === 'string' ? asset.kind : 'file';
+  if (kind === 'image') return '画像';
+  if (kind === 'document') return '文書';
+  if (kind === 'text') return 'テキスト';
+  if (kind === 'data') return 'データ';
+  return 'ファイル';
+}
+
+function isPreviewableAsset(asset) {
+  const mimeType = typeof asset?.mimeType === 'string' ? asset.mimeType.toLowerCase() : '';
+  return mimeType.startsWith('image/') && mimeType !== 'image/svg+xml';
+}
+
+function escapeHtml(value) {
+  return String(value || '').replace(/[&<>"]/g, (char) => {
+    if (char === '&') return '&amp;';
+    if (char === '<') return '&lt;';
+    if (char === '>') return '&gt;';
+    return '&quot;';
+  });
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value);
+}
+
 export function initEditorAssetsModal({
   api,
   showToast,
@@ -73,6 +111,7 @@ export function initEditorAssetsModal({
 
   function renderAssetsList() {
     const assets = Array.isArray(getAssets()) ? getAssets() : [];
+    const deckId = getDeckId();
     if (!assets.length) {
       listEl.innerHTML = '<p class="modal-hint">素材はまだありません</p>';
       renderBrokenReferenceText();
@@ -81,10 +120,20 @@ export function initEditorAssetsModal({
 
     listEl.innerHTML = assets.map((asset) => `
       <div class="editor-assets-item">
-        <span class="editor-assets-item-path">${asset.path}</span>
+        <div class="editor-assets-item-main">
+          <div class="editor-assets-item-header">
+            <span class="editor-assets-item-path">${escapeHtml(asset.path)}</span>
+            <span class="editor-assets-item-kind">${escapeHtml(getAssetKindLabel(asset))}</span>
+          </div>
+          <div class="editor-assets-item-meta">${escapeHtml(formatAssetSize(asset.size))} / ${escapeHtml(asset.mimeType || 'application/octet-stream')}${asset.mimeType === 'image/svg+xml' ? ' / SVG はダウンロードのみ' : ''}</div>
+          ${deckId && isPreviewableAsset(asset)
+            ? `<div class="editor-assets-item-preview"><img src="${escapeAttribute(api.getDeckAssetUrl(deckId, asset.path))}" alt="${escapeAttribute(asset.path)}" loading="lazy" /></div>`
+            : ''}
+        </div>
         <div class="editor-assets-item-actions">
-          <button class="editor-inline-action" data-insert-asset="${asset.path}" type="button">挿入</button>
-          <button class="editor-inline-action" data-delete-asset="${asset.path}" type="button">削除</button>
+          <button class="editor-inline-action" data-insert-asset="${escapeAttribute(asset.path)}" type="button">挿入</button>
+          ${deckId ? `<a class="editor-inline-action" href="${escapeAttribute(api.getDeckAssetUrl(deckId, asset.path, { download: true }))}" download>保存</a>` : ''}
+          <button class="editor-inline-action" data-delete-asset="${escapeAttribute(asset.path)}" type="button">削除</button>
         </div>
       </div>
     `).join('');
@@ -176,7 +225,6 @@ export function initEditorAssetsModal({
         const payload = await api.uploadDeckAsset(deckId, {
           name: file.name,
           mimeType: file.type || 'application/octet-stream',
-          kind: 'image',
           contentBase64,
         });
         const nextAssets = Array.isArray(payload?.assets) ? payload.assets : [];

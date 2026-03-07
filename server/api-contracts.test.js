@@ -150,4 +150,66 @@ describe('API contracts', () => {
       },
     ]);
   });
+
+  test('asset file responses use inline only for safe preview types', async () => {
+    const storage = {
+      readAsset(_deckId, assetPath) {
+        if (assetPath === 'diagram.png') {
+          return {
+            path: 'diagram.png',
+            mimeType: 'image/png',
+            buffer: Buffer.from('png'),
+            kind: 'image',
+          };
+        }
+
+        if (assetPath === 'data.json') {
+          return {
+            path: 'data.json',
+            mimeType: 'application/json',
+            buffer: Buffer.from('{"ok":true}'),
+            kind: 'data',
+          };
+        }
+
+        if (assetPath === 'legacy.svg') {
+          return {
+            path: 'legacy.svg',
+            mimeType: 'image/svg+xml',
+            buffer: Buffer.from('<svg />'),
+            kind: 'image',
+          };
+        }
+
+        throw new Error('asset-not-found');
+      },
+    };
+
+    const baseUrl = await startServer({
+      runtimeConfig: {
+        decksDir: '/tmp/decks',
+        templatesDir: '/tmp/templates',
+        sharedTemplatesDir: '',
+        terminal: { baseCwd: '/tmp', shell: '/bin/bash' },
+      },
+      storage,
+    });
+
+    const imageRes = await fetch(`${baseUrl}/api/decks/demo/assets/file?path=diagram.png`);
+    expect(imageRes.status).toBe(200);
+    expect(imageRes.headers.get('content-disposition')).toContain('inline;');
+
+    const jsonRes = await fetch(`${baseUrl}/api/decks/demo/assets/file?path=data.json`);
+    expect(jsonRes.status).toBe(200);
+    expect(jsonRes.headers.get('content-disposition')).toContain('attachment;');
+
+    const forcedDownloadRes = await fetch(`${baseUrl}/api/decks/demo/assets/file?path=diagram.png&download=1`);
+    expect(forcedDownloadRes.status).toBe(200);
+    expect(forcedDownloadRes.headers.get('content-disposition')).toContain('attachment;');
+
+    const svgRes = await fetch(`${baseUrl}/api/decks/demo/assets/file?path=legacy.svg`);
+    expect(svgRes.status).toBe(200);
+    expect(svgRes.headers.get('content-disposition')).toContain('attachment;');
+    expect(svgRes.headers.get('content-security-policy')).toContain('sandbox');
+  });
 });

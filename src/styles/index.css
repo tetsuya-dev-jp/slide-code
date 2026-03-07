@@ -2611,15 +2611,27 @@ body.resizing-v {
 
 .editor-assets-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .editor-assets-item:last-child {
   border-bottom: 0;
+}
+
+.editor-assets-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-assets-item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .editor-assets-item-path {
@@ -2629,9 +2641,40 @@ body.resizing-v {
   overflow-wrap: anywhere;
 }
 
+.editor-assets-item-kind {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.editor-assets-item-meta {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  overflow-wrap: anywhere;
+}
+
+.editor-assets-item-preview {
+  margin-top: 8px;
+}
+
+.editor-assets-item-preview img {
+  display: block;
+  max-width: min(240px, 100%);
+  max-height: 120px;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  object-fit: contain;
+}
+
 .editor-assets-item-actions {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
+  flex-wrap: wrap;
   gap: 6px;
 }
 

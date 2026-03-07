@@ -175,9 +175,12 @@ export async function deleteDeckAsset(id, assetPath) {
 }
 
 /** Get resolvable URL for deck asset */
-export function getDeckAssetUrl(id, assetPath) {
+export function getDeckAssetUrl(id, assetPath, { download = false } = {}) {
     const params = new URLSearchParams();
     params.set('path', assetPath);
+    if (download) {
+        params.set('download', '1');
+    }
     return `${BASE}/decks/${id}/assets/file?${params.toString()}`;
 }
 
