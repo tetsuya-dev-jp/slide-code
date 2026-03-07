@@ -8,6 +8,9 @@ import {
   normalizeRelativeDirectory,
   parseHighlightLinesInput,
   resolveDeckFile,
+  resolveUniqueFilePath,
+  sanitizeRelativeFilePath,
+  validateRelativeFilePath,
 } from './deck-utils.js';
 
 describe('deck-utils', () => {
@@ -69,5 +72,22 @@ describe('deck-utils', () => {
   test('normalizeRelativeDirectory strips traversal and leading slashes', () => {
     expect(normalizeRelativeDirectory('/foo/./bar/../baz')).toBe('foo/bar/baz');
     expect(normalizeRelativeDirectory('')).toBe('');
+  });
+
+  test('validateRelativeFilePath rejects empty, invalid, and duplicate names', () => {
+    const files = [{ id: 'file-1', name: 'main.py' }];
+
+    expect(validateRelativeFilePath('', files, '')).toBe('ファイル名を入力してください');
+    expect(validateRelativeFilePath('../secret.py', files, '')).toBe('ファイル名に . や .. は使えません');
+    expect(validateRelativeFilePath('bad:name.py', files, '')).toBe('ファイル名に使えない文字が含まれています');
+    expect(validateRelativeFilePath('main.py', files, '')).toBe('同名のファイルが既に存在します');
+    expect(validateRelativeFilePath('main.py', files, 'file-1')).toBe('');
+  });
+
+  test('sanitizeRelativeFilePath and resolveUniqueFilePath keep names safe and unique', () => {
+    const files = [{ id: 'file-1', name: 'src/main.py' }];
+
+    expect(sanitizeRelativeFilePath('../src/bad:name.py', 'file.txt')).toBe('src/bad_name.py');
+    expect(resolveUniqueFilePath('src/main.py', files, 'file.txt')).toBe('src/main-2.py');
   });
 });

@@ -317,3 +317,30 @@ test('presentation で slide jump と shell actions を使える', async ({ page
 
   await expect(page.locator('#shellStatus')).toContainText(/接続|切断|エラー/);
 });
+
+test('editor は duplicate filename を即時バリデーションする', async ({ page }) => {
+  await createDeck(page, 'Duplicate File Validation');
+
+  await page.locator('#addFileBtn').click();
+  await expect(page.locator('.editor-file-tab')).toHaveCount(2);
+
+  await page.locator('#editorFileName').fill('main.py');
+  await expect(page.locator('#editorFileNameError')).toHaveText('同名のファイルが既に存在します');
+
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存エラー');
+  await expect(page.locator('#editorFileName')).toBeFocused();
+});
+
+test('editor は save 後に正規化された file name を再同期する', async ({ page }) => {
+  await createDeck(page, 'Normalized File Name');
+
+  await page.locator('#editorFileName').fill('src\\demo.py');
+  await page.locator('#editorSlideTitle').click();
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await expect(page.locator('#editorFileName')).toHaveValue('src/demo.py');
+  await expect(page.locator('.editor-file-tab').first()).toContainText('src/demo.py');
+  await expect(page.locator('#editorFileRef')).toHaveValue(/file-/);
+});

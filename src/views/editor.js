@@ -15,7 +15,10 @@ import {
   normalizeRelativeDirectory as normalizeDeckRelativeDirectory,
   parseHighlightLinesInput as parseHighlightInputText,
   resolveDeckFile,
+  resolveUniqueFilePath,
+  sanitizeRelativeFilePath,
   syncSlideFileReference,
+  validateRelativeFilePath,
 } from '../core/deck-utils.js';
 import { MarkdownPane } from '../panes/markdown.js';
 import {
@@ -112,6 +115,7 @@ export function initEditor(router) {
   let deckSettingsController = null;
   let assetsModal = null;
   let editorPreferencesModal = null;
+  let fileValidationState = { message: '', normalizedName: '' };
 
   // --- Dirty state ---
 
@@ -209,6 +213,41 @@ export function initEditor(router) {
       slideIndex,
       fileId: deck?.files?.[fileIndex]?.id || '',
     });
+  }
+
+  function setFileNameError(message = '') {
+    fileValidationState.message = message;
+    const input = document.getElementById('editorFileName');
+    const errorEl = document.getElementById('editorFileNameError');
+    input?.classList.toggle('input-error', Boolean(message));
+    if (errorEl) {
+      errorEl.hidden = !message;
+      errorEl.textContent = message;
+    }
+  }
+
+  function validateCurrentFileName() {
+    const file = deck?.files?.[fileIndex];
+    const rawName = document.getElementById('editorFileName')?.value || '';
+    const message = validateRelativeFilePath(rawName, deck?.files || [], file?.id || '');
+    const normalizedName = sanitizeRelativeFilePath(rawName, file?.name || 'file.txt');
+    fileValidationState = { message, normalizedName };
+    setFileNameError(message);
+    return !message;
+  }
+
+  function syncEditorAfterDeckNormalization(preferredFileId = '', preferredSlideIndex = slideIndex) {
+    ensureDeckShape(deck);
+    const nextSlideIndex = Math.min(Math.max(preferredSlideIndex, 0), Math.max(deck.slides.length - 1, 0));
+    const nextFileId = preferredFileId || deck.files[0]?.id || '';
+    renderFileTabs();
+    renderSlideList();
+    loadSlide(nextSlideIndex);
+    if (nextFileId) {
+      loadFileById(nextFileId);
+    }
+    updateFileRefOptions();
+    assetsModal?.refreshBrokenReferences();
   }
 
   function confirmLeave({ from, to } = {}) {
@@ -320,6 +359,7 @@ export function initEditor(router) {
     document.querySelectorAll('.editor-file-tab').forEach(tab => {
       tab.classList.remove('active');
     });
+    setFileNameError('');
     loading = false;
     persistEditorViewState();
   }
@@ -632,6 +672,7 @@ export function initEditor(router) {
 
     document.getElementById('editorFileName').value = file.name || '';
     document.getElementById('editorFileLang').value = file.language || '';
+    setFileNameError('');
 
     if (monacoEditor) {
       monacoEditor.updateOptions({ readOnly: false });
@@ -649,9 +690,11 @@ export function initEditor(router) {
 
   function saveCurrentFile() {
     if (!deck || !deck.files[fileIndex]) return;
+    if (!validateCurrentFileName()) return;
     const file = deck.files[fileIndex];
     const oldName = file.name;
-    file.name = document.getElementById('editorFileName').value || '無名';
+    file.name = fileValidationState.normalizedName || file.name || 'file.txt';
+    document.getElementById('editorFileName').value = file.name;
     file.language = document.getElementById('editorFileLang').value || 'python';
     file.code = monacoEditor ? monacoEditor.getValue() : '';
 
@@ -894,18 +937,24 @@ export function initEditor(router) {
 
   async function persistDeckToServer() {
     if (!deck) throw new Error('deck-not-loaded');
+    if (!validateCurrentFileName()) {
+      throw Object.assign(new Error('invalid-file-name'), { status: 400 });
+    }
 
     saveCurrentSlide();
     saveCurrentFile();
     applyDeckMetaFromForm();
 
     const currentDeckId = persistedDeckId || deck.id;
+    const preferredSlideIndex = slideIndex;
+    const preferredFileId = deck.files[fileIndex]?.id || '';
     const saved = await api.updateDeck(currentDeckId, deck);
     const renamed = saved.id !== currentDeckId;
     deck = saved;
     persistedDeckId = saved.id;
 
     setEditorDeckName(deck.title);
+    syncEditorAfterDeckNormalization(preferredFileId, preferredSlideIndex);
 
     if (renamed) {
       replaceHash(`/deck/${deck.id}/edit`);
@@ -924,6 +973,12 @@ export function initEditor(router) {
   }
 
   function handlePersistDeckError(err, fallbackMessage) {
+    if (err?.message === 'invalid-file-name') {
+      showToast(fileValidationState.message || 'ファイル名を確認してください');
+      document.getElementById('editorFileName')?.focus();
+      return;
+    }
+
     if (err?.status === 409) {
       focusDeckFolderSettingWithError('そのフォルダ名は既に使用されています');
       return;
@@ -1003,7 +1058,7 @@ export function initEditor(router) {
       saveCurrentFile();
       const newFile = {
         ...createDefaultFile(deck.files.length),
-        name: `file${deck.files.length + 1}.py`,
+        name: resolveUniqueFilePath(`file${deck.files.length + 1}.py`, deck.files, `file${deck.files.length + 1}.py`),
         language: 'python',
       };
       deck.files.push(newFile);
@@ -1025,7 +1080,12 @@ export function initEditor(router) {
         const code = await file.text();
         const language = detectLanguage(file.name);
         const nextFile = createDefaultFile(deck.files.length);
-        deck.files.push({ ...nextFile, name: file.name, language, code });
+        deck.files.push({
+          ...nextFile,
+          name: resolveUniqueFilePath(file.name, deck.files, nextFile.name),
+          language,
+          code,
+        });
       }
       fileIndex = deck.files.length - 1;
       renderFileTabs();
@@ -1060,6 +1120,7 @@ export function initEditor(router) {
     });
 
     document.getElementById('editorFileName').addEventListener('change', () => {
+      if (!validateCurrentFileName()) return;
       saveCurrentFile();
       renderFileTabs();
       renderSlideList();
@@ -1120,7 +1181,10 @@ export function initEditor(router) {
       removeHighlightRange(start, end);
     });
     document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
-    document.getElementById('editorFileName').addEventListener('input', () => markDirty());
+    document.getElementById('editorFileName').addEventListener('input', () => {
+      validateCurrentFileName();
+      markDirty();
+    });
     document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
 
     // Add slide
@@ -1355,13 +1419,7 @@ export function initEditor(router) {
         : 0;
 
       initMonaco();
-      renderFileTabs();
-      renderSlideList();
-      loadSlide(restoredSlideIndex);
-      if (restoredState?.fileId) {
-        loadFileById(restoredState.fileId);
-      }
-      assetsModal?.refreshBrokenReferences();
+      syncEditorAfterDeckNormalization(restoredState?.fileId || '', restoredSlideIndex);
       clearDirty();
       changeVersion = 0;
       setSaveStatus('saved');

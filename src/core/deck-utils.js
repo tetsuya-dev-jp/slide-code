@@ -1,4 +1,5 @@
 export const DECK_FOLDER_PATTERN = /^[a-zA-Z0-9_-]+$/;
+const INVALID_FILE_PATH_CHARS = /[<>:"|?*\x00-\x1F]/;
 
 function createOpaqueId(prefix = 'id') {
   if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -220,6 +221,76 @@ export function normalizeRelativeDirectory(rawValue) {
     .filter(segment => segment !== '.' && segment !== '..');
 
   return segments.join('/');
+}
+
+export function sanitizeRelativeFilePath(rawValue, fallbackPath = 'file.txt') {
+  if (typeof rawValue !== 'string') return fallbackPath;
+
+  const segments = rawValue
+    .trim()
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '')
+    .split('/')
+    .map(segment => segment.trim())
+    .filter(Boolean)
+    .filter(segment => segment !== '.' && segment !== '..')
+    .map(segment => segment.replace(INVALID_FILE_PATH_CHARS, '_'));
+
+  return segments.length ? segments.join('/') : fallbackPath;
+}
+
+export function validateRelativeFilePath(rawValue, files = [], currentFileId = '') {
+  if (typeof rawValue !== 'string' || !rawValue.trim()) {
+    return 'ファイル名を入力してください';
+  }
+
+  const normalized = rawValue.trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  const segments = normalized.split('/').map(segment => segment.trim()).filter(Boolean);
+  if (!segments.length) {
+    return 'ファイル名を入力してください';
+  }
+
+  if (segments.some(segment => segment === '.' || segment === '..')) {
+    return 'ファイル名に . や .. は使えません';
+  }
+
+  if (segments.some(segment => INVALID_FILE_PATH_CHARS.test(segment))) {
+    return 'ファイル名に使えない文字が含まれています';
+  }
+
+  const nextName = segments.join('/');
+  const hasDuplicate = files.some((file) => file?.id !== currentFileId && file?.name === nextName);
+  if (hasDuplicate) {
+    return '同名のファイルが既に存在します';
+  }
+
+  return '';
+}
+
+export function resolveUniqueFilePath(rawValue, files = [], fallbackPath = 'file.txt') {
+  const usedNames = new Set((files || []).map(file => file?.name).filter(Boolean));
+  const normalized = sanitizeRelativeFilePath(rawValue, fallbackPath);
+  if (!usedNames.has(normalized)) {
+    return normalized;
+  }
+
+  const slashIndex = normalized.lastIndexOf('/');
+  const directory = slashIndex >= 0 ? normalized.slice(0, slashIndex) : '';
+  const fileName = slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
+  const extensionIndex = fileName.lastIndexOf('.');
+  const hasExtension = extensionIndex > 0;
+  const stem = hasExtension ? fileName.slice(0, extensionIndex) : fileName;
+  const extension = hasExtension ? fileName.slice(extensionIndex) : '';
+
+  let index = 2;
+  while (true) {
+    const candidateFileName = `${stem}-${index}${extension}`;
+    const candidate = directory ? `${directory}/${candidateFileName}` : candidateFileName;
+    if (!usedNames.has(candidate)) {
+      return candidate;
+    }
+    index += 1;
+  }
 }
 
 export function formatRelativeDirectoryDisplay(relativePath) {
