@@ -78,10 +78,18 @@ export function initEditorAssetsModal({
 
   let triggerEl = null;
 
+  function getKnownAssetPaths() {
+    const assets = Array.isArray(getAssets()) ? getAssets() : [];
+    return new Set(
+      assets
+        .filter(asset => asset?.path && asset.exists !== false)
+        .map(asset => asset.path),
+    );
+  }
+
   function getBrokenReferences() {
     const slides = Array.isArray(getSlides()) ? getSlides() : [];
-    const assets = Array.isArray(getAssets()) ? getAssets() : [];
-    const existing = new Set(assets.filter(asset => asset?.exists).map(asset => asset.path));
+    const existing = getKnownAssetPaths();
     const broken = new Set();
 
     slides.forEach((slide) => {
@@ -97,16 +105,20 @@ export function initEditorAssetsModal({
     const brokenRefs = getBrokenReferences();
     if (!brokenRefs.length) {
       brokenRefsEl.textContent = '参照切れはありません';
+      brokenRefsEl.dataset.state = 'ok';
       inlineWarningEl.hidden = true;
       inlineWarningEl.textContent = '';
+      inlineWarningEl.dataset.state = 'ok';
       return;
     }
 
     const displayText = brokenRefs.slice(0, 3).map(ref => `asset://${ref}`).join(', ');
     const suffix = brokenRefs.length > 3 ? ` ほか${brokenRefs.length - 3}件` : '';
     brokenRefsEl.textContent = `参照切れ: ${displayText}${suffix}`;
+    brokenRefsEl.dataset.state = 'warning';
     inlineWarningEl.hidden = false;
-    inlineWarningEl.textContent = `参照切れがあります: ${displayText}${suffix}`;
+    inlineWarningEl.dataset.state = 'warning';
+    inlineWarningEl.textContent = `参照切れの素材が ${brokenRefs.length} 件あります。素材管理から確認してください。`;
   }
 
   function renderAssetsList() {

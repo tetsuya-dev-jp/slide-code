@@ -2413,6 +2413,7 @@ body.resizing-v {
 .editor-markdown-input-field {
   display: flex;
   flex-direction: column;
+  gap: 8px;
 }
 
 .editor-markdown-resizer {
@@ -2598,7 +2599,19 @@ body.resizing-v {
 .editor-asset-warning {
   margin: 0;
   font-size: 12px;
-  color: var(--accent-danger);
+  line-height: 1.5;
+  padding: 8px 10px;
+  border-left: 3px solid var(--border-default);
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.editor-asset-warning[data-state="warning"] {
+  border-left-color: var(--accent-danger);
+  background: rgba(239, 68, 68, 0.12);
+  color: #ff8d8d;
 }
 
 .editor-assets-list {

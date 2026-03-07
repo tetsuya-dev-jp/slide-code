@@ -8,13 +8,13 @@ function flush() {
 function buildDom() {
   document.body.innerHTML = `
     <button id="editorAssetsBtn" type="button">assets</button>
+    <p id="editorAssetWarning" hidden></p>
     <div id="editorAssetsModal" hidden>
       <button id="editorAssetsClose" type="button">close</button>
       <button id="editorAssetsUploadBtn" type="button">upload</button>
       <input id="editorAssetsFileInput" type="file" />
       <div id="editorAssetsList"></div>
       <p id="editorAssetsBrokenRefs"></p>
-      <p id="editorAssetWarning"></p>
     </div>
   `;
 }
@@ -111,5 +111,64 @@ describe('editor assets modal', () => {
     expect(payload.kind).toBeUndefined();
     expect(payload.contentBase64).toBeTruthy();
     expect(setAssets).toHaveBeenCalledWith([]);
+  });
+
+  test('treats assets without exists flag as available for broken reference checks', () => {
+    const assets = [
+      { path: 'images/overview.svg', mimeType: 'image/svg+xml', kind: 'image', size: 128 },
+      { path: 'out-of-control.jpg', mimeType: 'image/jpeg', kind: 'image', size: 1536 },
+    ];
+
+    const controller = initEditorAssetsModal({
+      api: {
+        listDeckAssets: vi.fn(),
+        deleteDeckAsset: vi.fn(),
+        uploadDeckAsset: vi.fn(),
+        getDeckAssetUrl: vi.fn(() => '/asset'),
+      },
+      showToast: vi.fn(),
+      trapFocusInModal: vi.fn(),
+      restoreFocus: vi.fn(),
+      getDeckId: () => 'deck-1',
+      getSlides: () => [{ markdown: '![構成図](asset://images/overview.svg)\n![hello](asset://out-of-control.jpg)' }],
+      getAssets: () => assets,
+      setAssets: vi.fn(),
+      insertAssetReference: vi.fn(),
+    });
+
+    controller.refreshBrokenReferences();
+
+    expect(document.getElementById('editorAssetsBrokenRefs').textContent).toBe('参照切れはありません');
+    expect(document.getElementById('editorAssetsBrokenRefs').dataset.state).toBe('ok');
+    expect(document.getElementById('editorAssetWarning').hidden).toBe(true);
+  });
+
+  test('shows concise inline warning only for actually missing assets', () => {
+    const controller = initEditorAssetsModal({
+      api: {
+        listDeckAssets: vi.fn(),
+        deleteDeckAsset: vi.fn(),
+        uploadDeckAsset: vi.fn(),
+        getDeckAssetUrl: vi.fn(() => '/asset'),
+      },
+      showToast: vi.fn(),
+      trapFocusInModal: vi.fn(),
+      restoreFocus: vi.fn(),
+      getDeckId: () => 'deck-1',
+      getSlides: () => [{ markdown: '![構成図](asset://images/overview.svg)\n![hello](asset://missing.jpg)' }],
+      getAssets: () => [
+        { path: 'images/overview.svg', mimeType: 'image/svg+xml', kind: 'image', size: 128, exists: true },
+      ],
+      setAssets: vi.fn(),
+      insertAssetReference: vi.fn(),
+    });
+
+    controller.refreshBrokenReferences();
+
+    expect(document.getElementById('editorAssetsBrokenRefs').textContent).toContain('asset://missing.jpg');
+    expect(document.getElementById('editorAssetsBrokenRefs').textContent).not.toContain('asset://images/overview.svg');
+    expect(document.getElementById('editorAssetsBrokenRefs').dataset.state).toBe('warning');
+    expect(document.getElementById('editorAssetWarning').hidden).toBe(false);
+    expect(document.getElementById('editorAssetWarning').textContent).toBe('参照切れの素材が 1 件あります。素材管理から確認してください。');
   });
 });
