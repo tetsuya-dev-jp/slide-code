@@ -2471,14 +2471,6 @@ body.resizing-v {
   border-color: var(--accent-primary);
 }
 
-.editor-field-hint {
-  margin-top: 2px;
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--text-tertiary);
-  opacity: 0.8;
-}
-
 .editor-summary-row,
 .editor-inline-actions {
   display: flex;
