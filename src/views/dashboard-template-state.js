@@ -35,6 +35,6 @@ export function applyTemplateButtonState(buttonEl, isSaved) {
   );
   const labelEl = buttonEl.querySelector('.deck-card-action-label');
   if (labelEl) {
-    labelEl.textContent = isSaved ? '解除' : '保存';
+    labelEl.textContent = isSaved ? '解除' : 'テンプレ';
   }
 }
