@@ -172,14 +172,33 @@ export function initDashboard(router) {
     const grid = document.getElementById('deckGrid');
     if (!grid) return;
 
-    grid.innerHTML = `
-      <div class="deck-error" role="status" aria-live="polite">
-        <p>${escapeHtml(getRequestErrorMessage('デッキの読み込み', error))}</p>
-        <button class="btn btn-secondary" id="retryDeckLoadBtn" type="button">再読み込み</button>
-      </div>`;
+    grid.innerHTML = renderDeckState({
+      state: 'error',
+      title: 'デッキを読み込めませんでした',
+      description: getRequestErrorMessage('デッキの読み込み', error),
+      actionLabel: '再読み込み',
+      actionClassName: 'btn btn-secondary',
+      actionId: 'retryDeckLoadBtn',
+    });
     grid.querySelector('#retryDeckLoadBtn')?.addEventListener('click', () => {
       show();
     });
+  }
+
+  function renderDeckState({ state, title, description, actionLabel = '', actionClassName = 'btn btn-primary', actionId = '' }) {
+    return `
+      <section class="deck-state deck-state-${state}" role="status" aria-live="polite">
+        <div class="deck-state-badge" aria-hidden="true">
+          <span class="deck-state-glyph">${state === 'loading' ? '…' : state === 'error' ? '!' : '+'}</span>
+        </div>
+        <div class="deck-state-copy">
+          <h3 class="deck-state-title">${escapeHtml(title)}</h3>
+          <p class="deck-state-description">${escapeHtml(description)}</p>
+        </div>
+        ${actionLabel && actionId
+          ? `<button class="${escapeHtml(actionClassName)}" id="${escapeHtml(actionId)}" type="button">${escapeHtml(actionLabel)}</button>`
+          : ''}
+      </section>`;
   }
 
   async function loadTemplateOptions() {
@@ -471,11 +490,21 @@ export function initDashboard(router) {
   function renderDeckGrid(decks) {
     const grid = document.getElementById('deckGrid');
     if (decks.length === 0) {
-      grid.innerHTML = `
-        <div class="deck-empty">
-          <p>${allDecks.length === 0 ? 'まだデッキがありません' : '条件に一致するデッキがありません'}</p>
-          <button class="btn btn-primary" id="createFirstDeckBtn">${allDecks.length === 0 ? '最初のデッキを作成' : '新規デッキを作成'}</button>
-        </div>`;
+      grid.innerHTML = allDecks.length === 0
+        ? renderDeckState({
+          state: 'empty',
+          title: 'まだデッキがありません',
+          description: '最初のデッキを作成すると、編集とプレゼンの流れをすぐに始められます。',
+          actionLabel: '最初のデッキを作成',
+          actionId: 'createFirstDeckBtn',
+        })
+        : renderDeckState({
+          state: 'empty',
+          title: '条件に一致するデッキがありません',
+          description: '検索語やフィルタ条件を変えると、別のデッキを表示できます。',
+          actionLabel: '新規デッキを作成',
+          actionId: 'createFirstDeckBtn',
+        });
       grid.querySelector('#createFirstDeckBtn')?.addEventListener('click', () => {
         document.getElementById('newDeckBtn')?.click();
       });
@@ -490,6 +519,7 @@ export function initDashboard(router) {
           <h3 class="deck-card-title" dir="auto">${escapeHtml(deck.title)}</h3>
           <p class="deck-card-desc" dir="auto">${escapeHtml(deck.description || '')}</p>
           <div class="deck-card-meta">
+            <span class="deck-card-id">${escapeHtml(deck.id)}</span>
             <span>${formatCount(deck.slideCount)} スライド</span>
             <span>${formatDate(deck.updatedAt)}</span>
           </div>
@@ -569,7 +599,11 @@ export function initDashboard(router) {
   async function show() {
     const requestId = ++showRequestId;
     const grid = document.getElementById('deckGrid');
-    grid.innerHTML = '<div class="deck-loading">読み込み中...</div>';
+    grid.innerHTML = renderDeckState({
+      state: 'loading',
+      title: 'デッキを読み込み中',
+      description: 'ローカルの deck とテンプレート情報を確認しています。',
+    });
     if (deckSummaryEl) {
       deckSummaryEl.textContent = '';
     }
