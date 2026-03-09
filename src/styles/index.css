@@ -3376,6 +3376,30 @@ body.resizing-v {
 }
 
 @media (max-width: 860px) {
+  .editor-toolbar {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .editor-toolbar-left,
+  .editor-toolbar-right {
+    width: 100%;
+  }
+
+  .editor-toolbar-left {
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .editor-toolbar-right {
+    flex-wrap: wrap;
+  }
+
+  .editor-toolbar-right .btn {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+  }
+
   .editor-container {
     height: auto;
     min-height: calc(100vh - var(--toolbar-height));
@@ -3412,6 +3436,100 @@ body.resizing-v {
 
   .editor-file-code-container {
     min-height: 320px;
+  }
+}
+
+@media (pointer: coarse), (max-width: 768px) {
+  .theme-toggle,
+  .layout-picker-btn,
+  .btn-icon,
+  .action-btn,
+  .layout-mini-btn,
+  .editor-slide-actions .btn-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .nav-btn:not(.nav-btn-text) {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  .nav-btn-text {
+    min-height: 44px;
+    padding: 0 14px;
+  }
+
+  .toggle-btn {
+    min-height: 44px;
+    padding: 10px 12px;
+  }
+
+  .btn {
+    min-height: 44px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+
+  .slide-jump-input,
+  .editor-select,
+  .editor-line-input,
+  .editor-inline-action,
+  .editor-selection-summary {
+    min-height: 44px;
+  }
+
+  .pane-header {
+    min-height: 44px;
+    height: auto;
+    padding-top: 4px;
+    padding-bottom: 4px;
+  }
+
+  .layout-option {
+    min-height: 44px;
+  }
+
+  .pane-order-item {
+    padding: 10px 12px;
+  }
+
+  .pane-actions,
+  .editor-files-actions,
+  .editor-sidebar-header-actions,
+  .editor-slide-actions,
+  .pane-order-actions,
+  .editor-toolbar-right,
+  .editor-inline-actions,
+  .editor-summary-row {
+    gap: 8px;
+  }
+
+  .editor-selection-summary {
+    display: flex;
+    align-items: center;
+  }
+
+  .editor-inline-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+  }
+
+  .editor-summary-row,
+  .editor-inline-actions {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 520px) {
+  .editor-toolbar-right .btn {
+    flex-basis: 100%;
   }
 }
 
