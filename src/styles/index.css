@@ -1513,7 +1513,7 @@ body.resizing-v {
   font-weight: 500;
   font-family: var(--font-sans);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
   white-space: nowrap;
 }
 
@@ -1563,7 +1563,7 @@ body.resizing-v {
   height: 10px;
   background: #f97316;
   border-radius: 50%;
-  border: 2px solid var(--bg-default);
+  border: 2px solid var(--bg-primary);
   box-shadow: 0 0 6px rgba(249, 115, 22, 0.6);
 }
 
@@ -1604,7 +1604,7 @@ body.resizing-v {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
 }
 
 .btn-icon:hover {
@@ -1836,7 +1836,7 @@ body.resizing-v {
   flex-direction: column;
   height: 100%;
   overflow: hidden;
-  cursor: pointer;
+  cursor: default;
   transition: all var(--transition-fast);
   content-visibility: auto;
   contain-intrinsic-size: 240px;
@@ -2185,22 +2185,47 @@ body.resizing-v {
 }
 
 .editor-save-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--bg-secondary);
   font-size: 12px;
   color: var(--text-tertiary);
   white-space: nowrap;
-  transition: color 0.2s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .editor-save-status[data-state="pending"] {
   color: var(--text-secondary);
+  border-color: color-mix(in srgb, var(--border-default) 80%, var(--accent-primary) 20%);
+  background: color-mix(in srgb, var(--bg-secondary) 84%, var(--accent-primary) 16%);
 }
 
 .editor-save-status[data-state="saving"] {
   color: var(--accent-primary);
+  border-color: color-mix(in srgb, var(--accent-primary) 50%, var(--border-default) 50%);
+  background: color-mix(in srgb, var(--bg-secondary) 74%, var(--accent-primary) 26%);
 }
 
 .editor-save-status[data-state="error"] {
   color: var(--accent-danger);
+  border-color: color-mix(in srgb, var(--accent-danger) 45%, var(--border-default) 55%);
+  background: color-mix(in srgb, var(--bg-secondary) 82%, var(--accent-danger) 18%);
+}
+
+[data-theme="light"] .editor-save-status[data-state="pending"] {
+  color: #496611;
+}
+
+[data-theme="light"] .editor-save-status[data-state="saving"] {
+  color: #496611;
+}
+
+[data-theme="light"] .editor-save-status[data-state="error"] {
+  color: #7a3940;
 }
 
 .editor-toolbar-right {
@@ -2585,12 +2610,20 @@ body.resizing-v {
   border-bottom: 2px solid transparent;
   cursor: pointer;
   white-space: nowrap;
-  transition: all 0.15s ease;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .editor-file-tab:hover {
   color: var(--text-primary);
   background: var(--bg-tertiary);
+}
+
+.editor-file-tab:focus-visible,
+.editor-inline-action:focus-visible,
+.editor-highlight-chip-remove:focus-visible,
+.editor-sidebar-handle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 .editor-file-tab.active {
@@ -2841,6 +2874,7 @@ body.resizing-v {
   cursor: pointer;
   line-height: 1.2;
   white-space: nowrap;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .editor-inline-action:hover {
@@ -2883,6 +2917,11 @@ body.resizing-v {
 }
 
 .editor-highlight-chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  min-height: 18px;
   border: none;
   background: transparent;
   color: inherit;
@@ -2890,6 +2929,12 @@ body.resizing-v {
   line-height: 1;
   cursor: pointer;
   padding: 0;
+  border-radius: 999px;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.editor-highlight-chip-remove:hover {
+  background: color-mix(in srgb, currentColor 12%, transparent);
 }
 
 .editor-chip-placeholder {
