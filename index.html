@@ -28,7 +28,8 @@
 
       window.addEventListener('error', (event) => {
         const target = event.target;
-        if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+        const isCriticalScript = target instanceof HTMLScriptElement && target.dataset.critical === 'true';
+        if (isCriticalScript) {
           showBootFallback('asset-load');
         }
       }, true);
@@ -172,10 +173,10 @@
       <div class="toolbar-right" id="toolbarRight">
         <!-- Layout Picker -->
         <div class="layout-picker" id="layoutPicker">
-          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更" aria-label="レイアウト変更" aria-haspopup="dialog" aria-expanded="false" aria-controls="layoutDropdown">
+          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更" aria-label="レイアウト変更" aria-expanded="false" aria-controls="layoutDropdown">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
           </button>
-          <div class="layout-dropdown" id="layoutDropdown" role="dialog" aria-label="レイアウトとペイン順序" hidden>
+          <div class="layout-dropdown" id="layoutDropdown" hidden>
             <div class="layout-section">
               <p class="layout-section-title">レイアウト</p>
               <div class="layout-options-grid" role="group" aria-label="レイアウト候補">
@@ -270,7 +271,7 @@
     </div>
 
     <!-- ========== DASHBOARD VIEW ========== -->
-    <div id="viewDashboard" class="view" style="display:none;">
+    <main id="viewDashboard" class="view" style="display:none;">
       <div class="dashboard">
         <div class="dashboard-header">
           <div>
@@ -330,7 +331,7 @@
           <!-- Deck cards rendered here -->
         </div>
       </div>
-    </div>
+    </main>
 
     <!-- ========== PRESENTATION VIEW ========== -->
     <div id="viewPresentation" class="view" style="display:none;">
@@ -875,6 +876,6 @@
     })();
   </script>
 
-  <script type="module" src="/src/main.js"></script>
+  <script type="module" src="/src/main.js" data-critical="true"></script>
 </body>
 </html>

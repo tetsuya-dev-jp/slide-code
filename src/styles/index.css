@@ -1585,7 +1585,7 @@ body.resizing-v {
 
 .btn-danger {
   background: var(--accent-danger);
-  color: #fff;
+  color: #0b0b0b;
 }
 
 .btn-danger:hover {
@@ -1842,16 +1842,28 @@ body.resizing-v {
   contain-intrinsic-size: 240px;
 }
 
+.deck-card-main {
+  display: flex;
+  flex: 1;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
 .deck-card:hover {
   border-color: var(--accent-primary);
   background: color-mix(in srgb, var(--bg-secondary) 88%, var(--accent-primary) 12%);
   box-shadow: none;
 }
 
-.deck-card:focus-visible {
+.deck-card:focus-within {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
   border-color: var(--accent-primary);
+}
+
+.deck-card-main:focus-visible {
+  outline: none;
 }
 
 .deck-card-body {
@@ -2400,6 +2412,11 @@ body.resizing-v {
   background: var(--bg-tertiary);
 }
 
+.editor-slide-item:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
 .editor-slide-item.active {
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -2490,6 +2507,18 @@ body.resizing-v {
   gap: 2px;
 }
 
+.editor-slide-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.editor-slide-actions .btn-icon {
+  width: 28px;
+  height: 28px;
+}
+
 .editor-slide-name {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2502,15 +2531,6 @@ body.resizing-v {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.editor-slide-delete {
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.editor-slide-item:hover .editor-slide-delete {
-  opacity: 1;
 }
 
 .editor-files-section {

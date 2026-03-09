@@ -739,25 +739,68 @@ export function initEditor(router) {
       const file = getResolvedSlideFile(slide);
       const lang = file?.language || '';
       const langIcon = getLangIcon(lang);
+      const slideLabel = slide.title || '無題';
       return `
-      <li class="editor-slide-item ${i === slideIndex ? 'active' : ''}" data-index="${i}" draggable="true">
+      <li class="editor-slide-item ${i === slideIndex ? 'active' : ''}" data-index="${i}" draggable="true" tabindex="0" aria-label="スライド ${i + 1}: ${escapeHtml(slideLabel)}" aria-current="${i === slideIndex ? 'true' : 'false'}">
         <span class="editor-slide-num" title="${escapeHtml(lang)}">${langIcon}</span>
         <div class="editor-slide-info">
-          <span class="editor-slide-name">${escapeHtml(slide.title || '無題')}</span>
+          <span class="editor-slide-name">${escapeHtml(slideLabel)}</span>
           <span class="editor-slide-meta">${getSlideMetaText(slide)}</span>
         </div>
-        <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除" aria-label="${escapeHtml(slide.title || '無題')} を削除">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
+        <div class="editor-slide-actions">
+          <button class="btn-icon editor-slide-move" data-index="${i}" data-direction="up" title="上へ移動" aria-label="${escapeHtml(slideLabel)} を上へ移動" ${i === 0 ? 'disabled' : ''}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"></polyline></svg>
+          </button>
+          <button class="btn-icon editor-slide-move" data-index="${i}" data-direction="down" title="下へ移動" aria-label="${escapeHtml(slideLabel)} を下へ移動" ${i === deck.slides.length - 1 ? 'disabled' : ''}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <button class="btn-icon editor-slide-delete" data-index="${i}" title="削除" aria-label="${escapeHtml(slideLabel)} を削除">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
       </li>`;
     }).join('');
+
+    const moveSlide = (fromIndex, toIndex) => {
+      if (toIndex < 0 || toIndex >= deck.slides.length || fromIndex === toIndex) return;
+      saveCurrentSlide();
+      const [moved] = deck.slides.splice(fromIndex, 1);
+      deck.slides.splice(toIndex, 0, moved);
+
+      if (slideIndex === fromIndex) {
+        slideIndex = toIndex;
+      } else if (fromIndex < slideIndex && toIndex >= slideIndex) {
+        slideIndex -= 1;
+      } else if (fromIndex > slideIndex && toIndex <= slideIndex) {
+        slideIndex += 1;
+      }
+
+      renderSlideList();
+      loadSlide(slideIndex);
+      markDirty();
+    };
 
     // Click to select
     list.querySelectorAll('.editor-slide-item').forEach(item => {
       item.addEventListener('click', (e) => {
-        if (e.target.closest('.editor-slide-delete')) return;
+        if (e.target.closest('.editor-slide-actions')) return;
         saveCurrentSlide();
         loadSlide(parseInt(item.dataset.index));
+      });
+      item.addEventListener('keydown', (event) => {
+        if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return;
+        if (event.target.closest('.editor-slide-actions')) return;
+        event.preventDefault();
+        saveCurrentSlide();
+        loadSlide(parseInt(item.dataset.index));
+      });
+    });
+
+    list.querySelectorAll('.editor-slide-move').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = parseInt(btn.dataset.index);
+        const direction = btn.dataset.direction === 'up' ? -1 : 1;
+        moveSlide(idx, idx + direction);
       });
     });
 
@@ -875,6 +918,7 @@ export function initEditor(router) {
 
     document.querySelectorAll('.editor-slide-item').forEach((item, i) => {
       item.classList.toggle('active', i === index);
+      item.setAttribute('aria-current', i === index ? 'true' : 'false');
     });
 
     updateCodePreview({ saveFile: false, reveal: true });

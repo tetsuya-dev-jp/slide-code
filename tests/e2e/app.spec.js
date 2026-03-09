@@ -182,6 +182,24 @@ test('editor はファイル名変更後もスライド参照を維持できる'
   await expect(page.locator('.editor-slide-meta')).toContainText('helpers.py');
 });
 
+test('editor はドラッグなしでもスライド順を並び替えられる', async ({ page }) => {
+  await createDeck(page, 'Reorder Buttons');
+
+  await page.locator('#editorSlideTitle').fill('First');
+  await page.locator('#addSlideBtn').click();
+  await page.locator('#editorSlideTitle').fill('Second');
+  await page.locator('#addSlideBtn').click();
+  await page.locator('#editorSlideTitle').fill('Third');
+  await page.locator('#editorDeckName').click();
+
+  await page.locator('.editor-slide-item').nth(2).locator('.editor-slide-move[data-direction="up"]').click();
+  await expect(page.locator('.editor-slide-name')).toHaveText(['First', 'Third', 'Second']);
+
+  await page.locator('.editor-slide-item').nth(0).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#editorSlideTitle')).toHaveValue('First');
+});
+
 test('dashboard は JSON なしで zip export をダウンロードできる', async ({ page }) => {
   const { title } = await createDeck(page, 'ZIP書き出し');
 

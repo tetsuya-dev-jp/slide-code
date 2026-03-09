@@ -509,8 +509,9 @@ export function initDashboard(router) {
     deckGridEl.innerHTML = decks.map(deck => {
       const templateSaved = savedTemplateDeckIds.has(deck.id);
       return `
-      <div class="deck-card" data-id="${deck.id}" role="button" tabindex="0" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
-        <div class="deck-card-body">
+      <article class="deck-card" data-id="${deck.id}">
+        <a class="deck-card-main" href="#/deck/${encodeURIComponent(deck.id)}/edit" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
+          <div class="deck-card-body">
           <h3 class="deck-card-title" dir="auto">${escapeHtml(deck.title)}</h3>
           <p class="deck-card-desc" dir="auto">${escapeHtml(deck.description || '')}</p>
           <div class="deck-card-meta">
@@ -518,7 +519,8 @@ export function initDashboard(router) {
             <span>${formatCount(deck.slideCount)} スライド</span>
             <span>${formatDate(deck.updatedAt)}</span>
           </div>
-        </div>
+          </div>
+        </a>
         <div class="deck-card-actions">
           <button class="btn-icon deck-open" data-id="${deck.id}" title="開く" aria-label="デッキ「${escapeHtml(deck.title)}」を開く">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -545,7 +547,7 @@ export function initDashboard(router) {
             <span class="deck-card-action-label">削除</span>
           </button>
         </div>
-      </div>
+      </article>
     `;
     }).join('');
   }
@@ -608,23 +610,6 @@ export function initDashboard(router) {
         void handleDeleteDeck(deckId, actionButton.getAttribute('data-title') || '', actionButton);
       }
       return;
-    }
-
-    const card = target.closest('.deck-card');
-    if (card instanceof HTMLElement && card.dataset.id) {
-      router.navigate(`/deck/${card.dataset.id}/edit`);
-    }
-  });
-
-  deckGridEl?.addEventListener('keydown', (event) => {
-    const target = event.target;
-    if (!(target instanceof HTMLElement) || !target.classList.contains('deck-card')) {
-      return;
-    }
-    if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return;
-    event.preventDefault();
-    if (target.dataset.id) {
-      router.navigate(`/deck/${target.dataset.id}/edit`);
     }
   });
 
