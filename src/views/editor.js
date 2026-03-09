@@ -37,6 +37,7 @@ import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { showToast, escapeHtml, debounce } from '../utils/helpers.js';
 import { getLangIcon } from '../utils/lang-icons.js';
 import { detectLanguage, monacoLangId } from '../utils/lang-detect.js';
+import { getMonacoThemeDefinition } from '../core/theme-tokens.js';
 
 // Configure Monaco workers for Vite
 self.MonacoEnvironment = {
@@ -60,35 +61,14 @@ self.MonacoEnvironment = {
 export function initEditor(router) {
   const MONACO_THEME = {
     dark: 'slidecode-dark',
-    light: 'vs',
+    light: 'slidecode-light',
   };
   const EMPTY_FILE_ID_VALUE = '';
   const EMPTY_FILE_ID_LABEL = '参照なし';
 
   function ensureMonacoThemes() {
-    monaco.editor.defineTheme(MONACO_THEME.dark, {
-      base: 'vs-dark',
-      inherit: true,
-      rules: [],
-      colors: {
-        'editor.background': '#0b0b0b',
-        'editor.foreground': '#f2f2f2',
-        'editorLineNumber.foreground': '#8f8f8f',
-        'editorLineNumber.activeForeground': '#f2f2f2',
-        'editorGutter.background': '#0b0b0b',
-        'editor.lineHighlightBackground': '#171717',
-        'editor.lineHighlightBorder': '#2b2b2b',
-        'editor.selectionBackground': '#b7ff1a40',
-        'editor.inactiveSelectionBackground': '#b7ff1a28',
-        'editorCursor.foreground': '#d0ff6a',
-        'editorIndentGuide.background1': '#242424',
-        'editorIndentGuide.activeBackground1': '#b7ff1a',
-        'editorWhitespace.foreground': '#8f8f8f44',
-        'scrollbarSlider.background': '#b7ff1a38',
-        'scrollbarSlider.hoverBackground': '#b7ff1a50',
-        'scrollbarSlider.activeBackground': '#b7ff1a70',
-      },
-    });
+    monaco.editor.defineTheme(MONACO_THEME.dark, getMonacoThemeDefinition('dark'));
+    monaco.editor.defineTheme(MONACO_THEME.light, getMonacoThemeDefinition('light'));
   }
 
   let deck = null;

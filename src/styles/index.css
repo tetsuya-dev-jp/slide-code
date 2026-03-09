@@ -1511,7 +1511,7 @@ body.resizing-v {
   border-radius: var(--radius-md);
   font-size: 13px;
   font-weight: 500;
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-sans);
   cursor: pointer;
   transition: all 0.15s ease;
   white-space: nowrap;

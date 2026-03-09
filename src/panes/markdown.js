@@ -7,6 +7,7 @@ import 'katex/dist/katex.min.css';
 import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
 import { renderMarkdownDocument } from '../core/markdown-render.js';
+import { getMermaidTheme, getThemeName } from '../core/theme-tokens.js';
 
 const HTML_SANITIZE_OPTIONS = {
     USE_PROFILES: {
@@ -178,27 +179,11 @@ function morphBodyHtml(containerEl, sanitizedHtml) {
 
 // Configure mermaid (theme-aware)
 function initMermaid() {
-    const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+    const themeName = getThemeName(document.documentElement.getAttribute('data-theme'));
     mermaid.initialize({
         startOnLoad: false,
-        theme: isDark ? 'dark' : 'default',
-        themeVariables: isDark ? {
-            primaryColor: '#21262d',
-            primaryTextColor: '#e6edf3',
-            primaryBorderColor: '#30363d',
-            lineColor: '#8b949e',
-            secondaryColor: '#161b22',
-            tertiaryColor: '#1c2129',
-            fontFamily: "'Inter', sans-serif",
-        } : {
-            primaryColor: '#dbeafe',
-            primaryTextColor: '#1f2328',
-            primaryBorderColor: '#d1d9e0',
-            lineColor: '#59636e',
-            secondaryColor: '#f0f2f5',
-            tertiaryColor: '#f6f8fa',
-            fontFamily: "'Inter', sans-serif",
-        },
+        theme: themeName === 'light' ? 'default' : 'dark',
+        themeVariables: getMermaidTheme(themeName),
     });
 }
 initMermaid();

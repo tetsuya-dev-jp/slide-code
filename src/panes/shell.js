@@ -5,54 +5,7 @@
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { WebLinksAddon } from '@xterm/addon-web-links';
-
-const DARK_THEME = {
-    background: '#0b0b0b',
-    foreground: '#f2f2f2',
-    cursor: '#d0ff6a',
-    cursorAccent: '#0b0b0b',
-    selectionBackground: 'rgba(183, 255, 26, 0.28)',
-    black: '#0b0b0b',
-    red: '#ef4444',
-    green: '#b7ff1a',
-    yellow: '#d6ff75',
-    blue: '#8da2b1',
-    magenta: '#b89ac7',
-    cyan: '#78c5b2',
-    white: '#f2f2f2',
-    brightBlack: '#6f6f6f',
-    brightRed: '#ff7d7d',
-    brightGreen: '#d0ff6a',
-    brightYellow: '#ecffad',
-    brightBlue: '#b2c1cb',
-    brightMagenta: '#d2bde8',
-    brightCyan: '#9fd9cb',
-    brightWhite: '#ffffff',
-};
-
-const LIGHT_THEME = {
-    background: '#f2f2f2',
-    foreground: '#0b0b0b',
-    cursor: '#5f840f',
-    cursorAccent: '#f2f2f2',
-    selectionBackground: 'rgba(122, 169, 26, 0.24)',
-    black: '#0b0b0b',
-    red: '#c45f67',
-    green: '#7aa91a',
-    yellow: '#8a7419',
-    blue: '#5f7482',
-    magenta: '#78628e',
-    cyan: '#3f7a70',
-    white: '#f2f2f2',
-    brightBlack: '#666666',
-    brightRed: '#d57b83',
-    brightGreen: '#8fbe2f',
-    brightYellow: '#ae9228',
-    brightBlue: '#758996',
-    brightMagenta: '#8f79a4',
-    brightCyan: '#59998d',
-    brightWhite: '#ffffff',
-};
+import { getTerminalTheme, getThemeTokens } from '../core/theme-tokens.js';
 
 function defaultWsUrl() {
     const configuredUrl = import.meta.env?.VITE_TERMINAL_WS_URL;
@@ -139,13 +92,13 @@ export class ShellPane {
         this.fitAddon = new FitAddon();
 
         this.terminal = new Terminal({
-            fontFamily: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Monaco, monospace",
+            fontFamily: `${getThemeTokens(this.isDark ? 'dark' : 'light').fontMono}, Menlo, Monaco, monospace`,
             fontSize: 13,
             lineHeight: 1.4,
             cursorBlink: true,
             cursorStyle: 'bar',
             scrollback: 5000,
-            theme: this.isDark ? DARK_THEME : LIGHT_THEME,
+            theme: getTerminalTheme(this.isDark ? 'dark' : 'light'),
             allowProposedApi: true,
         });
 
@@ -244,7 +197,7 @@ export class ShellPane {
     setTheme(isDark) {
         this.isDark = isDark;
         if (this.terminal) {
-            this.terminal.options.theme = isDark ? DARK_THEME : LIGHT_THEME;
+            this.terminal.options.theme = getTerminalTheme(isDark ? 'dark' : 'light');
         }
     }
 
