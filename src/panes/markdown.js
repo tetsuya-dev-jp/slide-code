@@ -3,10 +3,7 @@
  * Renders markdown with KaTeX math and Mermaid diagrams
  */
 
-import 'katex/dist/katex.min.css';
-import mermaid from 'mermaid';
 import DOMPurify from 'dompurify';
-import { renderMarkdownDocument } from '../core/markdown-render.js';
 import { getMermaidTheme, getThemeName } from '../core/theme-tokens.js';
 
 const HTML_SANITIZE_OPTIONS = {
@@ -177,16 +174,40 @@ function morphBodyHtml(containerEl, sanitizedHtml) {
     morphChildNodes(containerEl, templateEl.content);
 }
 
+let markdownRuntimePromise = null;
+let mermaidPromise = null;
+
+async function loadMarkdownRuntime() {
+    if (!markdownRuntimePromise) {
+        markdownRuntimePromise = Promise.all([
+            import('katex/dist/katex.min.css'),
+            import('../core/markdown-render.js'),
+        ]).then(([, module]) => module);
+    }
+
+    return markdownRuntimePromise;
+}
+
+async function loadMermaid() {
+    if (!mermaidPromise) {
+        mermaidPromise = import('mermaid').then((module) => module.default);
+    }
+
+    return mermaidPromise;
+}
+
 // Configure mermaid (theme-aware)
-function initMermaid() {
+async function initMermaid() {
     const themeName = getThemeName(document.documentElement.getAttribute('data-theme'));
+    const mermaid = await loadMermaid();
     mermaid.initialize({
         startOnLoad: false,
         theme: themeName === 'light' ? 'default' : 'dark',
         themeVariables: getMermaidTheme(themeName),
     });
+
+    return mermaid;
 }
-initMermaid();
 
 export class MarkdownPane {
     constructor(markdownBodyEl, { resolveAssetUrl, resetScrollOnRender = true } = {}) {
@@ -201,8 +222,6 @@ export class MarkdownPane {
      * @param {string} md - Markdown text
      */
     async render(md) {
-        // Re-init mermaid with current theme
-        initMermaid();
         if (!md) {
             this.markdownBody.innerHTML = `
         <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:var(--text-sm);">
@@ -212,6 +231,7 @@ export class MarkdownPane {
             return;
         }
 
+        const { renderMarkdownDocument } = await loadMarkdownRuntime();
         const { html } = renderMarkdownDocument(md, {
             resolveAssetUrl: this.resolveAssetUrl,
             mermaidIdPrefix: 'preview-mermaid',
@@ -223,7 +243,10 @@ export class MarkdownPane {
         );
 
         // Render mermaid diagrams
-        for (const el of this.markdownBody.querySelectorAll('.mermaid')) {
+        const mermaidNodes = [...this.markdownBody.querySelectorAll('.mermaid')];
+        if (mermaidNodes.length > 0) {
+            const mermaid = await initMermaid();
+            for (const el of mermaidNodes) {
             try {
                 const source = el.textContent || '';
                 const renderId = `${el.id || 'preview-mermaid'}-svg-${this.mermaidId++}`;
@@ -234,6 +257,7 @@ export class MarkdownPane {
                 errorPre.style.color = 'var(--accent-danger)';
                 errorPre.textContent = e instanceof Error ? e.message : String(e);
                 el.replaceChildren(errorPre);
+            }
             }
         }
 

@@ -3,7 +3,7 @@
  * Renders code with syntax highlighting and line numbers using Highlight.js
  */
 
-import hljs from 'highlight.js';
+import { hljs } from './highlighter.js';
 import { splitHighlightedHtmlLines } from './highlighted-lines.js';
 
 export class CodePane {

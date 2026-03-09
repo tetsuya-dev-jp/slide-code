@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import hljs from 'highlight.js';
+import { hljs } from './highlighter.js';
 import { CodePane } from './code.js';
 import { splitHighlightedHtmlLines } from './highlighted-lines.js';
 

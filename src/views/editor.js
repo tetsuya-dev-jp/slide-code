@@ -4,7 +4,6 @@
  */
 
 import * as api from '../core/api.js';
-import * as monaco from 'monaco-editor';
 import {
   compactLineGroups as groupConsecutiveLines,
   createDefaultFile,
@@ -18,7 +17,6 @@ import {
   resolveUniqueFilePath,
   syncSlideFileReference,
 } from '../core/deck-utils.js';
-import { MarkdownPane } from '../panes/markdown.js';
 import {
   getLastEditorState,
   getEditorPreferences,
@@ -30,7 +28,6 @@ import { setupEditorLayoutControls } from './editor-layout-controls.js';
 import { initEditorAssetsModal } from './editor-assets-modal.js';
 import { isFileAlreadyLoaded } from './editor-file-selection.js';
 import { getEditorFileValidationState } from './editor-file-validation.js';
-import { createMarkdownEditor } from './editor-markdown-editor.js';
 import { initEditorPreferencesModal } from './editor-preferences-modal.js';
 import { reconcileDeckAfterSave } from './editor-save-state.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
@@ -58,6 +55,44 @@ self.MonacoEnvironment = {
   },
 };
 
+let monaco = null;
+let monacoLoadPromise = null;
+let editorRuntimePromise = null;
+let MarkdownPane = null;
+let createMarkdownEditor = null;
+
+async function loadMonaco() {
+  if (!monacoLoadPromise) {
+    monacoLoadPromise = import('monaco-editor/esm/vs/editor/editor.api').then((module) => {
+      monaco = module;
+      return module;
+    });
+  }
+
+  return monacoLoadPromise;
+}
+
+async function loadEditorRuntime() {
+  if (!editorRuntimePromise) {
+    editorRuntimePromise = Promise.all([
+      import('../panes/markdown.js'),
+      import('./editor-markdown-editor.js'),
+    ]).then(([markdownPaneModule, markdownEditorModule]) => {
+      MarkdownPane = markdownPaneModule.MarkdownPane;
+      createMarkdownEditor = markdownEditorModule.createMarkdownEditor;
+      return {
+        MarkdownPane,
+        createMarkdownEditor,
+      };
+    }).catch((error) => {
+      editorRuntimePromise = null;
+      throw error;
+    });
+  }
+
+  return editorRuntimePromise;
+}
+
 export function initEditor(router) {
   const MONACO_THEME = {
     dark: 'slidecode-dark',
@@ -66,9 +101,10 @@ export function initEditor(router) {
   const EMPTY_FILE_ID_VALUE = '';
   const EMPTY_FILE_ID_LABEL = '参照なし';
 
-  function ensureMonacoThemes() {
-    monaco.editor.defineTheme(MONACO_THEME.dark, getMonacoThemeDefinition('dark'));
-    monaco.editor.defineTheme(MONACO_THEME.light, getMonacoThemeDefinition('light'));
+  async function ensureMonacoThemes() {
+    const monacoApi = await loadMonaco();
+    monacoApi.editor.defineTheme(MONACO_THEME.dark, getMonacoThemeDefinition('dark'));
+    monacoApi.editor.defineTheme(MONACO_THEME.light, getMonacoThemeDefinition('light'));
   }
 
   let deck = null;
@@ -83,18 +119,12 @@ export function initEditor(router) {
   let autosaveTimer = null;
   let saveQueue = Promise.resolve();
   let showRequestId = 0;
+  let setupPromise = null;
   let editorPreferences = getEditorPreferences();
   const saveButtonEl = document.getElementById('editorSaveBtn');
   const saveStatusEl = document.getElementById('editorSaveStatus');
 
-  const mdPreviewPane = new MarkdownPane(document.getElementById('editorMarkdownPreview'), {
-    resolveAssetUrl: (assetPath) => {
-      const deckId = persistedDeckId || deck?.id;
-      if (!deckId) return `asset://${assetPath}`;
-      return api.getDeckAssetUrl(deckId, assetPath);
-    },
-    resetScrollOnRender: false,
-  });
+  let mdPreviewPane = null;
   let deckSettingsController = null;
   let assetsModal = null;
   let editorPreferencesModal = null;
@@ -916,7 +946,7 @@ export function initEditor(router) {
 
   function updateMarkdownPreview() {
     const md = markdownEditor?.getValue() || '';
-    mdPreviewPane.render(md);
+    mdPreviewPane?.render(md);
   }
 
   function handleMarkdownChange(value) {
@@ -1030,59 +1060,77 @@ export function initEditor(router) {
 
   // --- Event Listeners ---
 
-  function setupEventListeners() {
-    const debouncedCodePreview = debounce(updateCodePreview, 300);
-    const debouncedMarkdownChange = debounce(handleMarkdownChange, 180);
+  async function setupEventListeners() {
+    if (setupPromise) {
+      await setupPromise;
+      return;
+    }
 
-    markdownEditor = createMarkdownEditor({
-      parent: document.getElementById('editorMarkdown'),
-      placeholderText: 'マークダウンで解説を入力...',
-      getAssetSuggestions: () => deck?.assets || [],
-      onChange: (value) => {
-        debouncedMarkdownChange(value);
-      },
-    });
+    setupPromise = (async () => {
+      const { MarkdownPane: MarkdownPaneClass, createMarkdownEditor: createMarkdownEditorFactory } = await loadEditorRuntime();
+      if (!mdPreviewPane) {
+        mdPreviewPane = new MarkdownPaneClass(document.getElementById('editorMarkdownPreview'), {
+          resolveAssetUrl: (assetPath) => {
+            const deckId = persistedDeckId || deck?.id;
+            if (!deckId) return `asset://${assetPath}`;
+            return api.getDeckAssetUrl(deckId, assetPath);
+          },
+          resetScrollOnRender: false,
+        });
+      }
 
-    setupEditorLayoutControls({
-      getMonacoEditor: () => monacoEditor,
-    });
-    editorPreferencesModal = initEditorPreferencesModal({
-      applyPreferences: (preferences) => {
-        applyEditorPreferences(preferences);
-        if (dirty) {
-          scheduleAutosave();
-        }
-      },
-      showToast,
-    });
-    deckSettingsController = initEditorDeckSettings({
-      api,
-      showToast,
-      restoreFocus,
-      trapFocusInModal,
-      getDeck: () => deck,
-      markDirty,
-      setEditorDeckName,
-    });
-    setHighlightInputVisible(false);
-    assetsModal = initEditorAssetsModal({
-      api,
-      showToast,
-      trapFocusInModal,
-      restoreFocus,
-      getDeckId: () => persistedDeckId || deck?.id || '',
-      getSlides: () => deck?.slides || [],
-      getAssets: () => deck?.assets || [],
-      setAssets: (assets) => {
-        if (!deck) return;
-        deck.assets = Array.isArray(assets) ? assets : [];
-      },
-      insertAssetReference,
-    });
+      const debouncedCodePreview = debounce(updateCodePreview, 300);
+      const debouncedMarkdownChange = debounce(handleMarkdownChange, 180);
 
-    document.getElementById('editorDeckSettingsBtn').addEventListener('click', (event) => {
-      editorPreferencesModal?.open(event.currentTarget);
-    });
+      markdownEditor = createMarkdownEditorFactory({
+        parent: document.getElementById('editorMarkdown'),
+        placeholderText: 'マークダウンで解説を入力...',
+        getAssetSuggestions: () => deck?.assets || [],
+        onChange: (value) => {
+          debouncedMarkdownChange(value);
+        },
+      });
+
+      setupEditorLayoutControls({
+        getMonacoEditor: () => monacoEditor,
+      });
+      editorPreferencesModal = initEditorPreferencesModal({
+        applyPreferences: (preferences) => {
+          applyEditorPreferences(preferences);
+          if (dirty) {
+            scheduleAutosave();
+          }
+        },
+        showToast,
+      });
+      deckSettingsController = initEditorDeckSettings({
+        api,
+        showToast,
+        restoreFocus,
+        trapFocusInModal,
+        getDeck: () => deck,
+        markDirty,
+        setEditorDeckName,
+      });
+      setHighlightInputVisible(false);
+      assetsModal = initEditorAssetsModal({
+        api,
+        showToast,
+        trapFocusInModal,
+        restoreFocus,
+        getDeckId: () => persistedDeckId || deck?.id || '',
+        getSlides: () => deck?.slides || [],
+        getAssets: () => deck?.assets || [],
+        setAssets: (assets) => {
+          if (!deck) return;
+          deck.assets = Array.isArray(assets) ? assets : [];
+        },
+        insertAssetReference,
+      });
+
+      document.getElementById('editorDeckSettingsBtn').addEventListener('click', (event) => {
+        editorPreferencesModal?.open(event.currentTarget);
+      });
 
     // File management
     document.getElementById('addFileBtn').addEventListener('click', () => {
@@ -1253,16 +1301,22 @@ export function initEditor(router) {
       }
       if (deck) router.navigate(`/deck/${deck.id}`);
     });
+    })().catch((error) => {
+      setupPromise = null;
+      throw error;
+    });
 
+    await setupPromise;
   }
 
   // --- Monaco Editor Init ---
 
-  function initMonaco() {
+  async function initMonaco() {
     if (monacoEditor) return;
-    ensureMonacoThemes();
+    const monacoApi = await loadMonaco();
+    await ensureMonacoThemes();
     const container = document.getElementById('editorFileCode');
-    monacoEditor = monaco.editor.create(container, {
+    monacoEditor = monacoApi.editor.create(container, {
       value: '',
       language: 'python',
       theme: document.documentElement.getAttribute('data-theme') === 'light' ? MONACO_THEME.light : MONACO_THEME.dark,
@@ -1286,8 +1340,8 @@ export function initEditor(router) {
       markDirty();
     }, 300));
 
-    const lineNumberTargetType = monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
-    const glyphTargetType = monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN;
+    const lineNumberTargetType = monacoApi.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
+    const glyphTargetType = monacoApi.editor.MouseTargetType.GUTTER_GLYPH_MARGIN;
 
     let rangePointerDown = false;
     let rangeDragChanged = false;
@@ -1414,9 +1468,6 @@ export function initEditor(router) {
 
   // --- Public API ---
 
-  // Setup once
-  setupEventListeners();
-
   async function show(deckId) {
     const requestId = ++showRequestId;
     clearAutosaveTimer();
@@ -1441,7 +1492,8 @@ export function initEditor(router) {
         ? Math.min(restoredState.slideIndex, Math.max(deck.slides.length - 1, 0))
         : 0;
 
-      initMonaco();
+      await setupEventListeners();
+      await initMonaco();
       syncEditorAfterDeckNormalization(restoredState?.fileId || '', restoredSlideIndex);
       clearDirty();
       changeVersion = 0;
@@ -1467,13 +1519,13 @@ export function initEditor(router) {
     confirmLeave,
     get monacoEditor() { return monacoEditor; },
     applyTheme(isDark) {
-      if (monacoEditor) monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);
+      if (monaco && monacoEditor) monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);
 
       const currentSlide = deck?.slides?.[slideIndex];
       if (!currentSlide) return;
 
       const markdown = markdownEditor ? markdownEditor.getValue() : (currentSlide.markdown || '');
-      mdPreviewPane.render(markdown);
+      mdPreviewPane?.render(markdown);
     },
   };
 }

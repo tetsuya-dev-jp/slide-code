@@ -7,9 +7,6 @@ import * as api from '../core/api.js';
 import { SlideManager } from '../core/slides.js';
 import { Resizer } from '../core/resizer.js';
 import { LayoutManager } from '../core/layout.js';
-import { CodePane } from '../panes/code.js';
-import { ShellPane } from '../panes/shell.js';
-import { MarkdownPane } from '../panes/markdown.js';
 import { resolveSlideCode } from '../core/resolve-code.js';
 import { showToast } from '../utils/helpers.js';
 import { getLastPresentationState, recordRecentDeck, setLastPresentationState } from '../core/preferences.js';
@@ -29,6 +26,8 @@ export function initPresentation(router) {
   let slidePaneDefaults = { ...paneState };
 
   let initialized = false;
+  let initPromise = null;
+  let paneRuntimePromise = null;
   let contentEl, resizer, layoutManager;
   let codePane, shellPane, markdownPane;
   let presentationDeck = null;
@@ -37,54 +36,87 @@ export function initPresentation(router) {
   let layoutPickerBtnEl, layoutDropdownEl;
   let slideJumpInputEl, fullscreenBtnEl, shellStatusEl;
 
-  function init() {
+  function ensurePaneRuntime() {
+    if (!paneRuntimePromise) {
+      paneRuntimePromise = Promise.all([
+        import('../panes/code.js'),
+        import('../panes/shell.js'),
+        import('../panes/markdown.js'),
+      ]).then(([codeModule, shellModule, markdownModule]) => ({
+        CodePane: codeModule.CodePane,
+        ShellPane: shellModule.ShellPane,
+        MarkdownPane: markdownModule.MarkdownPane,
+      })).catch((error) => {
+        paneRuntimePromise = null;
+        throw error;
+      });
+    }
+
+    return paneRuntimePromise;
+  }
+
+  async function init() {
     if (initialized) return;
-    initialized = true;
+    if (initPromise) {
+      await initPromise;
+      return;
+    }
 
-    contentEl = document.getElementById('content');
-    layoutPickerBtnEl = document.getElementById('layoutPickerBtn');
-    layoutDropdownEl = document.getElementById('layoutDropdown');
-    slideJumpInputEl = document.getElementById('slideJumpInput');
-    fullscreenBtnEl = document.getElementById('fullscreenBtn');
-    shellStatusEl = document.getElementById('shellStatus');
-    resizer = new Resizer(contentEl);
-    layoutManager = new LayoutManager(contentEl);
+    initPromise = (async () => {
+      const { CodePane, ShellPane, MarkdownPane } = await ensurePaneRuntime();
+      initialized = true;
 
-    codePane = new CodePane(
-      document.getElementById('codeBody'),
-      document.getElementById('langBadge'),
-      document.getElementById('copyBtn'),
-    );
-    shellPane = new ShellPane(
-      document.getElementById('shellBody'),
-      {
-        isDark: theme.isDark,
-        deckId: currentDeckId || '',
-        onStatusChange: ({ state, message }) => {
-          if (!shellStatusEl) return;
-          shellStatusEl.dataset.state = state;
-          shellStatusEl.textContent = message;
+      contentEl = document.getElementById('content');
+      layoutPickerBtnEl = document.getElementById('layoutPickerBtn');
+      layoutDropdownEl = document.getElementById('layoutDropdown');
+      slideJumpInputEl = document.getElementById('slideJumpInput');
+      fullscreenBtnEl = document.getElementById('fullscreenBtn');
+      shellStatusEl = document.getElementById('shellStatus');
+      resizer = new Resizer(contentEl);
+      layoutManager = new LayoutManager(contentEl);
+
+      codePane = new CodePane(
+        document.getElementById('codeBody'),
+        document.getElementById('langBadge'),
+        document.getElementById('copyBtn'),
+      );
+      shellPane = new ShellPane(
+        document.getElementById('shellBody'),
+        {
+          isDark: theme.isDark,
+          deckId: currentDeckId || '',
+          onStatusChange: ({ state, message }) => {
+            if (!shellStatusEl) return;
+            shellStatusEl.dataset.state = state;
+            shellStatusEl.textContent = message;
+          },
         },
-      },
-    );
-    markdownPane = new MarkdownPane(document.getElementById('markdownBody'), {
-      resolveAssetUrl: (assetPath) => {
-        if (!currentDeckId) return `asset://${assetPath}`;
-        return api.getDeckAssetUrl(currentDeckId, assetPath);
-      },
+      );
+      markdownPane = new MarkdownPane(document.getElementById('markdownBody'), {
+        resolveAssetUrl: (assetPath) => {
+          if (!currentDeckId) return `asset://${assetPath}`;
+          return api.getDeckAssetUrl(currentDeckId, assetPath);
+        },
+      });
+
+      setupSlideChangeHandler();
+      setupNavigation();
+      setupPaneToggles();
+      setupLayoutPicker();
+      setupPaneDragDrop();
+      setupKeyboardShortcuts();
+      setupViewportHandler();
+
+      syncLayoutPicker();
+      rebuildLayout();
+      updatePaneVisibility();
+    })().catch((error) => {
+      initialized = false;
+      initPromise = null;
+      throw error;
     });
 
-    setupSlideChangeHandler();
-    setupNavigation();
-    setupPaneToggles();
-    setupLayoutPicker();
-    setupPaneDragDrop();
-    setupKeyboardShortcuts();
-    setupViewportHandler();
-
-    syncLayoutPicker();
-    rebuildLayout();
-    updatePaneVisibility();
+    await initPromise;
   }
 
   function setupSlideChangeHandler() {
@@ -497,7 +529,7 @@ export function initPresentation(router) {
     currentDeckId = deckId;
     panePreferences = createPanePreferences();
     slidePaneDefaults = { code: true, shell: true, markdown: true };
-    init();
+    await init();
     try {
       const deck = await api.getDeck(deckId);
       if (requestId !== showRequestId) return;
