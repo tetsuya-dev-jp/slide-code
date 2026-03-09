@@ -96,6 +96,7 @@ function buildDom() {
         <p id="deckExportFormatHint"></p>
         <div id="deckExportDetails"></div>
         <button id="deckExportCancel" type="button">cancel</button>
+        <button id="deckExportSubmit" type="submit">export</button>
       </form>
     </div>
   `;
