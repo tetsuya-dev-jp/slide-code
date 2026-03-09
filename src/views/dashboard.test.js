@@ -266,4 +266,22 @@ describe('dashboard', () => {
 
     expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Beta Deck']);
   });
+
+  test('renders recoverable load error state for offline failures', async () => {
+    api.listDecks
+      .mockRejectedValueOnce(Object.assign(new Error('Offline'), { code: 'offline' }))
+      .mockResolvedValueOnce([]);
+
+    const { show } = initDashboard({ navigate: vi.fn() });
+    await show();
+    await flush();
+
+    expect(document.getElementById('deckGrid').textContent).toContain('オフラインのため接続できません');
+
+    document.getElementById('retryDeckLoadBtn').click();
+    await flush();
+
+    expect(api.listDecks).toHaveBeenCalledTimes(2);
+    expect(document.getElementById('retryDeckLoadBtn')).toBeNull();
+  });
 });

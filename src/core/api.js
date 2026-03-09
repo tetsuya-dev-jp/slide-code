@@ -3,6 +3,14 @@
  */
 
 const BASE = '/api';
+const REQUEST_TIMEOUT_MS = 15000;
+
+function createRequestError(message, { status = 0, code = 'network-error' } = {}) {
+    const err = new Error(message);
+    err.status = status;
+    err.code = code;
+    return err;
+}
 
 async function throwApiError(res, fallbackMessage) {
     let message = fallbackMessage;
@@ -21,11 +29,29 @@ async function throwApiError(res, fallbackMessage) {
 }
 
 async function request(path, { method = 'GET', headers, body } = {}) {
-    return fetch(`${BASE}${path}`, {
-        method,
-        headers,
-        body,
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    try {
+        return await fetch(`${BASE}${path}`, {
+            method,
+            headers,
+            body,
+            signal: controller.signal,
+        });
+    } catch (error) {
+        if (error?.name === 'AbortError') {
+            throw createRequestError('Request timed out', { status: 408, code: 'timeout' });
+        }
+
+        if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+            throw createRequestError('Offline', { code: 'offline' });
+        }
+
+        throw createRequestError('Network request failed');
+    } finally {
+        clearTimeout(timeoutId);
+    }
 }
 
 async function requestJson(path, { method = 'GET', data, fallbackMessage } = {}) {

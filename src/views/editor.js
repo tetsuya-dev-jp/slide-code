@@ -224,6 +224,7 @@ export function initEditor(router) {
     const input = document.getElementById('editorFileName');
     const errorEl = document.getElementById('editorFileNameError');
     input?.classList.toggle('input-error', Boolean(message));
+    input?.setAttribute('aria-invalid', message ? 'true' : 'false');
     if (errorEl) {
       errorEl.hidden = !message;
       errorEl.textContent = message;

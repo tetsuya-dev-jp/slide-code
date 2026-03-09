@@ -1,6 +1,6 @@
 import * as api from '../core/api.js';
 import { createDeckFolderSlug, DECK_FOLDER_PATTERN, normalizeDeckFolderName } from '../core/deck-utils.js';
-import { showToast, escapeHtml, formatDate } from '../utils/helpers.js';
+import { showToast, escapeHtml, formatCount, formatDate } from '../utils/helpers.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
 import { initDashboardDeleteModal } from './dashboard-delete-modal.js';
@@ -98,8 +98,8 @@ export function initDashboard(router) {
     const filtered = filteredDecks.length;
     const recentCount = getRecentDecks().length;
     deckSummaryEl.textContent = filtered === total
-      ? `${total}件のデッキ${recentCount ? ` / 最近開いた ${recentCount}件` : ''}`
-      : `${filtered} / ${total}件を表示中`;
+      ? `${formatCount(total)}件のデッキ${recentCount ? ` / 最近開いた ${formatCount(recentCount)}件` : ''}`
+      : `${formatCount(filtered)} / ${formatCount(total)}件を表示中`;
   }
 
   function refreshDeckGrid() {
@@ -141,6 +141,47 @@ export function initDashboard(router) {
     return 'インポートに失敗しました';
   }
 
+  function getRequestErrorMessage(action, error) {
+    if (error?.code === 'offline') {
+      return `${action}に失敗しました。オフラインのため接続できません`;
+    }
+    if (error?.code === 'timeout' || error?.status === 408) {
+      return `${action}に時間がかかっています。通信状況を確認して再試行してください`;
+    }
+    if (error?.status === 401) {
+      return `${action}を続行できません。認証状態を確認してください`;
+    }
+    if (error?.status === 403) {
+      return `${action}を行う権限がありません`;
+    }
+    if (error?.status === 404) {
+      return `${action}対象が見つかりません`;
+    }
+    if (error?.status === 429) {
+      return `${action}が集中しています。少し待ってから再試行してください`;
+    }
+
+    const detail = typeof error?.message === 'string' ? error.message.trim() : '';
+    if (detail && !/^failed to /i.test(detail)) {
+      return `${action}に失敗しました: ${detail}`;
+    }
+    return `${action}に失敗しました`;
+  }
+
+  function renderDeckLoadError(error) {
+    const grid = document.getElementById('deckGrid');
+    if (!grid) return;
+
+    grid.innerHTML = `
+      <div class="deck-error" role="status" aria-live="polite">
+        <p>${escapeHtml(getRequestErrorMessage('デッキの読み込み', error))}</p>
+        <button class="btn btn-secondary" id="retryDeckLoadBtn" type="button">再読み込み</button>
+      </div>`;
+    grid.querySelector('#retryDeckLoadBtn')?.addEventListener('click', () => {
+      show();
+    });
+  }
+
   async function loadTemplateOptions() {
     if (!modalTemplate) return;
     const baseOption = document.createElement('option');
@@ -169,8 +210,8 @@ export function initDashboard(router) {
 
       appendGroup('ローカルテンプレート', 'local', localTemplates);
       appendGroup('共有テンプレート', 'shared', sharedTemplates);
-    } catch {
-      showToast('テンプレート一覧の取得に失敗しました');
+    } catch (err) {
+      showToast(getRequestErrorMessage('テンプレート一覧の取得', err));
     }
   }
   function openModal(mode, deckData, triggerEl = document.activeElement) {
@@ -295,7 +336,7 @@ export function initDashboard(router) {
         modalFolder.focus();
         return;
       }
-      showToast(editingDeckId ? '更新に失敗しました' : '作成に失敗しました');
+      showToast(getRequestErrorMessage(editingDeckId ? '更新' : '作成', err));
     }
   });
 
@@ -336,7 +377,7 @@ export function initDashboard(router) {
         showToast('複製先のフォルダ名が衝突しました。再試行してください');
         return;
       }
-      showToast('複製に失敗しました');
+      showToast(getRequestErrorMessage('複製', err));
     }
   }
 
@@ -347,8 +388,8 @@ export function initDashboard(router) {
       await api.deleteDeck(id);
       showToast('削除しました');
       show();
-    } catch {
-      showToast('削除に失敗しました');
+    } catch (err) {
+      showToast(getRequestErrorMessage('削除', err));
     }
   }
 
@@ -366,7 +407,7 @@ export function initDashboard(router) {
           showToast('テンプレートは既にありません');
           return false;
         }
-        showToast('テンプレート削除に失敗しました');
+        showToast(getRequestErrorMessage('テンプレート削除', err));
         return true;
       }
     }
@@ -382,7 +423,7 @@ export function initDashboard(router) {
         showToast('このデッキは既にテンプレート保存済みです');
         return true;
       }
-      showToast('テンプレート保存に失敗しました');
+      showToast(getRequestErrorMessage('テンプレート保存', err));
       return false;
     }
   }
@@ -446,10 +487,10 @@ export function initDashboard(router) {
       return `
       <div class="deck-card" data-id="${deck.id}" role="button" tabindex="0" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
         <div class="deck-card-body">
-          <h3 class="deck-card-title">${escapeHtml(deck.title)}</h3>
-          <p class="deck-card-desc">${escapeHtml(deck.description || '')}</p>
+          <h3 class="deck-card-title" dir="auto">${escapeHtml(deck.title)}</h3>
+          <p class="deck-card-desc" dir="auto">${escapeHtml(deck.description || '')}</p>
           <div class="deck-card-meta">
-            <span>${deck.slideCount} スライド</span>
+            <span>${formatCount(deck.slideCount)} スライド</span>
             <span>${formatDate(deck.updatedAt)}</span>
           </div>
         </div>
@@ -498,8 +539,8 @@ export function initDashboard(router) {
         try {
           const deck = await api.getDeck(btn.dataset.id);
           openModal('edit', deck, btn);
-        } catch {
-          showToast('デッキ情報の取得に失敗しました');
+        } catch (err) {
+          showToast(getRequestErrorMessage('デッキ情報の取得', err));
         }
       });
     });
@@ -548,7 +589,7 @@ export function initDashboard(router) {
       if (requestId !== showRequestId) return;
       allDecks = [];
       renderDeckIssues([]);
-      grid.innerHTML = '<div class="deck-error">デッキの読み込みに失敗しました</div>';
+      renderDeckLoadError(err);
       console.error(err);
     }
   }

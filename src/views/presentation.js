@@ -171,6 +171,18 @@ export function initPresentation(router) {
         updatePaneVisibility();
       });
     });
+    syncPaneToggleButtons();
+  }
+
+  function syncPaneToggleButtons() {
+    document.querySelectorAll('.toggle-btn').forEach((btn) => {
+      const pane = btn.dataset.pane;
+      const isActive = Boolean(paneState[pane]);
+      const label = paneLabels[pane] || pane;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      btn.setAttribute('aria-label', `${label}ペインの表示を切り替え`);
+    });
   }
 
   function isLayoutDropdownOpen() {
@@ -442,9 +454,7 @@ export function initPresentation(router) {
     document.getElementById('paneCode').classList.toggle('hidden', !paneState.code);
     document.getElementById('paneShell').classList.toggle('hidden', !paneState.shell);
     document.getElementById('paneMarkdown').classList.toggle('hidden', !paneState.markdown);
-    document.querySelectorAll('.toggle-btn').forEach(btn => {
-      btn.classList.toggle('active', paneState[btn.dataset.pane]);
-    });
+    syncPaneToggleButtons();
     rebuildLayout();
   }
 

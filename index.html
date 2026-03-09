@@ -151,19 +151,19 @@
             <span class="logo-text">SlideCode</span>
           </a>
         </h1>
-        <span class="slide-title" id="slideTitle"></span>
+        <span class="slide-title" id="slideTitle" dir="auto"></span>
       </div>
       <div class="toolbar-center" id="toolbarCenter">
         <div class="pane-toggles" id="paneToggles">
-          <button class="toggle-btn active" data-pane="code" title="コードペイン">
+          <button class="toggle-btn active" data-pane="code" title="コードペイン" aria-label="コードペインの表示を切り替え" aria-pressed="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
             <span>コード</span>
           </button>
-          <button class="toggle-btn active" data-pane="shell" title="シェルペイン">
+          <button class="toggle-btn active" data-pane="shell" title="シェルペイン" aria-label="シェルペインの表示を切り替え" aria-pressed="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
             <span>シェル</span>
           </button>
-          <button class="toggle-btn active" data-pane="markdown" title="解説ペイン">
+          <button class="toggle-btn active" data-pane="markdown" title="解説ペイン" aria-label="解説ペインの表示を切り替え" aria-pressed="true">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
             <span>解説</span>
           </button>
@@ -390,7 +390,7 @@
         <!-- Editor toolbar -->
         <div class="editor-toolbar">
           <div class="editor-toolbar-left">
-            <span class="editor-deck-name" id="editorDeckName"></span>
+            <span class="editor-deck-name" id="editorDeckName" dir="auto"></span>
             <span class="editor-save-status" id="editorSaveStatus" role="status" aria-live="polite" aria-atomic="true">保存済み</span>
           </div>
           <div class="editor-toolbar-right">
@@ -436,38 +436,40 @@
               </div>
               <div class="editor-fields editor-fields-meta">
                 <div class="editor-field">
-                  <label>スライドタイトル</label>
-                  <input type="text" id="editorSlideTitle" placeholder="スライドタイトル" />
+                  <label for="editorSlideTitle">スライドタイトル</label>
+                  <input type="text" id="editorSlideTitle" placeholder="スライドタイトル" maxlength="160" dir="auto" />
                 </div>
                 <div class="editor-field">
-                  <label>参照ファイル</label>
+                  <label for="editorFileRef">参照ファイル</label>
                   <select id="editorFileRef" class="editor-select"></select>
                 </div>
-                <div class="editor-field">
-                  <label>表示行範囲</label>
+                <fieldset class="editor-field editor-fieldset">
+                  <legend>表示行範囲</legend>
                   <div class="editor-line-range">
-                    <input type="number" id="editorLineStart" min="1" placeholder="開始" class="editor-line-input" />
+                    <label class="visually-hidden" for="editorLineStart">開始行</label>
+                    <input type="number" id="editorLineStart" min="1" placeholder="開始" class="editor-line-input" inputmode="numeric" aria-describedby="editorRangeHint editorRangeSummary" />
                     <span class="editor-line-separator">〜</span>
-                    <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" />
+                    <label class="visually-hidden" for="editorLineEnd">終了行</label>
+                    <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" inputmode="numeric" aria-describedby="editorRangeHint editorRangeSummary" />
                   </div>
                   <div class="editor-summary-row">
                     <div class="editor-selection-summary" id="editorRangeSummary">L1-L1 (1行)</div>
                     <button class="editor-inline-action" id="resetRangeBtn" type="button" title="全体範囲に戻す">全体に戻す</button>
                   </div>
-                  <p class="editor-field-hint">青い帯が表示範囲です。行番号ドラッグで範囲選択、Shift+クリックで範囲確定</p>
-                </div>
+                  <p class="editor-field-hint" id="editorRangeHint">青い帯が表示範囲です。行番号ドラッグで範囲選択、Shift+クリックで範囲確定</p>
+                </fieldset>
                 <div class="editor-field">
-                  <label>ハイライト行</label>
+                  <label for="editorHighlight">ハイライト行</label>
                   <div class="editor-inline-actions">
                     <button class="editor-inline-action" id="toggleHighlightInputBtn" type="button">編集</button>
                     <button class="editor-inline-action" id="clearHighlightBtn" type="button">全解除</button>
                   </div>
                   <div class="editor-highlight-chips" id="editorHighlightChips"></div>
                   <div class="editor-highlight-input-row" id="editorHighlightInputRow" hidden>
-                    <input type="text" id="editorHighlight" placeholder="4,5,6" />
+                    <input type="text" id="editorHighlight" placeholder="4,5,6" inputmode="numeric" aria-describedby="editorHighlightHint" />
                     <button class="editor-inline-action" id="closeHighlightInputBtn" type="button">閉じる</button>
                   </div>
-                  <p class="editor-field-hint">左端の緑チェック列をクリック/ドラッグで選択（必要なら編集で数値入力）</p>
+                  <p class="editor-field-hint" id="editorHighlightHint">左端の緑チェック列をクリック/ドラッグで選択（必要なら編集で数値入力）</p>
                 </div>
               </div>
             </section>
@@ -498,13 +500,15 @@
               </div>
               <div class="editor-file-editor">
                 <div class="editor-file-meta">
-                  <input type="text" id="editorFileName" placeholder="ファイル名 (例: main.py)" class="editor-file-name-input" />
-                  <input type="text" id="editorFileLang" placeholder="言語 (例: python)" class="editor-file-lang-input" />
+                  <label class="visually-hidden" for="editorFileName">ファイル名</label>
+                  <input type="text" id="editorFileName" placeholder="ファイル名 (例: main.py)" class="editor-file-name-input" maxlength="240" dir="auto" aria-describedby="editorFileNameError" />
+                  <label class="visually-hidden" for="editorFileLang">言語</label>
+                  <input type="text" id="editorFileLang" placeholder="言語 (例: python)" class="editor-file-lang-input" maxlength="80" dir="auto" />
                   <button class="btn-icon btn-danger-icon" id="deleteFileBtn" title="ファイル削除" aria-label="現在のファイルを削除">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                   </button>
                 </div>
-                <p class="editor-inline-error" id="editorFileNameError" hidden></p>
+                <p class="editor-inline-error" id="editorFileNameError" role="status" aria-live="polite" hidden></p>
                 <div class="editor-file-code-wrapper">
                   <div class="editor-code-column-header">
                     <span
@@ -531,18 +535,18 @@
               </div>
               <div class="editor-fields editor-fields-markdown">
                 <div class="editor-field editor-markdown-input-field">
-                  <label>マークダウン</label>
-                  <div id="editorMarkdown" class="editor-markdown-editor"></div>
+                  <span class="editor-field-label" id="editorMarkdownLabel">マークダウン</span>
+                  <div id="editorMarkdown" class="editor-markdown-editor" role="textbox" aria-multiline="true" aria-labelledby="editorMarkdownLabel"></div>
                   <p class="editor-asset-warning" id="editorAssetWarning" hidden></p>
                 </div>
                 <div class="editor-markdown-resizer" id="editorMarkdownResizer" title="ドラッグして上下の比率を調整"></div>
                 <div class="editor-field editor-markdown-preview-field">
-                  <label>プレビュー</label>
+                  <span class="editor-field-label" id="editorMarkdownPreviewLabel">プレビュー</span>
                   <div class="editor-preview editor-markdown-preview">
                     <div class="editor-preview-header">
                       <span class="editor-preview-label">Render</span>
                     </div>
-                    <div class="editor-preview-body markdown-body" id="editorMarkdownPreview"></div>
+                    <div class="editor-preview-body markdown-body" id="editorMarkdownPreview" role="region" aria-labelledby="editorMarkdownPreviewLabel"></div>
                   </div>
                 </div>
               </div>
