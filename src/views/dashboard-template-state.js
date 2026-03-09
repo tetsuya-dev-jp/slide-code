@@ -33,4 +33,8 @@ export function applyTemplateButtonState(buttonEl, isSaved) {
       ? `デッキ「${deckTitle}」のテンプレートを削除`
       : `デッキ「${deckTitle}」をテンプレートとして保存`,
   );
+  const labelEl = buttonEl.querySelector('.deck-card-action-label');
+  if (labelEl) {
+    labelEl.textContent = isSaved ? '解除' : '保存';
+  }
 }

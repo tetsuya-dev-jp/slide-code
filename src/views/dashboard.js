@@ -1,6 +1,6 @@
 import * as api from '../core/api.js';
 import { createDeckFolderSlug, DECK_FOLDER_PATTERN, normalizeDeckFolderName } from '../core/deck-utils.js';
-import { showToast, escapeHtml, formatCount, formatDate } from '../utils/helpers.js';
+import { showToast, escapeHtml, formatCount, formatDate, debounce } from '../utils/helpers.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
 import { initDashboardDeleteModal } from './dashboard-delete-modal.js';
@@ -28,6 +28,7 @@ export function initDashboard(router) {
   const deckSortSelect = document.getElementById('deckSortSelect');
   const deckStatusFilter = document.getElementById('deckStatusFilter');
   const deckSummaryEl = document.getElementById('deckSummary');
+  const deckGridEl = document.getElementById('deckGrid');
 
   let editingDeckId = null;
   let autoSyncFolderName = true;
@@ -35,6 +36,7 @@ export function initDashboard(router) {
   let savedTemplateDeckIds = new Set();
   let showRequestId = 0;
   let allDecks = [];
+  const refreshDeckGridDebounced = debounce(refreshDeckGrid, 100);
 
   function getRecentDeckMap() {
     return new Map(getRecentDecks().map((entry) => [entry.id, entry]));
@@ -169,19 +171,15 @@ export function initDashboard(router) {
   }
 
   function renderDeckLoadError(error) {
-    const grid = document.getElementById('deckGrid');
-    if (!grid) return;
+    if (!deckGridEl) return;
 
-    grid.innerHTML = renderDeckState({
+    deckGridEl.innerHTML = renderDeckState({
       state: 'error',
       title: 'デッキを読み込めませんでした',
       description: getRequestErrorMessage('デッキの読み込み', error),
       actionLabel: '再読み込み',
       actionClassName: 'btn btn-secondary',
       actionId: 'retryDeckLoadBtn',
-    });
-    grid.querySelector('#retryDeckLoadBtn')?.addEventListener('click', () => {
-      show();
     });
   }
 
@@ -488,9 +486,9 @@ export function initDashboard(router) {
   }
 
   function renderDeckGrid(decks) {
-    const grid = document.getElementById('deckGrid');
+    if (!deckGridEl) return;
     if (decks.length === 0) {
-      grid.innerHTML = allDecks.length === 0
+      deckGridEl.innerHTML = allDecks.length === 0
         ? renderDeckState({
           state: 'empty',
           title: 'まだデッキがありません',
@@ -505,13 +503,10 @@ export function initDashboard(router) {
           actionLabel: '新規デッキを作成',
           actionId: 'createFirstDeckBtn',
         });
-      grid.querySelector('#createFirstDeckBtn')?.addEventListener('click', () => {
-        document.getElementById('newDeckBtn')?.click();
-      });
       return;
     }
 
-    grid.innerHTML = decks.map(deck => {
+    deckGridEl.innerHTML = decks.map(deck => {
       const templateSaved = savedTemplateDeckIds.has(deck.id);
       return `
       <div class="deck-card" data-id="${deck.id}" role="button" tabindex="0" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
@@ -553,59 +548,90 @@ export function initDashboard(router) {
       </div>
     `;
     }).join('');
-
-    grid.querySelectorAll('.deck-card').forEach(card => {
-      card.addEventListener('click', (event) => {
-        if (event.target.closest('.deck-card-actions')) return;
-        router.navigate(`/deck/${card.dataset.id}/edit`);
-      });
-      card.addEventListener('keydown', (event) => {
-        if (event.target.closest('.deck-card-actions')) return;
-        if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return;
-        event.preventDefault();
-        router.navigate(`/deck/${card.dataset.id}/edit`);
-      });
-    });
-
-    grid.querySelectorAll('.deck-open').forEach(btn => {
-      btn.addEventListener('click', () => router.navigate(`/deck/${btn.dataset.id}`));
-    });
-    grid.querySelectorAll('.deck-edit').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        try {
-          const deck = await api.getDeck(btn.dataset.id);
-          openModal('edit', deck, btn);
-        } catch (err) {
-          showToast(getRequestErrorMessage('デッキ情報の取得', err));
-        }
-      });
-    });
-    grid.querySelectorAll('.deck-duplicate').forEach(btn => {
-      btn.addEventListener('click', () => handleDuplicateDeck(btn.dataset.id));
-    });
-    grid.querySelectorAll('.deck-template').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const nextSaved = await handleToggleTemplate(btn.dataset.id);
-        applyTemplateButtonState(btn, nextSaved);
-      });
-    });
-    grid.querySelectorAll('.deck-export').forEach(btn => {
-      btn.addEventListener('click', () => openExportModal(btn.dataset.id, btn));
-    });
-    grid.querySelectorAll('.deck-delete').forEach(btn => {
-      btn.addEventListener('click', () => handleDeleteDeck(btn.dataset.id, btn.getAttribute('data-title') || '', btn));
-    });
   }
 
   [deckSearchInput, deckSortSelect, deckStatusFilter].forEach((control) => {
-    control?.addEventListener('input', refreshDeckGrid);
+    control?.addEventListener('input', control === deckSearchInput ? refreshDeckGridDebounced : refreshDeckGrid);
     control?.addEventListener('change', refreshDeckGrid);
+  });
+
+  deckGridEl?.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+
+    const actionButton = target.closest('button');
+    if (actionButton?.id === 'createFirstDeckBtn') {
+      document.getElementById('newDeckBtn')?.click();
+      return;
+    }
+    if (actionButton?.id === 'retryDeckLoadBtn') {
+      show();
+      return;
+    }
+
+    if (actionButton?.closest('.deck-card-actions')) {
+      if (!(actionButton instanceof HTMLButtonElement)) return;
+      const deckId = actionButton.dataset.id || '';
+      if (!deckId) return;
+
+      if (actionButton.classList.contains('deck-open')) {
+        router.navigate(`/deck/${deckId}`);
+        return;
+      }
+      if (actionButton.classList.contains('deck-edit')) {
+        void (async () => {
+          try {
+            const deck = await api.getDeck(deckId);
+            openModal('edit', deck, actionButton);
+          } catch (err) {
+            showToast(getRequestErrorMessage('デッキ情報の取得', err));
+          }
+        })();
+        return;
+      }
+      if (actionButton.classList.contains('deck-duplicate')) {
+        void handleDuplicateDeck(deckId);
+        return;
+      }
+      if (actionButton.classList.contains('deck-template')) {
+        void (async () => {
+          const nextSaved = await handleToggleTemplate(deckId);
+          applyTemplateButtonState(actionButton, nextSaved);
+        })();
+        return;
+      }
+      if (actionButton.classList.contains('deck-export')) {
+        openExportModal(deckId, actionButton);
+        return;
+      }
+      if (actionButton.classList.contains('deck-delete')) {
+        void handleDeleteDeck(deckId, actionButton.getAttribute('data-title') || '', actionButton);
+      }
+      return;
+    }
+
+    const card = target.closest('.deck-card');
+    if (card instanceof HTMLElement && card.dataset.id) {
+      router.navigate(`/deck/${card.dataset.id}/edit`);
+    }
+  });
+
+  deckGridEl?.addEventListener('keydown', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement) || !target.classList.contains('deck-card')) {
+      return;
+    }
+    if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return;
+    event.preventDefault();
+    if (target.dataset.id) {
+      router.navigate(`/deck/${target.dataset.id}/edit`);
+    }
   });
 
   async function show() {
     const requestId = ++showRequestId;
-    const grid = document.getElementById('deckGrid');
-    grid.innerHTML = renderDeckState({
+    if (!deckGridEl) return;
+    deckGridEl.innerHTML = renderDeckState({
       state: 'loading',
       title: 'デッキを読み込み中',
       description: 'ローカルの deck とテンプレート情報を確認しています。',

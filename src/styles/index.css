@@ -1770,6 +1770,7 @@ body.resizing-v {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  contain: layout paint;
 }
 
 .deck-issue-card {
@@ -1803,6 +1804,7 @@ body.resizing-v {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr));
   gap: 16px;
+  contain: layout paint;
 }
 
 .deck-card {
@@ -1815,6 +1817,8 @@ body.resizing-v {
   overflow: hidden;
   cursor: pointer;
   transition: all var(--transition-fast);
+  content-visibility: auto;
+  contain-intrinsic-size: 240px;
 }
 
 .deck-card:hover {

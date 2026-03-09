@@ -40,8 +40,8 @@ vi.mock('../core/preferences.js', () => ({
 
 const { initDashboard } = await import('./dashboard.js');
 
-function flush() {
-  return new Promise((resolve) => window.setTimeout(resolve, 0));
+function flush(ms = 0) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function buildDom() {
@@ -247,12 +247,14 @@ describe('dashboard', () => {
     const search = document.getElementById('deckSearchInput');
     search.value = 'alpha';
     search.dispatchEvent(new Event('input'));
+    await flush(120);
 
     expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Alpha Deck']);
     expect(document.getElementById('deckSummary').textContent).toContain('1 / 2件');
 
     search.value = '';
     search.dispatchEvent(new Event('input'));
+    await flush(120);
 
     const sort = document.getElementById('deckSortSelect');
     sort.value = 'title-asc';
