@@ -5,7 +5,9 @@ const LAST_EDITOR_STATE_KEY = 'slidecode-last-editor-state';
 const LAST_PRESENTATION_STATE_KEY = 'slidecode-last-presentation-state';
 const RECENT_DECKS_KEY = 'slidecode-recent-decks';
 const EDITOR_PREFERENCES_KEY = 'slidecode-editor-preferences';
+const MERMAID_PREFERENCES_KEY = 'slidecode-mermaid-preferences';
 const MAX_RECENT_DECKS = 12;
+const MAX_MERMAID_PREFERENCES = 120;
 
 const DEFAULT_EDITOR_PREFERENCES = {
   fontSize: 14,
@@ -40,8 +42,21 @@ function sanitizeDeckId(deckId) {
   return typeof deckId === 'string' && /^[A-Za-z0-9_-]+$/.test(deckId) ? deckId : '';
 }
 
+function sanitizePreferenceToken(token) {
+  if (typeof token !== 'string') return '';
+  const normalized = token.trim().slice(0, 160);
+  return /^[A-Za-z0-9:_-]+$/.test(normalized) ? normalized : '';
+}
+
 function sanitizeIndex(index) {
   return Number.isInteger(index) && index >= 0 ? index : 0;
+}
+
+function getMermaidPreferenceCompositeKey(scope, diagramId) {
+  const safeScope = sanitizePreferenceToken(scope);
+  const safeDiagramId = sanitizePreferenceToken(diagramId);
+  if (!safeScope || !safeDiagramId) return '';
+  return `${safeScope}::${safeDiagramId}`;
 }
 
 export function getLastRoute() {
@@ -155,4 +170,52 @@ export function setEditorPreferences(preferences) {
 
 export function getDefaultEditorPreferences() {
   return { ...DEFAULT_EDITOR_PREFERENCES };
+}
+
+export function getMermaidDiagramPreference(scope, diagramId) {
+  const key = getMermaidPreferenceCompositeKey(scope, diagramId);
+  if (!key) return null;
+
+  const preferences = readJson(MERMAID_PREFERENCES_KEY, {});
+  const scale = preferences?.[key]?.scale;
+  if (!Number.isFinite(scale)) return null;
+
+  return {
+    scale: Math.min(Math.max(scale, 0.5), 2.5),
+  };
+}
+
+export function setMermaidDiagramPreference({ scope, diagramId, scale }) {
+  const key = getMermaidPreferenceCompositeKey(scope, diagramId);
+  if (!key || !Number.isFinite(scale)) return false;
+
+  const current = readJson(MERMAID_PREFERENCES_KEY, {});
+  const next = {
+    ...current,
+    [key]: {
+      scale: Math.min(Math.max(scale, 0.5), 2.5),
+      updatedAt: Date.now(),
+    },
+  };
+
+  const entries = Object.entries(next)
+    .filter(([, value]) => Number.isFinite(value?.scale))
+    .sort(([, left], [, right]) => (right?.updatedAt || 0) - (left?.updatedAt || 0))
+    .slice(0, MAX_MERMAID_PREFERENCES);
+
+  return writeJson(MERMAID_PREFERENCES_KEY, Object.fromEntries(entries));
+}
+
+export function clearMermaidDiagramPreference(scope, diagramId) {
+  const key = getMermaidPreferenceCompositeKey(scope, diagramId);
+  if (!key) return false;
+
+  const current = readJson(MERMAID_PREFERENCES_KEY, {});
+  if (!Object.prototype.hasOwnProperty.call(current, key)) {
+    return true;
+  }
+
+  const next = { ...current };
+  delete next[key];
+  return writeJson(MERMAID_PREFERENCES_KEY, next);
 }

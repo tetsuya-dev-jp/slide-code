@@ -26,6 +26,15 @@ export class CodePane {
         this.currentCode = code;
         this.langBadge.textContent = language;
 
+        if (!code) {
+            this.codeBody.innerHTML = `
+                <div class="code-empty-state">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.4"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+                    <span>このスライドにはコードがありません</span>
+                </div>`;
+            return;
+        }
+
         // Highlight the code
         let highlighted;
         try {

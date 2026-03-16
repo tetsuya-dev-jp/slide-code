@@ -136,7 +136,11 @@ export function initPresentation(router) {
 
       const resolved = resolveSlideCode(slide, presentationDeck);
       codePane.render(resolved.code, resolved.language, resolved.highlightLines);
-      markdownPane.render(slide.markdown);
+      markdownPane.render(slide.markdown, {
+        mermaidPreferenceScope: currentDeckId
+          ? `presentation:${currentDeckId}:${index}`
+          : `presentation:${index}`,
+      });
       syncPaneVisibilityForSlide(slide, resolved);
       if (currentDeckId) {
         setLastPresentationState({ deckId: currentDeckId, slideIndex: index });
@@ -399,9 +403,12 @@ export function initPresentation(router) {
 
   function setupKeyboardShortcuts() {
     document.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      const tag = e.target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.target.closest('.xterm')) return;
+      if (e.target.isContentEditable) return;
       if (document.getElementById('viewPresentation').style.display === 'none') return;
+      if (isLayoutDropdownOpen() && e.key !== 'Escape') return;
 
       switch (e.key) {
         case 'ArrowLeft':

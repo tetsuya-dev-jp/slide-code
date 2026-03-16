@@ -1,16 +1,19 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import {
+  clearMermaidDiagramPreference,
   getDefaultEditorPreferences,
   getEditorPreferences,
   getLastEditorState,
   getLastPresentationState,
   getLastRoute,
+  getMermaidDiagramPreference,
   getRecentDecks,
   recordRecentDeck,
   setEditorPreferences,
   setLastEditorState,
   setLastPresentationState,
   setLastRoute,
+  setMermaidDiagramPreference,
 } from './preferences.js';
 
 beforeEach(() => {
@@ -87,5 +90,20 @@ describe('preferences', () => {
       autosave: false,
       autosaveDelay: 500,
     });
+  });
+
+  test('stores mermaid diagram scale per scope', () => {
+    expect(setMermaidDiagramPreference({
+      scope: 'presentation:deck-a:2',
+      diagramId: 'diagram-0-abcd',
+      scale: 1.35,
+    })).toBe(true);
+
+    expect(getMermaidDiagramPreference('presentation:deck-a:2', 'diagram-0-abcd')).toEqual({
+      scale: 1.35,
+    });
+
+    expect(clearMermaidDiagramPreference('presentation:deck-a:2', 'diagram-0-abcd')).toBe(true);
+    expect(getMermaidDiagramPreference('presentation:deck-a:2', 'diagram-0-abcd')).toBeNull();
   });
 });

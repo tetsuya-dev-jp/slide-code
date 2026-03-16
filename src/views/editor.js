@@ -946,7 +946,10 @@ export function initEditor(router) {
 
   function updateMarkdownPreview() {
     const md = markdownEditor?.getValue() || '';
-    mdPreviewPane?.render(md);
+    const deckId = persistedDeckId || deck?.id || 'draft';
+    mdPreviewPane?.render(md, {
+      mermaidPreferenceScope: `editor:${deckId}:${slideIndex}`,
+    });
   }
 
   function handleMarkdownChange(value) {
@@ -1128,7 +1131,7 @@ export function initEditor(router) {
         insertAssetReference,
       });
 
-      document.getElementById('editorDeckSettingsBtn').addEventListener('click', (event) => {
+      document.getElementById('editorPreferencesBtn').addEventListener('click', (event) => {
         editorPreferencesModal?.open(event.currentTarget);
       });
 
@@ -1525,7 +1528,9 @@ export function initEditor(router) {
       if (!currentSlide) return;
 
       const markdown = markdownEditor ? markdownEditor.getValue() : (currentSlide.markdown || '');
-      mdPreviewPane?.render(markdown);
+      mdPreviewPane?.render(markdown, {
+        mermaidPreferenceScope: `editor:${persistedDeckId || deck?.id || 'draft'}:${slideIndex}`,
+      });
     },
   };
 }

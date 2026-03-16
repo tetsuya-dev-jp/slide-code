@@ -510,7 +510,7 @@ export function initDashboard(router) {
       const templateSaved = savedTemplateDeckIds.has(deck.id);
       return `
       <article class="deck-card" data-id="${deck.id}">
-        <a class="deck-card-main" href="#/deck/${encodeURIComponent(deck.id)}/edit" aria-label="デッキ「${escapeHtml(deck.title)}」を編集で開く">
+        <a class="deck-card-main" href="#/deck/${encodeURIComponent(deck.id)}/edit" aria-label="デッキ「${escapeHtml(deck.title)}」を編集">
           <div class="deck-card-body">
           <h3 class="deck-card-title" dir="auto">${escapeHtml(deck.title)}</h3>
           <p class="deck-card-desc" dir="auto">${escapeHtml(deck.description || '')}</p>
@@ -522,13 +522,13 @@ export function initDashboard(router) {
           </div>
         </a>
         <div class="deck-card-actions">
-          <button class="btn-icon deck-open" data-id="${deck.id}" title="開く" aria-label="デッキ「${escapeHtml(deck.title)}」を開く">
+          <button class="btn-icon deck-card-action-primary deck-open" data-id="${deck.id}" title="発表する" aria-label="デッキ「${escapeHtml(deck.title)}」を発表">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-            <span class="deck-card-action-label">開く</span>
+            <span class="deck-card-action-label">発表</span>
           </button>
-          <button class="btn-icon deck-edit" data-id="${deck.id}" title="編集" aria-label="デッキ「${escapeHtml(deck.title)}」を編集">
+          <button class="btn-icon deck-card-action-primary deck-edit" data-id="${deck.id}" title="デッキ情報を編集" aria-label="デッキ「${escapeHtml(deck.title)}」の情報を編集">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-            <span class="deck-card-action-label">編集</span>
+            <span class="deck-card-action-label">情報</span>
           </button>
           <button class="btn-icon deck-duplicate" data-id="${deck.id}" title="複製" aria-label="デッキ「${escapeHtml(deck.title)}」を複製">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>

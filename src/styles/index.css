@@ -85,12 +85,12 @@
 
 /* --- Light Theme --- */
 [data-theme="light"] {
-  /* Background palette */
-  --bg-primary: #f2f2f2;
-  --bg-secondary: #e9e9e9;
-  --bg-tertiary: #dfdfdf;
+  /* Background palette — wider steps for clearer hierarchy */
+  --bg-primary: #f4f4f4;
+  --bg-secondary: #eaeaea;
+  --bg-tertiary: #dcdcdc;
   --bg-elevated: #ffffff;
-  --bg-overlay: rgba(242, 242, 242, 0.88);
+  --bg-overlay: rgba(244, 244, 244, 0.90);
 
   /* Accent colors */
   --accent-primary: #7aa91a;
@@ -103,20 +103,20 @@
   /* Text colors */
   --text-primary: #0b0b0b;
   --text-secondary: #2e2e2e;
-  --text-tertiary: #666666;
+  --text-tertiary: #5c5c5c;
   --text-link: #5f840f;
 
-  /* Border */
-  --border-default: #c8c8c8;
-  --border-subtle: #dbdbdb;
+  /* Border — slightly stronger for light mode */
+  --border-default: #bfbfbf;
+  --border-subtle: #d4d4d4;
   --border-accent: #7aa91a;
 
   /* Focus Ring */
   --focus-ring: rgba(122, 169, 26, 0.35);
 
-  /* Shadows */
-  --shadow-sm: none;
-  --shadow-md: none;
+  /* Shadows — subtle elevation cues in light mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
   --shadow-glow: none;
 }
@@ -684,6 +684,18 @@ html, body {
   padding-left: 3px;
 }
 
+/* Code/Markdown empty states */
+.code-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  height: 100%;
+  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+}
+
 /* --- Shell Pane --- */
 .shell-body {
   background: var(--bg-primary);
@@ -868,12 +880,65 @@ html, body {
 
 /* Mermaid overrides */
 .markdown-body .mermaid {
-  display: flex;
-  justify-content: center;
+  display: block;
   margin: var(--space-lg) 0;
   background: var(--bg-tertiary);
   border-radius: var(--radius-md);
   padding: var(--space-lg);
+  overflow-x: auto;
+}
+
+.markdown-body .mermaid .mermaid-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+
+.markdown-body .mermaid .mermaid-control-btn {
+  min-width: 44px;
+  min-height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-fast),
+    border-color var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.markdown-body .mermaid .mermaid-control-btn:hover:not(:disabled),
+.markdown-body .mermaid .mermaid-control-btn:focus-visible:not(:disabled) {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.markdown-body .mermaid .mermaid-control-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.markdown-body .mermaid svg {
+  display: block;
+  height: auto;
+  margin: 0 auto;
+  max-width: none;
+}
+
+.markdown-body .mermaid svg[data-mermaid-layout="tall"],
+.markdown-body .mermaid svg[data-mermaid-layout="balanced"] {
+  width: min(100%, calc(var(--mermaid-target-width, 420px) * var(--mermaid-scale, 1)));
+}
+
+.markdown-body .mermaid svg[data-mermaid-layout="wide"] {
+  width: max(100%, calc(var(--mermaid-target-width, 840px) * var(--mermaid-scale, 1)));
 }
 
 /* Callout / Note boxes */
@@ -1434,11 +1499,30 @@ body.resizing-v {
 /* --- Responsive --- */
 @media (max-width: 768px) {
   .toolbar {
-    padding: 0 var(--space-sm);
+    height: auto;
+    flex-wrap: wrap;
+    padding: var(--space-xs) var(--space-sm);
+    gap: var(--space-xs);
+  }
+
+  .toolbar-left {
+    order: 1;
+    flex: 0 0 auto;
+    gap: var(--space-sm);
+  }
+
+  .toolbar-center {
+    order: 3;
+    flex: 1 0 100%;
+    justify-content: center;
+    padding: 2px 0;
+    border-top: 1px solid var(--border-subtle);
   }
 
   .toolbar-right {
-    gap: 6px;
+    order: 2;
+    gap: 4px;
+    margin-left: auto;
   }
 
   .toggle-btn span {
@@ -1462,11 +1546,15 @@ body.resizing-v {
   }
 
   .slide-nav {
-    gap: 6px;
+    gap: 4px;
   }
 
-  .slide-jump-input {
-    width: 52px;
+  /* Hide jump input and fullscreen on mobile to reclaim space */
+  .slide-jump-input,
+  #slideJumpBtn,
+  #fullscreenBtn,
+  #dashboardConfigBtn {
+    display: none;
   }
 
   .nav-btn-text {
@@ -1941,6 +2029,26 @@ body.resizing-v {
   font-weight: 600;
   line-height: 1;
   letter-spacing: 0.01em;
+}
+
+/* Primary card actions are always labeled on desktop */
+.deck-card-action-primary {
+  gap: 4px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  padding: 0 10px;
+  width: auto;
+  height: 32px;
+  background: var(--bg-secondary);
+}
+
+.deck-card-action-primary .deck-card-action-label {
+  display: inline;
+}
+
+.deck-card-action-primary:hover {
+  border-color: var(--border-accent);
+  background: var(--bg-elevated);
 }
 
 .deck-template.is-saved {
@@ -3378,13 +3486,37 @@ body.resizing-v {
 }
 
 [data-theme="light"] .editor-body {
-  background: #e9e9e9;
+  background: #eaeaea;
 }
 
 [data-theme="light"] .editor-panel,
 [data-theme="light"] .editor-files-section,
 [data-theme="light"] .editor-toolbar {
-  background: #f2f2f2;
+  background: #f4f4f4;
+}
+
+/* Light theme: strengthen pane header contrast */
+[data-theme="light"] .pane-header {
+  background: #eaeaea;
+  border-bottom-color: #bfbfbf;
+}
+
+[data-theme="light"] .toolbar {
+  background: #eaeaea;
+  border-bottom-color: #bfbfbf;
+}
+
+/* Light theme: card elevated surfaces */
+[data-theme="light"] .deck-card {
+  box-shadow: var(--shadow-sm);
+}
+
+[data-theme="light"] .deck-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+[data-theme="light"] .modal-dialog {
+  box-shadow: var(--shadow-lg);
 }
 
 @media (max-width: 1320px) {
@@ -3423,26 +3555,32 @@ body.resizing-v {
 @media (max-width: 860px) {
   .editor-toolbar {
     flex-wrap: wrap;
-    align-items: flex-start;
-  }
-
-  .editor-toolbar-left,
-  .editor-toolbar-right {
-    width: 100%;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 6px;
   }
 
   .editor-toolbar-left {
-    justify-content: space-between;
-    gap: 12px;
+    flex: 1;
+    min-width: 0;
   }
 
   .editor-toolbar-right {
-    flex-wrap: wrap;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    overflow-x: auto;
+    flex-shrink: 0;
+  }
+
+  /* Compact button labels on mobile */
+  .editor-toolbar-right .btn svg {
+    flex-shrink: 0;
   }
 
   .editor-toolbar-right .btn {
-    flex: 1 1 calc(50% - 4px);
-    justify-content: center;
+    padding: 6px 10px;
+    font-size: 12px;
   }
 
   .editor-container {
@@ -3481,6 +3619,26 @@ body.resizing-v {
 
   .editor-file-code-container {
     min-height: 320px;
+  }
+}
+
+@media (max-width: 640px) {
+  /* On very narrow screens, hide button text and show only icons for non-primary actions */
+  .editor-toolbar-right .btn {
+    padding: 6px 8px;
+    font-size: 0;
+    gap: 0;
+  }
+
+  .editor-toolbar-right .btn svg {
+    font-size: initial;
+  }
+
+  /* Keep primary save button visible with text */
+  .editor-toolbar-right #editorSaveBtn {
+    font-size: 12px;
+    gap: 4px;
+    padding: 6px 12px;
   }
 }
 
