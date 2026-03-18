@@ -5,6 +5,7 @@ const e2eEnv = {
   XDG_DATA_HOME: '.tmp/e2e/xdg-data',
   DECKS_DIR: '.tmp/e2e/decks',
   TEMPLATES_DIR: '.tmp/e2e/templates',
+  API_HOST: 'localhost',
   API_PORT: '3000',
   TERMINAL_WS_PORT: '3001',
   TERMINAL_ENABLED: 'false',
@@ -16,14 +17,14 @@ export default defineConfig({
   workers: 1,
   retries: process.env.CI ? 2 : 0,
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
   },
   webServer: [
     {
       name: 'api',
       command: 'pnpm dev:terminal',
-      url: 'http://127.0.0.1:3000/api/config',
+      port: 3000,
       reuseExistingServer: !process.env.CI,
       env: e2eEnv,
       stdout: 'pipe',
@@ -31,8 +32,8 @@ export default defineConfig({
     },
     {
       name: 'vite',
-      command: 'pnpm dev:vite -- --host 127.0.0.1 --port 5173 --strictPort',
-      url: 'http://127.0.0.1:5173',
+      command: 'pnpm dev:vite -- --host localhost --port 5173 --strictPort',
+      port: 5173,
       reuseExistingServer: !process.env.CI,
       stdout: 'pipe',
       timeout: 120 * 1000,
