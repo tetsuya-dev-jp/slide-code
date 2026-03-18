@@ -13,7 +13,7 @@ function defaultWsUrl() {
 
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.hostname || 'localhost';
-  const port = import.meta.env?.VITE_TERMINAL_WS_PORT || '3001';
+  const port = import.meta.env?.VITE_TERMINAL_WS_PORT || '43101';
   return `${protocol}//${host}:${port}`;
 }
 

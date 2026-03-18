@@ -5,14 +5,18 @@ import path from 'path';
 const APP_NAME = /** @type {string} */ ('slidecode');
 const LEGACY_APP_NAME = /** @type {string} */ ('codestage');
 const DEFAULT_BIND_HOST = '127.0.0.1';
+const DEFAULT_VITE_PORT = 43173;
+const DEFAULT_API_PORT = 43100;
+const DEFAULT_TERMINAL_WS_PORT = 43101;
+const DEFAULT_PREVIEW_PORT = 4173;
 
 const DEFAULT_LOCAL_ALLOWED_ORIGINS = [
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-  'http://localhost:3000',
-  'http://127.0.0.1:3000',
+  `http://localhost:${DEFAULT_VITE_PORT}`,
+  `http://127.0.0.1:${DEFAULT_VITE_PORT}`,
+  `http://localhost:${DEFAULT_PREVIEW_PORT}`,
+  `http://127.0.0.1:${DEFAULT_PREVIEW_PORT}`,
+  `http://localhost:${DEFAULT_API_PORT}`,
+  `http://127.0.0.1:${DEFAULT_API_PORT}`,
 ];
 
 function resolveHomeDir() {
@@ -138,7 +142,7 @@ function createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir, defau
       shell: '',
       enabled: false,
       wsHost: DEFAULT_BIND_HOST,
-      wsPort: 3001,
+      wsPort: DEFAULT_TERMINAL_WS_PORT,
       allowedOrigins: [],
       maxConnections: 4,
       maxPayloadBytes: 65536,
@@ -146,7 +150,7 @@ function createDefaultConfigTemplate(defaultDecksDir, defaultTemplatesDir, defau
     },
     api: {
       host: DEFAULT_BIND_HOST,
-      port: 3000,
+      port: DEFAULT_API_PORT,
       allowedOrigins: [],
     },
   };
@@ -273,9 +277,12 @@ export function loadRuntimeConfig() {
     DEFAULT_BIND_HOST,
   );
 
-  const wsPort = parsePort(process.env.TERMINAL_WS_PORT || configTerminal.wsPort, 3001);
+  const wsPort = parsePort(
+    process.env.TERMINAL_WS_PORT || configTerminal.wsPort,
+    DEFAULT_TERMINAL_WS_PORT,
+  );
 
-  const apiPort = parsePort(process.env.API_PORT || configApi.port, 3000);
+  const apiPort = parsePort(process.env.API_PORT || configApi.port, DEFAULT_API_PORT);
 
   const origins = deriveAllowedOrigins(
     process.env.TERMINAL_WS_ALLOWED_ORIGINS,

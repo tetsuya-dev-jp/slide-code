@@ -28,12 +28,12 @@ pnpm install
 pnpm dev
 ```
 
-Then open `http://127.0.0.1:5173`.
+Then open `http://127.0.0.1:43173`.
 
 `pnpm dev` starts both services:
 
-- Vite frontend: `5173`
-- Local API / terminal server: `3000` / `3001`
+- Vite frontend: `43173`
+- Local API / terminal server: `43100` / `43101`
 
 ## Common Commands
 
