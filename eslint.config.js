@@ -1,13 +1,17 @@
 import js from '@eslint/js';
+import prettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 
 const sharedRules = {
   'no-undef': 'error',
   'no-unreachable': 'error',
-  'no-unused-vars': ['error', {
-    argsIgnorePattern: '^_',
-    caughtErrorsIgnorePattern: '^_',
-  }],
+  'no-unused-vars': [
+    'error',
+    {
+      argsIgnorePattern: '^_',
+      caughtErrorsIgnorePattern: '^_',
+    },
+  ],
 };
 
 export default [
@@ -37,7 +41,13 @@ export default [
   },
   {
     ...js.configs.recommended,
-    files: ['server/**/*.js', 'tests/**/*.js', '*.config.js', 'playwright.config.js', 'vitest.config.js'],
+    files: [
+      'server/**/*.js',
+      'tests/**/*.js',
+      '*.config.js',
+      'playwright.config.js',
+      'vitest.config.js',
+    ],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -49,4 +59,5 @@ export default [
       ...sharedRules,
     },
   },
+  prettierConfig,
 ];
