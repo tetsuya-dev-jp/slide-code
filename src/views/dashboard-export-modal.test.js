@@ -67,7 +67,9 @@ describe('dashboard export modal', () => {
     document.getElementById('deckExportForm').dispatchEvent(new Event('submit'));
     await flush();
 
-    expect(showToast).toHaveBeenCalledWith('ポップアップがブロックされました。許可して再試行してください');
+    expect(showToast).toHaveBeenCalledWith(
+      'ポップアップがブロックされました。許可して再試行してください',
+    );
     expect(document.getElementById('deckExportModal').hidden).toBe(false);
     expect(document.getElementById('deckExportSubmit').disabled).toBe(false);
     expect(document.getElementById('deckExportCancel').disabled).toBe(false);
@@ -75,9 +77,12 @@ describe('dashboard export modal', () => {
 
   test('prevents duplicate submissions while an export is in flight', async () => {
     let resolveExport;
-    api.downloadDeckExport.mockImplementation(() => new Promise((resolve) => {
-      resolveExport = resolve;
-    }));
+    api.downloadDeckExport.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveExport = resolve;
+        }),
+    );
 
     const { openExportModal } = initDashboardExportModal();
     openExportModal('deck-1', document.getElementById('trigger'));
@@ -101,14 +106,18 @@ describe('dashboard export modal', () => {
   });
 
   test('keeps the modal open and shows a recoverable offline error', async () => {
-    api.downloadDeckExport.mockRejectedValue(Object.assign(new Error('Offline'), { code: 'offline' }));
+    api.downloadDeckExport.mockRejectedValue(
+      Object.assign(new Error('Offline'), { code: 'offline' }),
+    );
     const { openExportModal } = initDashboardExportModal();
 
     openExportModal('deck-1', document.getElementById('trigger'));
     document.getElementById('deckExportForm').dispatchEvent(new Event('submit'));
     await flush();
 
-    expect(showToast).toHaveBeenCalledWith('オフラインのためエクスポートできません。接続を確認して再試行してください');
+    expect(showToast).toHaveBeenCalledWith(
+      'オフラインのためエクスポートできません。接続を確認して再試行してください',
+    );
     expect(document.getElementById('deckExportModal').hidden).toBe(false);
     expect(document.getElementById('deckExportModal').getAttribute('aria-busy')).toBe('false');
     expect(document.getElementById('deckExportSubmit').disabled).toBe(false);

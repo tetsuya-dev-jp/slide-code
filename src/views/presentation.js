@@ -9,7 +9,11 @@ import { Resizer } from '../core/resizer.js';
 import { LayoutManager } from '../core/layout.js';
 import { resolveSlideCode } from '../core/resolve-code.js';
 import { showToast } from '../utils/helpers.js';
-import { getLastPresentationState, recordRecentDeck, setLastPresentationState } from '../core/preferences.js';
+import {
+  getLastPresentationState,
+  recordRecentDeck,
+  setLastPresentationState,
+} from '../core/preferences.js';
 import { theme } from '../core/theme.js';
 import {
   applyPaneToggle,
@@ -42,14 +46,16 @@ export function initPresentation(router) {
         import('../panes/code.js'),
         import('../panes/shell.js'),
         import('../panes/markdown.js'),
-      ]).then(([codeModule, shellModule, markdownModule]) => ({
-        CodePane: codeModule.CodePane,
-        ShellPane: shellModule.ShellPane,
-        MarkdownPane: markdownModule.MarkdownPane,
-      })).catch((error) => {
-        paneRuntimePromise = null;
-        throw error;
-      });
+      ])
+        .then(([codeModule, shellModule, markdownModule]) => ({
+          CodePane: codeModule.CodePane,
+          ShellPane: shellModule.ShellPane,
+          MarkdownPane: markdownModule.MarkdownPane,
+        }))
+        .catch((error) => {
+          paneRuntimePromise = null;
+          throw error;
+        });
     }
 
     return paneRuntimePromise;
@@ -80,18 +86,15 @@ export function initPresentation(router) {
         document.getElementById('langBadge'),
         document.getElementById('copyBtn'),
       );
-      shellPane = new ShellPane(
-        document.getElementById('shellBody'),
-        {
-          isDark: theme.isDark,
-          deckId: currentDeckId || '',
-          onStatusChange: ({ state, message }) => {
-            if (!shellStatusEl) return;
-            shellStatusEl.dataset.state = state;
-            shellStatusEl.textContent = message;
-          },
+      shellPane = new ShellPane(document.getElementById('shellBody'), {
+        isDark: theme.isDark,
+        deckId: currentDeckId || '',
+        onStatusChange: ({ state, message }) => {
+          if (!shellStatusEl) return;
+          shellStatusEl.dataset.state = state;
+          shellStatusEl.textContent = message;
         },
-      );
+      });
       markdownPane = new MarkdownPane(document.getElementById('markdownBody'), {
         resolveAssetUrl: (assetPath) => {
           if (!currentDeckId) return `asset://${assetPath}`;
@@ -172,7 +175,9 @@ export function initPresentation(router) {
       if (!currentDeckId) return;
       router.navigate(`/deck/${currentDeckId}/edit`);
     });
-    document.getElementById('shellReconnectBtn').addEventListener('click', () => shellPane?.reconnect());
+    document
+      .getElementById('shellReconnectBtn')
+      .addEventListener('click', () => shellPane?.reconnect());
     document.getElementById('shellClearBtn').addEventListener('click', () => shellPane?.clear());
     document.getElementById('shellResetBtn').addEventListener('click', () => shellPane?.reset());
     fullscreenBtnEl?.addEventListener('click', async () => {
@@ -188,7 +193,7 @@ export function initPresentation(router) {
   }
 
   function setupPaneToggles() {
-    document.querySelectorAll('.toggle-btn').forEach(btn => {
+    document.querySelectorAll('.toggle-btn').forEach((btn) => {
       btn.addEventListener('click', () => {
         const pane = btn.dataset.pane;
         const next = applyPaneToggle({
@@ -222,7 +227,9 @@ export function initPresentation(router) {
   }
 
   function isLayoutDropdownOpen() {
-    return Boolean(layoutDropdownEl && !layoutDropdownEl.hidden && layoutDropdownEl.classList.contains('open'));
+    return Boolean(
+      layoutDropdownEl && !layoutDropdownEl.hidden && layoutDropdownEl.classList.contains('open'),
+    );
   }
 
   function closeLayoutDropdown({ restoreFocus = false } = {}) {
@@ -240,7 +247,9 @@ export function initPresentation(router) {
     layoutDropdownEl.hidden = false;
     layoutDropdownEl.classList.add('open');
     layoutPickerBtnEl.setAttribute('aria-expanded', 'true');
-    const activeOption = layoutDropdownEl.querySelector('.layout-option.active') || layoutDropdownEl.querySelector('.layout-option');
+    const activeOption =
+      layoutDropdownEl.querySelector('.layout-option.active') ||
+      layoutDropdownEl.querySelector('.layout-option');
     activeOption?.focus();
   }
 
@@ -305,7 +314,7 @@ export function initPresentation(router) {
       }
     });
 
-    document.querySelectorAll('.layout-option').forEach(btn => {
+    document.querySelectorAll('.layout-option').forEach((btn) => {
       btn.addEventListener('click', () => {
         applyLayoutOption(btn);
       });
@@ -358,7 +367,7 @@ export function initPresentation(router) {
   function setupPaneDragDrop() {
     let dragSourcePane = null;
 
-    document.querySelectorAll('.pane-header[draggable="true"]').forEach(header => {
+    document.querySelectorAll('.pane-header[draggable="true"]').forEach((header) => {
       header.addEventListener('dragstart', (e) => {
         dragSourcePane = header.dataset.pane;
         header.classList.add('dragging');
@@ -375,11 +384,11 @@ export function initPresentation(router) {
       header.addEventListener('dragend', () => {
         header.classList.remove('dragging');
         dragSourcePane = null;
-        document.querySelectorAll('.pane').forEach(p => p.classList.remove('drop-target'));
+        document.querySelectorAll('.pane').forEach((p) => p.classList.remove('drop-target'));
       });
     });
 
-    document.querySelectorAll('.pane[data-pane]').forEach(paneEl => {
+    document.querySelectorAll('.pane[data-pane]').forEach((paneEl) => {
       paneEl.addEventListener('dragover', (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
@@ -396,7 +405,7 @@ export function initPresentation(router) {
           layoutManager.swapPanesByName(sourcePane, targetPane);
           rebuildLayout();
         }
-        document.querySelectorAll('.pane').forEach(p => p.classList.remove('drop-target'));
+        document.querySelectorAll('.pane').forEach((p) => p.classList.remove('drop-target'));
       });
     });
   }
@@ -498,23 +507,26 @@ export function initPresentation(router) {
   }
 
   function updateSplitterVisibility() {
-    const visiblePanes = layoutManager.paneOrder.filter(p => paneState[p]);
+    const visiblePanes = layoutManager.paneOrder.filter((p) => paneState[p]);
     resizer.splitters.forEach(({ el, def }) => {
       let shouldShow = true;
-      def.between.forEach(slot => {
+      def.between.forEach((slot) => {
         if (typeof slot === 'number') {
           const paneName = layoutManager.paneOrder[slot];
           if (!paneState[paneName]) shouldShow = false;
         }
       });
-      el.style.display = (!shouldShow || visiblePanes.length < 2) ? 'none' : '';
+      el.style.display = !shouldShow || visiblePanes.length < 2 ? 'none' : '';
     });
   }
 
   function syncLayoutPicker() {
-    document.querySelectorAll('.layout-option').forEach(btn => {
+    document.querySelectorAll('.layout-option').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.layout === layoutManager.currentLayoutId);
-      btn.setAttribute('aria-pressed', btn.dataset.layout === layoutManager.currentLayoutId ? 'true' : 'false');
+      btn.setAttribute(
+        'aria-pressed',
+        btn.dataset.layout === layoutManager.currentLayoutId ? 'true' : 'false',
+      );
     });
     refreshPaneOrderControls();
   }
@@ -559,7 +571,11 @@ export function initPresentation(router) {
       if (shellPane) shellPane.setTheme(isDark);
       if (slideManager.current()) slideManager.emit();
     },
-    get shellPane() { return shellPane; },
-    get slideManager() { return slideManager; },
+    get shellPane() {
+      return shellPane;
+    },
+    get slideManager() {
+      return slideManager;
+    },
   };
 }

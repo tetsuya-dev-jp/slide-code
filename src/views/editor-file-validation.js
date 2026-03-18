@@ -1,10 +1,6 @@
 import { sanitizeRelativeFilePath, validateRelativeFilePath } from '../core/deck-utils.js';
 
-export function getEditorFileValidationState({
-  currentFile,
-  rawName = '',
-  files = [],
-} = {}) {
+export function getEditorFileValidationState({ currentFile, rawName = '', files = [] } = {}) {
   if (!currentFile) {
     return {
       message: '',

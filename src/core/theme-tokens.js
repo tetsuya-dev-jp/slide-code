@@ -92,7 +92,8 @@ export function getTerminalTheme(themeName) {
     foreground: tokens.textPrimary,
     cursor: tokens.textLink,
     cursorAccent: tokens.bgPrimary,
-    selectionBackground: normalizedThemeName === 'light' ? 'rgba(122, 169, 26, 0.24)' : 'rgba(183, 255, 26, 0.28)',
+    selectionBackground:
+      normalizedThemeName === 'light' ? 'rgba(122, 169, 26, 0.24)' : 'rgba(183, 255, 26, 0.28)',
     ...tokens.terminalAnsi,
   };
 }

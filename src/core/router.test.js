@@ -17,7 +17,7 @@ function createRouter() {
 }
 
 async function flushHashChange() {
-  await new Promise(resolve => window.setTimeout(resolve, 0));
+  await new Promise((resolve) => window.setTimeout(resolve, 0));
 }
 
 describe('Router', () => {
@@ -37,9 +37,7 @@ describe('Router', () => {
     const guard = vi.fn(() => true);
     const handler = vi.fn();
     const router = createRouter();
-    router
-      .setLeaveGuard(guard)
-      .on('/dashboard', handler);
+    router.setLeaveGuard(guard).on('/dashboard', handler);
 
     const allowed = await router.navigate('/dashboard');
     await flushHashChange();
@@ -52,11 +50,9 @@ describe('Router', () => {
   test('reports async route handler failures without unhandled rejections', async () => {
     const onError = vi.fn();
     const router = createRouter();
-    router
-      .setErrorHandler(onError)
-      .on('/boom', async () => {
-        throw new Error('boom');
-      });
+    router.setErrorHandler(onError).on('/boom', async () => {
+      throw new Error('boom');
+    });
 
     await router.navigate('/boom');
     await flushHashChange();

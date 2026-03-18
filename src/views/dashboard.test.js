@@ -133,7 +133,9 @@ afterEach(() => {
 
 describe('dashboard', () => {
   test('uses a modal before deleting a deck', async () => {
-    api.listDecks.mockResolvedValue([{ id: 'deck-1', title: 'Alpha', description: '', slideCount: 3, updatedAt: Date.now() }]);
+    api.listDecks.mockResolvedValue([
+      { id: 'deck-1', title: 'Alpha', description: '', slideCount: 3, updatedAt: Date.now() },
+    ]);
     api.deleteDeck.mockResolvedValue({ ok: true });
 
     const router = { navigate: vi.fn() };
@@ -192,7 +194,9 @@ describe('dashboard', () => {
 
     expect(showToast).toHaveBeenCalledWith('JSON の構文が不正なためインポートできません');
 
-    api.createDeck.mockRejectedValueOnce(Object.assign(new Error('Deck folder already exists'), { status: 409 }));
+    api.createDeck.mockRejectedValueOnce(
+      Object.assign(new Error('Deck folder already exists'), { status: 409 }),
+    );
     Object.defineProperty(importInput, 'files', {
       configurable: true,
       value: [{ name: 'deck.json', text: () => Promise.resolve('{"title":"Demo"}') }],
@@ -205,7 +209,9 @@ describe('dashboard', () => {
   });
 
   test('updates export helper copy when format changes', async () => {
-    api.listDecks.mockResolvedValue([{ id: 'deck-1', title: 'Alpha', description: '', slideCount: 3, updatedAt: Date.now() }]);
+    api.listDecks.mockResolvedValue([
+      { id: 'deck-1', title: 'Alpha', description: '', slideCount: 3, updatedAt: Date.now() },
+    ]);
 
     const { show } = initDashboard({ navigate: vi.fn() });
     await show();
@@ -249,7 +255,9 @@ describe('dashboard', () => {
     search.dispatchEvent(new Event('input'));
     await flush(120);
 
-    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Alpha Deck']);
+    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual([
+      'Alpha Deck',
+    ]);
     expect(document.getElementById('deckSummary').textContent).toContain('1 / 2件');
 
     search.value = '';
@@ -260,13 +268,18 @@ describe('dashboard', () => {
     sort.value = 'title-asc';
     sort.dispatchEvent(new Event('change'));
 
-    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Alpha Deck', 'Beta Deck']);
+    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual([
+      'Alpha Deck',
+      'Beta Deck',
+    ]);
 
     const filter = document.getElementById('deckStatusFilter');
     filter.value = 'recent';
     filter.dispatchEvent(new Event('change'));
 
-    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual(['Beta Deck']);
+    expect([...document.querySelectorAll('.deck-card-title')].map((el) => el.textContent)).toEqual([
+      'Beta Deck',
+    ]);
   });
 
   test('renders recoverable load error state for offline failures', async () => {
@@ -278,7 +291,9 @@ describe('dashboard', () => {
     await show();
     await flush();
 
-    expect(document.getElementById('deckGrid').textContent).toContain('オフラインのため接続できません');
+    expect(document.getElementById('deckGrid').textContent).toContain(
+      'オフラインのため接続できません',
+    );
 
     document.getElementById('retryDeckLoadBtn').click();
     await flush();

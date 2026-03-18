@@ -17,8 +17,10 @@ export function resolveSlideCode(slide, deck) {
   const slicedLines = lines.slice(start - 1, end);
   const code = slicedLines.join('\n');
 
-  const highlightLines = normalizeHighlightLines(slide.highlightLines, { minLine: start, maxLine: end })
-    .map(l => l - start + 1);
+  const highlightLines = normalizeHighlightLines(slide.highlightLines, {
+    minLine: start,
+    maxLine: end,
+  }).map((l) => l - start + 1);
 
   return { code, language: file.language || 'python', highlightLines };
 }

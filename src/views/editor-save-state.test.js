@@ -16,12 +16,14 @@ describe('reconcileDeckAfterSave', () => {
       files: [{ id: 'file-1', name: 'src/main.py', code: 'print(1)' }],
     };
 
-    expect(reconcileDeckAfterSave({
-      currentDeck,
-      savedDeck,
-      requestDeckId: 'deck-a',
-      hasLocalChanges: false,
-    })).toEqual({
+    expect(
+      reconcileDeckAfterSave({
+        currentDeck,
+        savedDeck,
+        requestDeckId: 'deck-a',
+        hasLocalChanges: false,
+      }),
+    ).toEqual({
       deck: savedDeck,
       persistedDeckId: 'deck-a',
       renamed: false,
@@ -49,12 +51,14 @@ describe('reconcileDeckAfterSave', () => {
       slides: [{ title: 'Slide 1', markdown: 'older server markdown' }],
     };
 
-    expect(reconcileDeckAfterSave({
-      currentDeck,
-      savedDeck,
-      requestDeckId: 'deck-a',
-      hasLocalChanges: true,
-    })).toEqual({
+    expect(
+      reconcileDeckAfterSave({
+        currentDeck,
+        savedDeck,
+        requestDeckId: 'deck-a',
+        hasLocalChanges: true,
+      }),
+    ).toEqual({
       deck: {
         ...currentDeck,
         schemaVersion: 3,
@@ -81,12 +85,14 @@ describe('reconcileDeckAfterSave', () => {
       slides: [],
     };
 
-    expect(reconcileDeckAfterSave({
-      currentDeck,
-      savedDeck,
-      requestDeckId: 'deck-current',
-      hasLocalChanges: true,
-    })).toEqual({
+    expect(
+      reconcileDeckAfterSave({
+        currentDeck,
+        savedDeck,
+        requestDeckId: 'deck-current',
+        hasLocalChanges: true,
+      }),
+    ).toEqual({
       deck: currentDeck,
       persistedDeckId: 'deck-renamed',
       renamed: true,

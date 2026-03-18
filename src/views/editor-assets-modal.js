@@ -69,7 +69,16 @@ export function initEditorAssetsModal({
   const brokenRefsEl = document.getElementById('editorAssetsBrokenRefs');
   const inlineWarningEl = document.getElementById('editorAssetWarning');
 
-  if (!openBtn || !modalEl || !closeBtn || !uploadBtn || !fileInputEl || !listEl || !brokenRefsEl || !inlineWarningEl) {
+  if (
+    !openBtn ||
+    !modalEl ||
+    !closeBtn ||
+    !uploadBtn ||
+    !fileInputEl ||
+    !listEl ||
+    !brokenRefsEl ||
+    !inlineWarningEl
+  ) {
     return {
       refreshBrokenReferences: () => {},
       openAssetsModal: () => {},
@@ -81,9 +90,7 @@ export function initEditorAssetsModal({
   function getKnownAssetPaths() {
     const assets = Array.isArray(getAssets()) ? getAssets() : [];
     return new Set(
-      assets
-        .filter(asset => asset?.path && asset.exists !== false)
-        .map(asset => asset.path),
+      assets.filter((asset) => asset?.path && asset.exists !== false).map((asset) => asset.path),
     );
   }
 
@@ -112,7 +119,10 @@ export function initEditorAssetsModal({
       return;
     }
 
-    const displayText = brokenRefs.slice(0, 3).map(ref => `asset://${ref}`).join(', ');
+    const displayText = brokenRefs
+      .slice(0, 3)
+      .map((ref) => `asset://${ref}`)
+      .join(', ');
     const suffix = brokenRefs.length > 3 ? ` ほか${brokenRefs.length - 3}件` : '';
     brokenRefsEl.textContent = `参照切れ: ${displayText}${suffix}`;
     brokenRefsEl.dataset.state = 'warning';
@@ -130,7 +140,9 @@ export function initEditorAssetsModal({
       return;
     }
 
-    listEl.innerHTML = assets.map((asset) => `
+    listEl.innerHTML = assets
+      .map(
+        (asset) => `
       <div class="editor-assets-item">
         <div class="editor-assets-item-main">
           <div class="editor-assets-item-header">
@@ -138,9 +150,11 @@ export function initEditorAssetsModal({
             <span class="editor-assets-item-kind">${escapeHtml(getAssetKindLabel(asset))}</span>
           </div>
           <div class="editor-assets-item-meta">${escapeHtml(formatAssetSize(asset.size))} / ${escapeHtml(asset.mimeType || 'application/octet-stream')}${asset.mimeType === 'image/svg+xml' ? ' / SVG はダウンロードのみ' : ''}</div>
-          ${deckId && isPreviewableAsset(asset)
-            ? `<div class="editor-assets-item-preview"><img src="${escapeAttribute(api.getDeckAssetUrl(deckId, asset.path))}" alt="${escapeAttribute(asset.path)}" loading="lazy" /></div>`
-            : ''}
+          ${
+            deckId && isPreviewableAsset(asset)
+              ? `<div class="editor-assets-item-preview"><img src="${escapeAttribute(api.getDeckAssetUrl(deckId, asset.path))}" alt="${escapeAttribute(asset.path)}" loading="lazy" /></div>`
+              : ''
+          }
         </div>
         <div class="editor-assets-item-actions">
           <button class="editor-inline-action" data-insert-asset="${escapeAttribute(asset.path)}" type="button">挿入</button>
@@ -148,7 +162,9 @@ export function initEditorAssetsModal({
           <button class="editor-inline-action" data-delete-asset="${escapeAttribute(asset.path)}" type="button">削除</button>
         </div>
       </div>
-    `).join('');
+    `,
+      )
+      .join('');
 
     listEl.querySelectorAll('[data-insert-asset]').forEach((button) => {
       button.addEventListener('click', () => {

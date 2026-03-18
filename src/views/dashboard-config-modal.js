@@ -43,7 +43,17 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     targetInput: null,
   };
 
-  if (!openBtn || !modalEl || !formEl || !decksDirEl || !templatesDirEl || !sharedTemplatesDirEl || !baseCwdEl || !shellEl || !cancelBtn) {
+  if (
+    !openBtn ||
+    !modalEl ||
+    !formEl ||
+    !decksDirEl ||
+    !templatesDirEl ||
+    !sharedTemplatesDirEl ||
+    !baseCwdEl ||
+    !shellEl ||
+    !cancelBtn
+  ) {
     return;
   }
 
@@ -128,7 +138,8 @@ export function initDashboardConfigModal({ onSaved } = {}) {
 
   async function openPickerModal(targetInput) {
     if (!picker.modalEl) return;
-    pickerModalTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    pickerModalTriggerEl =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     picker.targetInput = targetInput;
     picker.modalEl.hidden = false;
     const initialPath = targetInput?.value?.trim() || '';
@@ -148,7 +159,8 @@ export function initDashboardConfigModal({ onSaved } = {}) {
   }
 
   async function openModal() {
-    configModalTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    configModalTriggerEl =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     try {
       const config = await api.getAppConfig();
       decksDirEl.value = config.decksDir || '';
@@ -186,7 +198,7 @@ export function initDashboardConfigModal({ onSaved } = {}) {
     templatesDirEl.classList.toggle('modal-input-error', invalidTemplatesDir);
     baseCwdEl.classList.toggle('modal-input-error', invalidBaseCwd);
     if (invalidDecksDir || invalidTemplatesDir || invalidBaseCwd) {
-      (invalidDecksDir ? decksDirEl : (invalidTemplatesDir ? templatesDirEl : baseCwdEl)).focus();
+      (invalidDecksDir ? decksDirEl : invalidTemplatesDir ? templatesDirEl : baseCwdEl).focus();
       return;
     }
 

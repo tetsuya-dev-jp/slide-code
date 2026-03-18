@@ -17,7 +17,9 @@ describe('splitHighlightedHtmlLines', () => {
   });
 
   test('keeps multiline comment markup balanced when siblings follow', () => {
-    const highlighted = hljs.highlight('/* a\nb */\nconst x = 1;', { language: 'javascript' }).value;
+    const highlighted = hljs.highlight('/* a\nb */\nconst x = 1;', {
+      language: 'javascript',
+    }).value;
     const lines = splitHighlightedHtmlLines(highlighted);
 
     expect(lines).toHaveLength(3);
@@ -38,8 +40,12 @@ describe('CodePane', () => {
 
     const lineEls = Array.from(codeBody.querySelectorAll('.code-line'));
     expect(lineEls).toHaveLength(2);
-    expect(lineEls[0].querySelector('.line-content')?.innerHTML).toContain('<span class="hljs-string">');
-    expect(lineEls[1].querySelector('.line-content')?.innerHTML).toContain('<span class="hljs-string">');
+    expect(lineEls[0].querySelector('.line-content')?.innerHTML).toContain(
+      '<span class="hljs-string">',
+    );
+    expect(lineEls[1].querySelector('.line-content')?.innerHTML).toContain(
+      '<span class="hljs-string">',
+    );
     expect(lineEls[1].classList.contains('line-highlight')).toBe(true);
   });
 });

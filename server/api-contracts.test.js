@@ -75,7 +75,16 @@ describe('API contracts', () => {
           title: 'デモ Deck',
           description: 'demo',
           files: [{ id: 'file-1', name: 'main.py', language: 'python', code: 'print(1)' }],
-          slides: [{ title: 'Slide 1', fileId: 'file-1', fileRef: 'main.py', lineRange: [1, 1], highlightLines: [], markdown: 'hello' }],
+          slides: [
+            {
+              title: 'Slide 1',
+              fileId: 'file-1',
+              fileRef: 'main.py',
+              lineRange: [1, 1],
+              highlightLines: [],
+              markdown: 'hello',
+            },
+          ],
           assets: [],
         };
       },
@@ -117,12 +126,14 @@ describe('API contracts', () => {
   test('deck issues endpoint returns quarantined deck metadata', async () => {
     const storage = {
       listQuarantinedDeckIssues() {
-        return [{
-          deckId: 'broken-deck',
-          reason: 'invalid-deck:Unexpected token',
-          quarantinedAt: '2026-03-07T00:00:00.000Z',
-          status: 'quarantined',
-        }];
+        return [
+          {
+            deckId: 'broken-deck',
+            reason: 'invalid-deck:Unexpected token',
+            quarantinedAt: '2026-03-07T00:00:00.000Z',
+            status: 'quarantined',
+          },
+        ];
       },
     };
 
@@ -203,7 +214,9 @@ describe('API contracts', () => {
     expect(jsonRes.status).toBe(200);
     expect(jsonRes.headers.get('content-disposition')).toContain('attachment;');
 
-    const forcedDownloadRes = await fetch(`${baseUrl}/api/decks/demo/assets/file?path=diagram.png&download=1`);
+    const forcedDownloadRes = await fetch(
+      `${baseUrl}/api/decks/demo/assets/file?path=diagram.png&download=1`,
+    );
     expect(forcedDownloadRes.status).toBe(200);
     expect(forcedDownloadRes.headers.get('content-disposition')).toContain('attachment;');
 

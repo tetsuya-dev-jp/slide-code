@@ -7,12 +7,19 @@ import {
   highlightActiveLine,
 } from '@codemirror/view';
 import { markdown } from '@codemirror/lang-markdown';
-import { defaultKeymap, history, historyKeymap, insertNewlineAndIndent } from '@codemirror/commands';
+import {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  insertNewlineAndIndent,
+} from '@codemirror/commands';
 import { autocompletion } from '@codemirror/autocomplete';
 
 export function getAssetImageTriggerMatch(text, cursor, assets = []) {
   const safeText = typeof text === 'string' ? text : '';
-  const safeCursor = Number.isFinite(cursor) ? Math.max(0, Math.min(cursor, safeText.length)) : safeText.length;
+  const safeCursor = Number.isFinite(cursor)
+    ? Math.max(0, Math.min(cursor, safeText.length))
+    : safeText.length;
   const beforeCursor = safeText.slice(0, safeCursor);
   const lineStart = beforeCursor.lastIndexOf('\n') + 1;
   const activeLine = beforeCursor.slice(lineStart);
@@ -23,10 +30,17 @@ export function getAssetImageTriggerMatch(text, cursor, assets = []) {
   const normalizedQuery = rawQuery;
   const imageAssets = (Array.isArray(assets) ? assets : [])
     .filter((asset) => asset?.path && asset.exists !== false)
-    .filter((asset) => String(asset.mimeType || '').toLowerCase().startsWith('image/'));
+    .filter((asset) =>
+      String(asset.mimeType || '')
+        .toLowerCase()
+        .startsWith('image/'),
+    );
 
   const options = imageAssets
-    .filter((asset) => !normalizedQuery || asset.path.toLowerCase().includes(normalizedQuery.toLowerCase()))
+    .filter(
+      (asset) =>
+        !normalizedQuery || asset.path.toLowerCase().includes(normalizedQuery.toLowerCase()),
+    )
     .map((asset) => ({
       label: asset.path,
       type: 'text',
@@ -95,7 +109,12 @@ function getActiveLineInfo(state) {
   return { line, beforeCursor, afterCursor };
 }
 
-function insertText(view, text, from = view.state.selection.main.from, to = view.state.selection.main.to) {
+function insertText(
+  view,
+  text,
+  from = view.state.selection.main.from,
+  to = view.state.selection.main.to,
+) {
   view.dispatch({
     changes: { from, to, insert: text },
     selection: { anchor: from + text.length },
@@ -157,7 +176,9 @@ function outdentMarkdownList(view) {
 
 export function applyMarkdownEnter(text, cursor) {
   const safeText = typeof text === 'string' ? text : '';
-  const safeCursor = Number.isFinite(cursor) ? Math.max(0, Math.min(cursor, safeText.length)) : safeText.length;
+  const safeCursor = Number.isFinite(cursor)
+    ? Math.max(0, Math.min(cursor, safeText.length))
+    : safeText.length;
   const lineStart = safeText.lastIndexOf('\n', safeCursor - 1) + 1;
   const lineEndCandidate = safeText.indexOf('\n', safeCursor);
   const lineEnd = lineEndCandidate >= 0 ? lineEndCandidate : safeText.length;
@@ -354,9 +375,9 @@ export function createMarkdownEditor({
         changes: { from: 0, to: view.state.doc.length, insert: value },
         selection: preserveSelection
           ? {
-            anchor: Math.min(currentSelection.anchor, value.length),
-            head: Math.min(currentSelection.head, value.length),
-          }
+              anchor: Math.min(currentSelection.anchor, value.length),
+              head: Math.min(currentSelection.head, value.length),
+            }
           : { anchor: 0 },
       });
       applyingExternalValue = false;

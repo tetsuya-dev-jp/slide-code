@@ -1,8 +1,10 @@
 import katex from 'katex';
 import { Marked } from 'marked';
 
-export const EXPORT_KATEX_STYLESHEET_URL = 'https://cdn.jsdelivr.net/npm/katex@0.16.33/dist/katex.min.css';
-export const EXPORT_MERMAID_MODULE_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+export const EXPORT_KATEX_STYLESHEET_URL =
+  'https://cdn.jsdelivr.net/npm/katex@0.16.33/dist/katex.min.css';
+export const EXPORT_MERMAID_MODULE_URL =
+  'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
 
 const CALLOUT_CLASS_MAP = {
   NOTE: 'callout-info',
@@ -43,10 +45,10 @@ function resolveAssetReference(value, resolveAssetUrl) {
 }
 
 function sanitizeUrl(url, { allowRelative = true, allowDataImage = true } = {}) {
-    const normalized = typeof url === 'string' ? url.trim() : '';
-    if (!normalized) return '';
-    if (normalized.startsWith('#')) return normalized;
-    if (normalized.startsWith('//')) return '';
+  const normalized = typeof url === 'string' ? url.trim() : '';
+  if (!normalized) return '';
+  if (normalized.startsWith('#')) return normalized;
+  if (normalized.startsWith('//')) return '';
 
   const hasScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(normalized);
   if (!hasScheme) {
@@ -57,20 +59,22 @@ function sanitizeUrl(url, { allowRelative = true, allowDataImage = true } = {}) 
   if (scheme === 'http' || scheme === 'https' || scheme === 'mailto' || scheme === 'tel') {
     return normalized;
   }
-  if (allowDataImage && scheme === 'data' && /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(normalized)) {
+  if (
+    allowDataImage &&
+    scheme === 'data' &&
+    /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(normalized)
+  ) {
     return normalized;
   }
 
-    return '';
+  return '';
 }
 
 function renderKatex(tex, displayMode) {
   try {
     return katex.renderToString(tex.trim(), { displayMode, throwOnError: false });
   } catch {
-    return displayMode
-      ? `<div class="katex-error">${escapeHtml(tex)}</div>`
-      : escapeHtml(tex);
+    return displayMode ? `<div class="katex-error">${escapeHtml(tex)}</div>` : escapeHtml(tex);
   }
 }
 
@@ -120,7 +124,10 @@ function createMathExtensions() {
   ];
 }
 
-export function renderMarkdownDocument(markdownText, { resolveAssetUrl, mermaidIdPrefix = 'mermaid' } = {}) {
+export function renderMarkdownDocument(
+  markdownText,
+  { resolveAssetUrl, mermaidIdPrefix = 'mermaid' } = {},
+) {
   const parser = new Marked(MARKED_OPTIONS);
   let mermaidCount = 0;
 
@@ -153,7 +160,9 @@ export function renderMarkdownDocument(markdownText, { resolveAssetUrl, mermaidI
         return `<pre><code${languageClass}>${escapeHtml(token.text || '')}</code></pre>`;
       },
       blockquote(token) {
-        const calloutMatch = String(token.text || '').trimStart().match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*\n+)?([\s\S]*)$/i);
+        const calloutMatch = String(token.text || '')
+          .trimStart()
+          .match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*\n+)?([\s\S]*)$/i);
         if (!calloutMatch) {
           return `<blockquote>${this.parser.parse(token.tokens)}</blockquote>`;
         }

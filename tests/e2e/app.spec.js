@@ -269,7 +269,9 @@ test('dashboard で recent filter と title sort を切り替えられる', asyn
   await expect(page.locator('.deck-card-title').first()).toHaveText(first.title);
 });
 
-test('presentation の layout picker はキーボード操作と非 DnD 並び替えに対応する', async ({ page }) => {
+test('presentation の layout picker はキーボード操作と非 DnD 並び替えに対応する', async ({
+  page,
+}) => {
   const { folder } = await createDeck(page, 'Accessible Layout');
 
   await page.locator('#editorPreviewBtn').click();

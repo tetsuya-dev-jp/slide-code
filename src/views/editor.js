@@ -40,18 +40,32 @@ import { getMonacoThemeDefinition } from '../core/theme-tokens.js';
 self.MonacoEnvironment = {
   getWorker(_, label) {
     if (label === 'json') {
-      return new Worker(new URL('monaco-editor/esm/vs/language/json/json.worker.js', import.meta.url), { type: 'module' });
+      return new Worker(
+        new URL('monaco-editor/esm/vs/language/json/json.worker.js', import.meta.url),
+        { type: 'module' },
+      );
     }
     if (label === 'css' || label === 'scss' || label === 'less') {
-      return new Worker(new URL('monaco-editor/esm/vs/language/css/css.worker.js', import.meta.url), { type: 'module' });
+      return new Worker(
+        new URL('monaco-editor/esm/vs/language/css/css.worker.js', import.meta.url),
+        { type: 'module' },
+      );
     }
     if (label === 'html' || label === 'handlebars' || label === 'razor') {
-      return new Worker(new URL('monaco-editor/esm/vs/language/html/html.worker.js', import.meta.url), { type: 'module' });
+      return new Worker(
+        new URL('monaco-editor/esm/vs/language/html/html.worker.js', import.meta.url),
+        { type: 'module' },
+      );
     }
     if (label === 'typescript' || label === 'javascript') {
-      return new Worker(new URL('monaco-editor/esm/vs/language/typescript/ts.worker.js', import.meta.url), { type: 'module' });
+      return new Worker(
+        new URL('monaco-editor/esm/vs/language/typescript/ts.worker.js', import.meta.url),
+        { type: 'module' },
+      );
     }
-    return new Worker(new URL('monaco-editor/esm/vs/editor/editor.worker.js', import.meta.url), { type: 'module' });
+    return new Worker(new URL('monaco-editor/esm/vs/editor/editor.worker.js', import.meta.url), {
+      type: 'module',
+    });
   },
 };
 
@@ -77,17 +91,19 @@ async function loadEditorRuntime() {
     editorRuntimePromise = Promise.all([
       import('../panes/markdown.js'),
       import('./editor-markdown-editor.js'),
-    ]).then(([markdownPaneModule, markdownEditorModule]) => {
-      MarkdownPane = markdownPaneModule.MarkdownPane;
-      createMarkdownEditor = markdownEditorModule.createMarkdownEditor;
-      return {
-        MarkdownPane,
-        createMarkdownEditor,
-      };
-    }).catch((error) => {
-      editorRuntimePromise = null;
-      throw error;
-    });
+    ])
+      .then(([markdownPaneModule, markdownEditorModule]) => {
+        MarkdownPane = markdownPaneModule.MarkdownPane;
+        createMarkdownEditor = markdownEditorModule.createMarkdownEditor;
+        return {
+          MarkdownPane,
+          createMarkdownEditor,
+        };
+      })
+      .catch((error) => {
+        editorRuntimePromise = null;
+        throw error;
+      });
   }
 
   return editorRuntimePromise;
@@ -189,7 +205,10 @@ export function initEditor(router) {
   }
 
   function enqueueSaveTask(task) {
-    const queued = saveQueue.then(() => task(), () => task());
+    const queued = saveQueue.then(
+      () => task(),
+      () => task(),
+    );
     saveQueue = queued.catch(() => {});
     return queued;
   }
@@ -253,9 +272,15 @@ export function initEditor(router) {
     return !fileValidationState.message;
   }
 
-  function syncEditorAfterDeckNormalization(preferredFileId = '', preferredSlideIndex = slideIndex) {
+  function syncEditorAfterDeckNormalization(
+    preferredFileId = '',
+    preferredSlideIndex = slideIndex,
+  ) {
     ensureDeckShape(deck);
-    const nextSlideIndex = Math.min(Math.max(preferredSlideIndex, 0), Math.max(deck.slides.length - 1, 0));
+    const nextSlideIndex = Math.min(
+      Math.max(preferredSlideIndex, 0),
+      Math.max(deck.slides.length - 1, 0),
+    );
     const nextFileId = preferredFileId || deck.files[0]?.id || '';
     renderFileTabs();
     renderSlideList();
@@ -272,7 +297,9 @@ export function initEditor(router) {
       return true;
     }
 
-    const shouldLeave = window.confirm('保存していない変更があります。移動すると失われる可能性があります。続けますか？');
+    const shouldLeave = window.confirm(
+      '保存していない変更があります。移動すると失われる可能性があります。続けますか？',
+    );
     if (!shouldLeave) {
       return false;
     }
@@ -348,7 +375,7 @@ export function initEditor(router) {
 
   function getFileById(fileId) {
     if (!deck || typeof fileId !== 'string' || !fileId.trim()) return null;
-    return deck.files.find(file => file.id === fileId) || null;
+    return deck.files.find((file) => file.id === fileId) || null;
   }
 
   function getResolvedSlideFile(slide) {
@@ -373,7 +400,7 @@ export function initEditor(router) {
       updateMonacoDecorations();
     }
 
-    document.querySelectorAll('.editor-file-tab').forEach(tab => {
+    document.querySelectorAll('.editor-file-tab').forEach((tab) => {
       tab.classList.remove('active');
     });
     setFileNameError('');
@@ -383,13 +410,17 @@ export function initEditor(router) {
 
   function renderFileTabs() {
     const tabs = document.getElementById('editorFileTabs');
-    tabs.innerHTML = deck.files.map((file, i) => `
+    tabs.innerHTML = deck.files
+      .map(
+        (file, i) => `
       <button class="editor-file-tab ${i === fileIndex ? 'active' : ''}" data-index="${i}">
         ${escapeHtml(file.name || '無名')}
       </button>
-    `).join('');
+    `,
+      )
+      .join('');
 
-    tabs.querySelectorAll('.editor-file-tab').forEach(tab => {
+    tabs.querySelectorAll('.editor-file-tab').forEach((tab) => {
       tab.addEventListener('click', () => {
         saveCurrentFile();
         loadFile(parseInt(tab.dataset.index));
@@ -404,11 +435,11 @@ export function initEditor(router) {
     const currentVal = select.value;
     select.innerHTML = [
       `<option value="${EMPTY_FILE_ID_VALUE}">${EMPTY_FILE_ID_LABEL}</option>`,
-      ...deck.files.map(f =>
-        `<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`,
+      ...deck.files.map(
+        (f) => `<option value="${escapeHtml(f.id)}">${escapeHtml(f.name)}</option>`,
       ),
     ].join('');
-    if (currentVal === EMPTY_FILE_ID_VALUE || deck.files.some(f => f.id === currentVal)) {
+    if (currentVal === EMPTY_FILE_ID_VALUE || deck.files.some((f) => f.id === currentVal)) {
       select.value = currentVal;
     } else {
       select.value = EMPTY_FILE_ID_VALUE;
@@ -452,7 +483,7 @@ export function initEditor(router) {
       fileRef: file?.name || '',
       lineRange: [
         Number.isFinite(lineStart) ? lineStart : 1,
-        Number.isFinite(lineEnd) ? lineEnd : (Number.isFinite(lineStart) ? lineStart : 1),
+        Number.isFinite(lineEnd) ? lineEnd : Number.isFinite(lineStart) ? lineStart : 1,
       ],
       highlightLines: parseHighlightInputText(document.getElementById('editorHighlight').value),
     };
@@ -465,7 +496,11 @@ export function initEditor(router) {
 
   function setHighlightInput(lines) {
     const normalized = Array.from(
-      new Set((lines || []).map(line => parseInt(line, 10)).filter(line => Number.isFinite(line) && line >= 1)),
+      new Set(
+        (lines || [])
+          .map((line) => parseInt(line, 10))
+          .filter((line) => Number.isFinite(line) && line >= 1),
+      ),
     ).sort((a, b) => a - b);
     document.getElementById('editorHighlight').value = normalized.join(', ');
   }
@@ -493,9 +528,7 @@ export function initEditor(router) {
 
     const [start, end] = result.normalized.lineRange;
     const count = Math.max(end - start + 1, 1);
-    summaryEl.textContent = start === end
-      ? `L${start} (1行)`
-      : `L${start}-L${end} (${count}行)`;
+    summaryEl.textContent = start === end ? `L${start} (1行)` : `L${start}-L${end} (${count}行)`;
   }
 
   function renderHighlightChips(slideState = null) {
@@ -516,17 +549,18 @@ export function initEditor(router) {
       return;
     }
 
-    chipsEl.innerHTML = groups.map(group => {
-      const label = group.start === group.end
-        ? `L${group.start}`
-        : `L${group.start}-L${group.end}`;
-      return `
+    chipsEl.innerHTML = groups
+      .map((group) => {
+        const label =
+          group.start === group.end ? `L${group.start}` : `L${group.start}-L${group.end}`;
+        return `
         <span class="editor-highlight-chip">
           <span>${label}</span>
           <button class="editor-highlight-chip-remove" data-remove-range="${group.start}:${group.end}" title="この範囲を解除" aria-label="ハイライト範囲 ${label} を解除">x</button>
         </span>
       `;
-    }).join('');
+      })
+      .join('');
   }
 
   function refreshSelectionWidgets(slideState = null) {
@@ -603,7 +637,7 @@ export function initEditor(router) {
       return;
     }
 
-    const nextIndex = deck.files.findIndex(file => file.id === fileId);
+    const nextIndex = deck.files.findIndex((file) => file.id === fileId);
     if (nextIndex < 0) {
       saveCurrentFile();
       clearLoadedFile();
@@ -615,13 +649,17 @@ export function initEditor(router) {
       const editorValue = monacoEditor ? monacoEditor.getValue() : null;
       const fileNameValue = document.getElementById('editorFileName')?.value || '';
       const fileLangValue = document.getElementById('editorFileLang')?.value || '';
-      const isFileMetaSynced = fileNameValue === (currentFile?.name || '')
-        && fileLangValue === (currentFile?.language || '');
-      if (isFileAlreadyLoaded({
-        currentFile,
-        requestedFileId: fileId,
-        editorValue,
-      }) && isFileMetaSynced) {
+      const isFileMetaSynced =
+        fileNameValue === (currentFile?.name || '') &&
+        fileLangValue === (currentFile?.language || '');
+      if (
+        isFileAlreadyLoaded({
+          currentFile,
+          requestedFileId: fileId,
+          editorValue,
+        }) &&
+        isFileMetaSynced
+      ) {
         return;
       }
 
@@ -644,19 +682,24 @@ export function initEditor(router) {
       return;
     }
 
-    const [start, end] = clampLineRange(slide.lineRange || [1, 1], (file.code || '').split('\n').length);
+    const [start, end] = clampLineRange(
+      slide.lineRange || [1, 1],
+      (file.code || '').split('\n').length,
+    );
     const highlightLines = (slide.highlightLines || [])
-      .map(line => parseInt(line, 10))
-      .filter(line => Number.isFinite(line) && line >= 1);
+      .map((line) => parseInt(line, 10))
+      .filter((line) => Number.isFinite(line) && line >= 1);
 
-    const rangeDecorations = [{
-      range: new monaco.Range(start, 1, end, 1),
-      options: {
-        isWholeLine: true,
-        className: 'monaco-range-line',
-        linesDecorationsClassName: 'monaco-range-lines-decoration',
+    const rangeDecorations = [
+      {
+        range: new monaco.Range(start, 1, end, 1),
+        options: {
+          isWholeLine: true,
+          className: 'monaco-range-line',
+          linesDecorationsClassName: 'monaco-range-lines-decoration',
+        },
       },
-    }];
+    ];
 
     if (end === start) {
       rangeDecorations.push({
@@ -667,22 +710,25 @@ export function initEditor(router) {
         },
       });
     } else {
-      rangeDecorations.push({
-        range: new monaco.Range(start, 1, start, 1),
-        options: {
-          isWholeLine: true,
-          className: 'monaco-range-start-line',
+      rangeDecorations.push(
+        {
+          range: new monaco.Range(start, 1, start, 1),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-range-start-line',
+          },
         },
-      }, {
-        range: new monaco.Range(end, 1, end, 1),
-        options: {
-          isWholeLine: true,
-          className: 'monaco-range-end-line',
+        {
+          range: new monaco.Range(end, 1, end, 1),
+          options: {
+            isWholeLine: true,
+            className: 'monaco-range-end-line',
+          },
         },
-      });
+      );
     }
 
-    const highlightDecorations = highlightLines.map(line => ({
+    const highlightDecorations = highlightLines.map((line) => ({
       range: new monaco.Range(line, 1, line, 1),
       options: {
         isWholeLine: true,
@@ -712,7 +758,10 @@ export function initEditor(router) {
     if (monacoEditor) {
       monacoEditor.updateOptions({ readOnly: false });
       monacoEditor.setValue(file.code || '');
-      monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(file.language || 'python'));
+      monaco.editor.setModelLanguage(
+        monacoEditor.getModel(),
+        monacoLangId(file.language || 'python'),
+      );
       updateMonacoDecorations();
     }
 
@@ -734,7 +783,7 @@ export function initEditor(router) {
     file.code = monacoEditor ? monacoEditor.getValue() : '';
 
     if (oldName !== file.name) {
-      deck.slides.forEach(slide => {
+      deck.slides.forEach((slide) => {
         if (slide.fileId === file.id || (!slide.fileId && slide.fileRef === oldName)) {
           slide.fileRef = file.name;
           slide.fileId = file.id;
@@ -744,17 +793,17 @@ export function initEditor(router) {
     }
   }
 
-
   // --- Slide List ---
 
   function renderSlideList() {
     const list = document.getElementById('editorSlideList');
-    list.innerHTML = deck.slides.map((slide, i) => {
-      const file = getResolvedSlideFile(slide);
-      const lang = file?.language || '';
-      const langIcon = getLangIcon(lang);
-      const slideLabel = slide.title || '無題';
-      return `
+    list.innerHTML = deck.slides
+      .map((slide, i) => {
+        const file = getResolvedSlideFile(slide);
+        const lang = file?.language || '';
+        const langIcon = getLangIcon(lang);
+        const slideLabel = slide.title || '無題';
+        return `
       <li class="editor-slide-item ${i === slideIndex ? 'active' : ''}" data-index="${i}" draggable="true" tabindex="0" aria-label="スライド ${i + 1}: ${escapeHtml(slideLabel)}" aria-current="${i === slideIndex ? 'true' : 'false'}">
         <span class="editor-slide-num" title="${escapeHtml(lang)}">${langIcon}</span>
         <div class="editor-slide-info">
@@ -767,10 +816,11 @@ export function initEditor(router) {
           </button>
         </div>
       </li>`;
-    }).join('');
+      })
+      .join('');
 
     // Click to select
-    list.querySelectorAll('.editor-slide-item').forEach(item => {
+    list.querySelectorAll('.editor-slide-item').forEach((item) => {
       item.addEventListener('click', (e) => {
         if (e.target.closest('.editor-slide-actions')) return;
         saveCurrentSlide();
@@ -786,7 +836,7 @@ export function initEditor(router) {
     });
 
     // Delete
-    list.querySelectorAll('.editor-slide-delete').forEach(btn => {
+    list.querySelectorAll('.editor-slide-delete').forEach((btn) => {
       btn.addEventListener('click', () => {
         const idx = parseInt(btn.dataset.index);
         if (deck.slides.length <= 1) {
@@ -810,12 +860,12 @@ export function initEditor(router) {
     let dragSrcIndex = -1;
 
     function clearDropIndicators() {
-      list.querySelectorAll('.drop-above, .drop-below').forEach(el => {
+      list.querySelectorAll('.drop-above, .drop-below').forEach((el) => {
         el.classList.remove('drop-above', 'drop-below');
       });
     }
 
-    list.querySelectorAll('.editor-slide-item').forEach(item => {
+    list.querySelectorAll('.editor-slide-item').forEach((item) => {
       item.addEventListener('dragstart', (e) => {
         dragSrcIndex = parseInt(item.dataset.index);
         item.classList.add('dragging');
@@ -879,7 +929,10 @@ export function initEditor(router) {
     loading = true;
     slideIndex = index;
     const slide = deck.slides[index];
-    if (!slide) { loading = false; return; }
+    if (!slide) {
+      loading = false;
+      return;
+    }
 
     const { fileId, fileRef } = syncSlideFileReference(slide, deck.files, {
       fallbackToFirstFile: false,
@@ -920,7 +973,9 @@ export function initEditor(router) {
       const lineStart = parseInt(document.getElementById('editorLineStart').value) || 1;
       const lineEnd = parseInt(document.getElementById('editorLineEnd').value) || lineStart;
       slide.lineRange = [lineStart, lineEnd];
-      slide.highlightLines = parseHighlightInputText(document.getElementById('editorHighlight').value);
+      slide.highlightLines = parseHighlightInputText(
+        document.getElementById('editorHighlight').value,
+      );
     } else {
       slide.lineRange = [1, 1];
       slide.highlightLines = [];
@@ -1044,7 +1099,9 @@ export function initEditor(router) {
     }
 
     if (err?.status === 400) {
-      focusDeckFolderSettingWithError('フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます');
+      focusDeckFolderSettingWithError(
+        'フォルダ名は英数字・ハイフン・アンダースコアのみ使用できます',
+      );
       return;
     }
 
@@ -1058,8 +1115,9 @@ export function initEditor(router) {
   }
 
   function removeHighlightRange(start, end) {
-    const values = parseHighlightInputText(document.getElementById('editorHighlight').value)
-      .filter(line => line < start || line > end);
+    const values = parseHighlightInputText(document.getElementById('editorHighlight').value).filter(
+      (line) => line < start || line > end,
+    );
     setHighlightInput(values);
     updateCodePreview({ saveFile: false, reveal: false });
     markDirty();
@@ -1074,7 +1132,8 @@ export function initEditor(router) {
     }
 
     setupPromise = (async () => {
-      const { MarkdownPane: MarkdownPaneClass, createMarkdownEditor: createMarkdownEditorFactory } = await loadEditorRuntime();
+      const { MarkdownPane: MarkdownPaneClass, createMarkdownEditor: createMarkdownEditorFactory } =
+        await loadEditorRuntime();
       if (!mdPreviewPane) {
         mdPreviewPane = new MarkdownPaneClass(document.getElementById('editorMarkdownPreview'), {
           resolveAssetUrl: (assetPath) => {
@@ -1139,175 +1198,192 @@ export function initEditor(router) {
         editorPreferencesModal?.open(event.currentTarget);
       });
 
-    // File management
-    document.getElementById('addFileBtn').addEventListener('click', () => {
-      saveCurrentFile();
-      const newFile = {
-        ...createDefaultFile(deck.files.length),
-        name: resolveUniqueFilePath(`file${deck.files.length + 1}.py`, deck.files, `file${deck.files.length + 1}.py`),
-        language: 'python',
-      };
-      deck.files.push(newFile);
-      fileIndex = deck.files.length - 1;
-      renderFileTabs();
-      loadFile(fileIndex);
-      markDirty();
-    });
-
-    document.getElementById('importFileFromDiskBtn').addEventListener('click', () => {
-      document.getElementById('sourceFileInput').click();
-    });
-
-    document.getElementById('sourceFileInput').addEventListener('change', async (e) => {
-      const files = Array.from(e.target.files);
-      if (!files.length) return;
-      saveCurrentFile();
-      for (const file of files) {
-        const code = await file.text();
-        const language = detectLanguage(file.name);
-        const nextFile = createDefaultFile(deck.files.length);
-        deck.files.push({
-          ...nextFile,
-          name: resolveUniqueFilePath(file.name, deck.files, nextFile.name),
-          language,
-          code,
-        });
-      }
-      fileIndex = deck.files.length - 1;
-      renderFileTabs();
-      loadFile(fileIndex);
-      showToast(`${files.length} ファイルを読み込みました`);
-      e.target.value = '';
-      markDirty();
-    });
-
-    document.getElementById('deleteFileBtn').addEventListener('click', () => {
-      if (deck.files.length <= 1) {
-        showToast('最後のファイルは削除できません');
-        return;
-      }
-      const deletedFile = deck.files[fileIndex];
-      const deletedName = deck.files[fileIndex].name;
-      const deletedId = deletedFile.id;
-      deck.files.splice(fileIndex, 1);
-      if (fileIndex >= deck.files.length) {
+      // File management
+      document.getElementById('addFileBtn').addEventListener('click', () => {
+        saveCurrentFile();
+        const newFile = {
+          ...createDefaultFile(deck.files.length),
+          name: resolveUniqueFilePath(
+            `file${deck.files.length + 1}.py`,
+            deck.files,
+            `file${deck.files.length + 1}.py`,
+          ),
+          language: 'python',
+        };
+        deck.files.push(newFile);
         fileIndex = deck.files.length - 1;
-      }
-      deck.slides.forEach(slide => {
-        if (slide.fileId === deletedId || (!slide.fileId && slide.fileRef === deletedName)) {
-          slide.fileId = '';
-          slide.fileRef = '';
+        renderFileTabs();
+        loadFile(fileIndex);
+        markDirty();
+      });
+
+      document.getElementById('importFileFromDiskBtn').addEventListener('click', () => {
+        document.getElementById('sourceFileInput').click();
+      });
+
+      document.getElementById('sourceFileInput').addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files);
+        if (!files.length) return;
+        saveCurrentFile();
+        for (const file of files) {
+          const code = await file.text();
+          const language = detectLanguage(file.name);
+          const nextFile = createDefaultFile(deck.files.length);
+          deck.files.push({
+            ...nextFile,
+            name: resolveUniqueFilePath(file.name, deck.files, nextFile.name),
+            language,
+            code,
+          });
+        }
+        fileIndex = deck.files.length - 1;
+        renderFileTabs();
+        loadFile(fileIndex);
+        showToast(`${files.length} ファイルを読み込みました`);
+        e.target.value = '';
+        markDirty();
+      });
+
+      document.getElementById('deleteFileBtn').addEventListener('click', () => {
+        if (deck.files.length <= 1) {
+          showToast('最後のファイルは削除できません');
+          return;
+        }
+        const deletedFile = deck.files[fileIndex];
+        const deletedName = deck.files[fileIndex].name;
+        const deletedId = deletedFile.id;
+        deck.files.splice(fileIndex, 1);
+        if (fileIndex >= deck.files.length) {
+          fileIndex = deck.files.length - 1;
+        }
+        deck.slides.forEach((slide) => {
+          if (slide.fileId === deletedId || (!slide.fileId && slide.fileRef === deletedName)) {
+            slide.fileId = '';
+            slide.fileRef = '';
+          }
+        });
+        renderFileTabs();
+        loadFile(fileIndex);
+        updateCodePreview();
+        markDirty();
+      });
+
+      document.getElementById('editorFileName').addEventListener('change', () => {
+        if (!validateCurrentFileName()) return;
+        saveCurrentFile();
+        renderFileTabs();
+        renderSlideList();
+        updateCodePreview({ saveFile: false, reveal: false });
+      });
+
+      document.getElementById('editorFileLang').addEventListener('change', () => {
+        saveCurrentFile();
+        if (monacoEditor) {
+          const lang = document.getElementById('editorFileLang').value || 'python';
+          monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(lang));
         }
       });
-      renderFileTabs();
-      loadFile(fileIndex);
-      updateCodePreview();
-      markDirty();
-    });
 
-    document.getElementById('editorFileName').addEventListener('change', () => {
-      if (!validateCurrentFileName()) return;
-      saveCurrentFile();
-      renderFileTabs();
-      renderSlideList();
-      updateCodePreview({ saveFile: false, reveal: false });
-    });
+      // Slide fields
+      document.getElementById('editorFileRef').addEventListener('change', () => {
+        const fileId = document.getElementById('editorFileRef').value;
+        if (!hasSelectedFileId(fileId)) {
+          resetSelectionInputsForNoReference();
+        }
+        loadFileById(fileId);
+        updateCodePreview({ saveFile: false, reveal: true });
+        markDirty();
+      });
+      document
+        .getElementById('resetRangeBtn')
+        .addEventListener('click', () => resetRangeToWholeFile());
+      document.getElementById('editorLineStart').addEventListener('input', () => {
+        debouncedCodePreview();
+        markDirty();
+      });
+      document.getElementById('editorLineEnd').addEventListener('input', () => {
+        debouncedCodePreview();
+        markDirty();
+      });
+      document.getElementById('editorHighlight').addEventListener('input', () => {
+        debouncedCodePreview();
+        markDirty();
+      });
+      document.getElementById('toggleHighlightInputBtn').addEventListener('click', () => {
+        const rowEl = document.getElementById('editorHighlightInputRow');
+        const nextVisible = rowEl ? rowEl.hidden : true;
+        setHighlightInputVisible(nextVisible);
+        if (nextVisible) {
+          document.getElementById('editorHighlight').focus();
+        }
+      });
+      document.getElementById('closeHighlightInputBtn').addEventListener('click', () => {
+        setHighlightInputVisible(false);
+      });
+      document.getElementById('clearHighlightBtn').addEventListener('click', () => {
+        clearAllHighlightLines();
+      });
+      document.getElementById('editorHighlightChips').addEventListener('click', (e) => {
+        const removeBtn = e.target.closest('[data-remove-range]');
+        if (!removeBtn) return;
+        const [startRaw, endRaw] = removeBtn.dataset.removeRange.split(':');
+        const start = parseInt(startRaw, 10);
+        const end = parseInt(endRaw, 10);
+        if (!Number.isFinite(start) || !Number.isFinite(end)) return;
+        removeHighlightRange(start, end);
+      });
+      document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
+      document.getElementById('editorFileName').addEventListener('input', () => {
+        validateCurrentFileName();
+        markDirty();
+      });
+      document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
 
-    document.getElementById('editorFileLang').addEventListener('change', () => {
-      saveCurrentFile();
-      if (monacoEditor) {
-        const lang = document.getElementById('editorFileLang').value || 'python';
-        monaco.editor.setModelLanguage(monacoEditor.getModel(), monacoLangId(lang));
-      }
-    });
+      // Add slide
+      document.getElementById('addSlideBtn').addEventListener('click', () => {
+        saveCurrentSlide();
+        const firstFile = deck.files[0];
+        deck.slides.push(
+          createDefaultSlide(
+            deck.slides.length,
+            firstFile ? firstFile.name : '',
+            firstFile ? firstFile.id : '',
+          ),
+        );
+        slideIndex = deck.slides.length - 1;
+        renderSlideList();
+        loadSlide(slideIndex);
+        markDirty();
+      });
 
-    // Slide fields
-    document.getElementById('editorFileRef').addEventListener('change', () => {
-      const fileId = document.getElementById('editorFileRef').value;
-      if (!hasSelectedFileId(fileId)) {
-        resetSelectionInputsForNoReference();
-      }
-      loadFileById(fileId);
-      updateCodePreview({ saveFile: false, reveal: true });
-      markDirty();
-    });
-    document.getElementById('resetRangeBtn').addEventListener('click', () => resetRangeToWholeFile());
-    document.getElementById('editorLineStart').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
-    document.getElementById('editorLineEnd').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
-    document.getElementById('editorHighlight').addEventListener('input', () => { debouncedCodePreview(); markDirty(); });
-    document.getElementById('toggleHighlightInputBtn').addEventListener('click', () => {
-      const rowEl = document.getElementById('editorHighlightInputRow');
-      const nextVisible = rowEl ? rowEl.hidden : true;
-      setHighlightInputVisible(nextVisible);
-      if (nextVisible) {
-        document.getElementById('editorHighlight').focus();
-      }
-    });
-    document.getElementById('closeHighlightInputBtn').addEventListener('click', () => {
-      setHighlightInputVisible(false);
-    });
-    document.getElementById('clearHighlightBtn').addEventListener('click', () => {
-      clearAllHighlightLines();
-    });
-    document.getElementById('editorHighlightChips').addEventListener('click', (e) => {
-      const removeBtn = e.target.closest('[data-remove-range]');
-      if (!removeBtn) return;
-      const [startRaw, endRaw] = removeBtn.dataset.removeRange.split(':');
-      const start = parseInt(startRaw, 10);
-      const end = parseInt(endRaw, 10);
-      if (!Number.isFinite(start) || !Number.isFinite(end)) return;
-      removeHighlightRange(start, end);
-    });
-    document.getElementById('editorSlideTitle').addEventListener('input', () => markDirty());
-    document.getElementById('editorFileName').addEventListener('input', () => {
-      validateCurrentFileName();
-      markDirty();
-    });
-    document.getElementById('editorFileLang').addEventListener('change', () => markDirty());
+      // Save deck
+      document.getElementById('editorSaveBtn').addEventListener('click', async () => {
+        try {
+          await requestPersistDeck({
+            source: 'manual',
+            fallbackMessage: '保存に失敗しました',
+            notifyOnSuccess: true,
+            surfaceErrors: true,
+          });
+        } catch {
+          // Errors are surfaced by requestPersistDeck.
+        }
+      });
 
-    // Add slide
-    document.getElementById('addSlideBtn').addEventListener('click', () => {
-      saveCurrentSlide();
-      const firstFile = deck.files[0];
-      deck.slides.push(createDefaultSlide(
-        deck.slides.length,
-        firstFile ? firstFile.name : '',
-        firstFile ? firstFile.id : '',
-      ));
-      slideIndex = deck.slides.length - 1;
-      renderSlideList();
-      loadSlide(slideIndex);
-      markDirty();
-    });
-
-    // Save deck
-    document.getElementById('editorSaveBtn').addEventListener('click', async () => {
-      try {
-        await requestPersistDeck({
-          source: 'manual',
-          fallbackMessage: '保存に失敗しました',
-          notifyOnSuccess: true,
-          surfaceErrors: true,
-        });
-      } catch {
-        // Errors are surfaced by requestPersistDeck.
-      }
-    });
-
-    // Preview button (auto-save before navigating)
-    document.getElementById('editorPreviewBtn').addEventListener('click', async () => {
-      try {
-        await requestPersistDeck({
-          source: 'preview',
-          fallbackMessage: '保存に失敗したため、プレビューに移動できませんでした',
-          notifyOnSuccess: false,
-          surfaceErrors: true,
-        });
-      } catch {
-        return;
-      }
-      if (deck) router.navigate(`/deck/${deck.id}`);
-    });
+      // Preview button (auto-save before navigating)
+      document.getElementById('editorPreviewBtn').addEventListener('click', async () => {
+        try {
+          await requestPersistDeck({
+            source: 'preview',
+            fallbackMessage: '保存に失敗したため、プレビューに移動できませんでした',
+            notifyOnSuccess: false,
+            surfaceErrors: true,
+          });
+        } catch {
+          return;
+        }
+        if (deck) router.navigate(`/deck/${deck.id}`);
+      });
     })().catch((error) => {
       setupPromise = null;
       throw error;
@@ -1326,7 +1402,10 @@ export function initEditor(router) {
     monacoEditor = monacoApi.editor.create(container, {
       value: '',
       language: 'python',
-      theme: document.documentElement.getAttribute('data-theme') === 'light' ? MONACO_THEME.light : MONACO_THEME.dark,
+      theme:
+        document.documentElement.getAttribute('data-theme') === 'light'
+          ? MONACO_THEME.light
+          : MONACO_THEME.dark,
       minimap: { enabled: editorPreferences.minimap },
       glyphMargin: true,
       fontSize: editorPreferences.fontSize,
@@ -1340,12 +1419,14 @@ export function initEditor(router) {
       padding: { top: 8, bottom: 8 },
     });
 
-    monacoEditor.onDidChangeModelContent(debounce((event) => {
-      if (loading || event?.isFlush) return;
-      saveCurrentFile();
-      updateCodePreview();
-      markDirty();
-    }, 300));
+    monacoEditor.onDidChangeModelContent(
+      debounce((event) => {
+        if (loading || event?.isFlush) return;
+        saveCurrentFile();
+        updateCodePreview();
+        markDirty();
+      }, 300),
+    );
 
     const lineNumberTargetType = monacoApi.editor.MouseTargetType.GUTTER_LINE_NUMBERS;
     const glyphTargetType = monacoApi.editor.MouseTargetType.GUTTER_GLYPH_MARGIN;
@@ -1524,14 +1605,17 @@ export function initEditor(router) {
     show,
     hasUnsavedChanges,
     confirmLeave,
-    get monacoEditor() { return monacoEditor; },
+    get monacoEditor() {
+      return monacoEditor;
+    },
     applyTheme(isDark) {
-      if (monaco && monacoEditor) monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);
+      if (monaco && monacoEditor)
+        monaco.editor.setTheme(isDark ? MONACO_THEME.dark : MONACO_THEME.light);
 
       const currentSlide = deck?.slides?.[slideIndex];
       if (!currentSlide) return;
 
-      const markdown = markdownEditor ? markdownEditor.getValue() : (currentSlide.markdown || '');
+      const markdown = markdownEditor ? markdownEditor.getValue() : currentSlide.markdown || '';
       mdPreviewPane?.render(markdown, {
         mermaidPreferenceScope: `editor:${persistedDeckId || deck?.id || 'draft'}:${slideIndex}`,
       });

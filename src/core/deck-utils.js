@@ -28,13 +28,13 @@ export function resolveDeckFile(files, reference) {
   const normalizedFiles = Array.isArray(files) ? files : [];
   const requestedFileId = typeof reference?.fileId === 'string' ? reference.fileId.trim() : '';
   if (requestedFileId) {
-    const byId = normalizedFiles.find(file => file.id === requestedFileId);
+    const byId = normalizedFiles.find((file) => file.id === requestedFileId);
     if (byId) return byId;
   }
 
   const requestedFileRef = typeof reference?.fileRef === 'string' ? reference.fileRef.trim() : '';
   if (!requestedFileRef) return null;
-  return normalizedFiles.find(file => file.name === requestedFileRef) || null;
+  return normalizedFiles.find((file) => file.name === requestedFileRef) || null;
 }
 
 export function syncSlideFileReference(slide, files, { fallbackToFirstFile = true } = {}) {
@@ -42,7 +42,7 @@ export function syncSlideFileReference(slide, files, { fallbackToFirstFile = tru
   const fallbackFile = fallbackToFirstFile ? normalizedFiles[0] || null : null;
   const explicitEmpty = slide?.fileId === '' || slide?.fileRef === '';
   const resolvedFile = resolveDeckFile(normalizedFiles, slide);
-  const targetFile = explicitEmpty ? null : (resolvedFile || fallbackFile);
+  const targetFile = explicitEmpty ? null : resolvedFile || fallbackFile;
 
   return {
     targetFile,
@@ -68,9 +68,12 @@ export function createDeckFolderSlug(seed) {
 }
 
 export function getFileLineCount(fileOrCode) {
-  const code = typeof fileOrCode === 'string'
-    ? fileOrCode
-    : (typeof fileOrCode?.code === 'string' ? fileOrCode.code : '');
+  const code =
+    typeof fileOrCode === 'string'
+      ? fileOrCode
+      : typeof fileOrCode?.code === 'string'
+        ? fileOrCode.code
+        : '';
   return Math.max(code.split('\n').length, 1);
 }
 
@@ -90,9 +93,11 @@ export function normalizeLineRange(lineRange, maxLine = 1) {
 
 export function normalizeHighlightLines(lines, { minLine = 1, maxLine = Infinity } = {}) {
   return Array.from(
-    new Set((lines || [])
-      .map(line => parseInt(line, 10))
-      .filter(line => Number.isFinite(line) && line >= minLine && line <= maxLine)),
+    new Set(
+      (lines || [])
+        .map((line) => parseInt(line, 10))
+        .filter((line) => Number.isFinite(line) && line >= minLine && line <= maxLine),
+    ),
   ).sort((a, b) => a - b);
 }
 
@@ -148,7 +153,12 @@ export function createDefaultFile(index = 0) {
     return { id: createOpaqueId('file'), name: 'main.py', language: 'python', code: '' };
   }
 
-  return { id: createOpaqueId('file'), name: `file${index + 1}.txt`, language: 'plaintext', code: '' };
+  return {
+    id: createOpaqueId('file'),
+    name: `file${index + 1}.txt`,
+    language: 'plaintext',
+    code: '',
+  };
 }
 
 export function createDefaultSlide(index = 0, fileRef = '', fileId = '') {
@@ -183,7 +193,8 @@ export function ensureDeckShape(deck) {
     deck.slides = [createDefaultSlide(0, deck.files[0].name, deck.files[0].id)];
   } else {
     deck.slides = deck.slides.map((slide, index) => {
-      const normalizedSlide = slide && typeof slide === 'object' ? slide : createDefaultSlide(index);
+      const normalizedSlide =
+        slide && typeof slide === 'object' ? slide : createDefaultSlide(index);
       const { fileId, fileRef } = syncSlideFileReference(normalizedSlide, deck.files);
       return {
         ...createDefaultSlide(index, fileRef, fileId),
@@ -216,9 +227,9 @@ export function normalizeRelativeDirectory(rawValue) {
 
   const segments = compact
     .split('/')
-    .map(segment => segment.trim())
+    .map((segment) => segment.trim())
     .filter(Boolean)
-    .filter(segment => segment !== '.' && segment !== '..');
+    .filter((segment) => segment !== '.' && segment !== '..');
 
   return segments.join('/');
 }
@@ -231,10 +242,10 @@ export function sanitizeRelativeFilePath(rawValue, fallbackPath = 'file.txt') {
     .replace(/\\/g, '/')
     .replace(/^\/+/, '')
     .split('/')
-    .map(segment => segment.trim())
+    .map((segment) => segment.trim())
     .filter(Boolean)
-    .filter(segment => segment !== '.' && segment !== '..')
-    .map(segment => segment.replace(INVALID_FILE_PATH_CHARS, '_'));
+    .filter((segment) => segment !== '.' && segment !== '..')
+    .map((segment) => segment.replace(INVALID_FILE_PATH_CHARS, '_'));
 
   return segments.length ? segments.join('/') : fallbackPath;
 }
@@ -245,16 +256,19 @@ export function validateRelativeFilePath(rawValue, files = [], currentFileId = '
   }
 
   const normalized = rawValue.trim().replace(/\\/g, '/').replace(/^\/+/, '');
-  const segments = normalized.split('/').map(segment => segment.trim()).filter(Boolean);
+  const segments = normalized
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean);
   if (!segments.length) {
     return 'ファイル名を入力してください';
   }
 
-  if (segments.some(segment => segment === '.' || segment === '..')) {
+  if (segments.some((segment) => segment === '.' || segment === '..')) {
     return 'ファイル名に . や .. は使えません';
   }
 
-  if (segments.some(segment => INVALID_FILE_PATH_CHARS.test(segment))) {
+  if (segments.some((segment) => INVALID_FILE_PATH_CHARS.test(segment))) {
     return 'ファイル名に使えない文字が含まれています';
   }
 
@@ -268,7 +282,7 @@ export function validateRelativeFilePath(rawValue, files = [], currentFileId = '
 }
 
 export function resolveUniqueFilePath(rawValue, files = [], fallbackPath = 'file.txt') {
-  const usedNames = new Set((files || []).map(file => file?.name).filter(Boolean));
+  const usedNames = new Set((files || []).map((file) => file?.name).filter(Boolean));
   const normalized = sanitizeRelativeFilePath(rawValue, fallbackPath);
   if (!usedNames.has(normalized)) {
     return normalized;

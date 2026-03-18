@@ -1,71 +1,84 @@
 import fs from 'fs';
 import {
-    escapeHtml,
-    EXPORT_KATEX_STYLESHEET_URL,
-    EXPORT_MERMAID_MODULE_URL,
-    renderMarkdownDocument,
+  escapeHtml,
+  EXPORT_KATEX_STYLESHEET_URL,
+  EXPORT_MERMAID_MODULE_URL,
+  renderMarkdownDocument,
 } from '../src/core/markdown-render.js';
 
 function normalizeFileName(value, fallback) {
-    const normalized = String(value || '')
-        .trim()
-        .replace(/[\\/:*?"<>|]/g, '_')
-        .replace(/\s+/g, '_');
-    return normalized || fallback;
+  const normalized = String(value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, '_');
+  return normalized || fallback;
 }
 
 function resolveSlideCode(slide, deck) {
-    const files = deck?.files || [];
-    const requestedFileId = typeof slide?.fileId === 'string' ? slide.fileId.trim() : '';
-    const requestedFileRef = typeof slide?.fileRef === 'string' ? slide.fileRef.trim() : '';
-    const file = requestedFileId
-        ? (files.find(item => item.id === requestedFileId) || files.find(item => item.name === requestedFileRef))
-        : files.find(item => item.name === requestedFileRef);
-    if (!file) return { code: '', language: 'plaintext', lineStart: 1, lineEnd: 1 };
+  const files = deck?.files || [];
+  const requestedFileId = typeof slide?.fileId === 'string' ? slide.fileId.trim() : '';
+  const requestedFileRef = typeof slide?.fileRef === 'string' ? slide.fileRef.trim() : '';
+  const file = requestedFileId
+    ? files.find((item) => item.id === requestedFileId) ||
+      files.find((item) => item.name === requestedFileRef)
+    : files.find((item) => item.name === requestedFileRef);
+  if (!file) return { code: '', language: 'plaintext', lineStart: 1, lineEnd: 1 };
 
-    const lines = (file.code || '').split('\n');
-    const totalLines = Math.max(lines.length, 1);
-    const requestedStart = Number.parseInt(Array.isArray(slide.lineRange) ? slide.lineRange[0] : 1, 10);
-    const requestedEnd = Number.parseInt(Array.isArray(slide.lineRange) ? slide.lineRange[1] : requestedStart, 10);
-    const start = Math.min(Math.max(Number.isFinite(requestedStart) ? requestedStart : 1, 1), totalLines);
-    const end = Math.min(Math.max(Number.isFinite(requestedEnd) ? requestedEnd : start, start), totalLines);
-    const code = lines.slice(start - 1, end).join('\n');
+  const lines = (file.code || '').split('\n');
+  const totalLines = Math.max(lines.length, 1);
+  const requestedStart = Number.parseInt(
+    Array.isArray(slide.lineRange) ? slide.lineRange[0] : 1,
+    10,
+  );
+  const requestedEnd = Number.parseInt(
+    Array.isArray(slide.lineRange) ? slide.lineRange[1] : requestedStart,
+    10,
+  );
+  const start = Math.min(
+    Math.max(Number.isFinite(requestedStart) ? requestedStart : 1, 1),
+    totalLines,
+  );
+  const end = Math.min(
+    Math.max(Number.isFinite(requestedEnd) ? requestedEnd : start, start),
+    totalLines,
+  );
+  const code = lines.slice(start - 1, end).join('\n');
 
-    return {
-        code,
-        language: file.language || 'plaintext',
-        lineStart: start,
-        lineEnd: end,
-    };
+  return {
+    code,
+    language: file.language || 'plaintext',
+    lineStart: start,
+    lineEnd: end,
+  };
 }
 
 function createAssetDataUriResolver(storage, deck) {
-    const map = new Map();
-    (deck.assets || []).forEach((asset) => {
-        if (!asset?.exists) return;
-        try {
-            const resolved = storage.readAsset(deck.id, asset.path);
-            const base64 = resolved.buffer.toString('base64');
-            map.set(asset.path, `data:${resolved.mimeType};base64,${base64}`);
-        } catch {
-            // Skip unreadable asset.
-        }
-    });
-    return (assetPath) => map.get(assetPath) || `asset://${assetPath}`;
+  const map = new Map();
+  (deck.assets || []).forEach((asset) => {
+    if (!asset?.exists) return;
+    try {
+      const resolved = storage.readAsset(deck.id, asset.path);
+      const base64 = resolved.buffer.toString('base64');
+      map.set(asset.path, `data:${resolved.mimeType};base64,${base64}`);
+    } catch {
+      // Skip unreadable asset.
+    }
+  });
+  return (assetPath) => map.get(assetPath) || `asset://${assetPath}`;
 }
 
 function createRelativeAssetResolver() {
-    return (assetPath) => `assets/${assetPath}`;
+  return (assetPath) => `assets/${assetPath}`;
 }
 
 function createExportBehaviorScript({ hasMermaid, printMode }) {
-    if (!hasMermaid && !printMode) return '';
+  if (!hasMermaid && !printMode) return '';
 
-    if (!hasMermaid) {
-        return '<script>window.addEventListener("load", () => window.print());</script>';
-    }
+  if (!hasMermaid) {
+    return '<script>window.addEventListener("load", () => window.print());</script>';
+  }
 
-    return `<script type="module">
+  return `<script type="module">
 import mermaid from '${EXPORT_MERMAID_MODULE_URL}';
 
 mermaid.initialize({ startOnLoad: false, theme: 'default' });
@@ -90,17 +103,18 @@ window.addEventListener('load', async () => {
 }
 
 function renderExportHtml({ deck, printMode, resolveAssetUrl }) {
-    let hasMermaid = false;
-    const slideSections = (deck.slides || []).map((slide, index) => {
-        const resolved = resolveSlideCode(slide, deck);
-        const markdownResult = renderMarkdownDocument(slide.markdown || '', {
-            resolveAssetUrl,
-            mermaidIdPrefix: `export-mermaid-${index}`,
-        });
-        hasMermaid ||= markdownResult.hasMermaid;
-        const markdownHtml = markdownResult.html || '<p>このスライドには解説がありません</p>';
+  let hasMermaid = false;
+  const slideSections = (deck.slides || [])
+    .map((slide, index) => {
+      const resolved = resolveSlideCode(slide, deck);
+      const markdownResult = renderMarkdownDocument(slide.markdown || '', {
+        resolveAssetUrl,
+        mermaidIdPrefix: `export-mermaid-${index}`,
+      });
+      hasMermaid ||= markdownResult.hasMermaid;
+      const markdownHtml = markdownResult.html || '<p>このスライドには解説がありません</p>';
 
-        return `
+      return `
         <article class="slide">
           <header class="slide-header">
             <h2>${escapeHtml(slide.title || `スライド ${index + 1}`)}</h2>
@@ -110,11 +124,12 @@ function renderExportHtml({ deck, printMode, resolveAssetUrl }) {
           <section class="slide-markdown markdown-body"><h3>解説</h3>${markdownHtml}</section>
         </article>
       `;
-    }).join('');
+    })
+    .join('');
 
-    const behaviorScript = createExportBehaviorScript({ hasMermaid, printMode });
+  const behaviorScript = createExportBehaviorScript({ hasMermaid, printMode });
 
-    return `<!doctype html>
+  return `<!doctype html>
 <html lang="ja">
 <head>
   <meta charset="utf-8" />
@@ -181,145 +196,146 @@ function renderExportHtml({ deck, printMode, resolveAssetUrl }) {
 }
 
 function crc32(buffer) {
-    let crc = 0 ^ (-1);
-    for (let i = 0; i < buffer.length; i += 1) {
-        crc ^= buffer[i];
-        for (let j = 0; j < 8; j += 1) {
-            const mask = -(crc & 1);
-            crc = (crc >>> 1) ^ (0xEDB88320 & mask);
-        }
+  let crc = 0 ^ -1;
+  for (let i = 0; i < buffer.length; i += 1) {
+    crc ^= buffer[i];
+    for (let j = 0; j < 8; j += 1) {
+      const mask = -(crc & 1);
+      crc = (crc >>> 1) ^ (0xedb88320 & mask);
     }
-    return (crc ^ (-1)) >>> 0;
+  }
+  return (crc ^ -1) >>> 0;
 }
 
 function toDosDateTime(date) {
-    const d = date instanceof Date ? date : new Date();
-    const year = Math.max(d.getFullYear(), 1980);
-    const dosDate = ((year - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
-    const dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | Math.floor(d.getSeconds() / 2);
-    return { dosDate, dosTime };
+  const d = date instanceof Date ? date : new Date();
+  const year = Math.max(d.getFullYear(), 1980);
+  const dosDate = ((year - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate();
+  const dosTime = (d.getHours() << 11) | (d.getMinutes() << 5) | Math.floor(d.getSeconds() / 2);
+  return { dosDate, dosTime };
 }
 
 function createZipBuffer(entries) {
-    const localParts = [];
-    const centralParts = [];
-    let localOffset = 0;
+  const localParts = [];
+  const centralParts = [];
+  let localOffset = 0;
 
-    entries.forEach((entry) => {
-        const name = String(entry.name || '').replace(/\\/g, '/');
-        const nameBuffer = Buffer.from(name, 'utf-8');
-        const dataBuffer = Buffer.isBuffer(entry.data) ? entry.data : Buffer.from(String(entry.data || ''), 'utf-8');
-        const crc = crc32(dataBuffer);
-        const { dosDate, dosTime } = toDosDateTime(entry.date);
+  entries.forEach((entry) => {
+    const name = String(entry.name || '').replace(/\\/g, '/');
+    const nameBuffer = Buffer.from(name, 'utf-8');
+    const dataBuffer = Buffer.isBuffer(entry.data)
+      ? entry.data
+      : Buffer.from(String(entry.data || ''), 'utf-8');
+    const crc = crc32(dataBuffer);
+    const { dosDate, dosTime } = toDosDateTime(entry.date);
 
-        const localHeader = Buffer.alloc(30);
-        localHeader.writeUInt32LE(0x04034b50, 0);
-        localHeader.writeUInt16LE(20, 4);
-        localHeader.writeUInt16LE(0, 6);
-        localHeader.writeUInt16LE(0, 8);
-        localHeader.writeUInt16LE(dosTime, 10);
-        localHeader.writeUInt16LE(dosDate, 12);
-        localHeader.writeUInt32LE(crc, 14);
-        localHeader.writeUInt32LE(dataBuffer.length, 18);
-        localHeader.writeUInt32LE(dataBuffer.length, 22);
-        localHeader.writeUInt16LE(nameBuffer.length, 26);
-        localHeader.writeUInt16LE(0, 28);
+    const localHeader = Buffer.alloc(30);
+    localHeader.writeUInt32LE(0x04034b50, 0);
+    localHeader.writeUInt16LE(20, 4);
+    localHeader.writeUInt16LE(0, 6);
+    localHeader.writeUInt16LE(0, 8);
+    localHeader.writeUInt16LE(dosTime, 10);
+    localHeader.writeUInt16LE(dosDate, 12);
+    localHeader.writeUInt32LE(crc, 14);
+    localHeader.writeUInt32LE(dataBuffer.length, 18);
+    localHeader.writeUInt32LE(dataBuffer.length, 22);
+    localHeader.writeUInt16LE(nameBuffer.length, 26);
+    localHeader.writeUInt16LE(0, 28);
 
-        localParts.push(localHeader, nameBuffer, dataBuffer);
+    localParts.push(localHeader, nameBuffer, dataBuffer);
 
-        const centralHeader = Buffer.alloc(46);
-        centralHeader.writeUInt32LE(0x02014b50, 0);
-        centralHeader.writeUInt16LE(20, 4);
-        centralHeader.writeUInt16LE(20, 6);
-        centralHeader.writeUInt16LE(0, 8);
-        centralHeader.writeUInt16LE(0, 10);
-        centralHeader.writeUInt16LE(dosTime, 12);
-        centralHeader.writeUInt16LE(dosDate, 14);
-        centralHeader.writeUInt32LE(crc, 16);
-        centralHeader.writeUInt32LE(dataBuffer.length, 20);
-        centralHeader.writeUInt32LE(dataBuffer.length, 24);
-        centralHeader.writeUInt16LE(nameBuffer.length, 28);
-        centralHeader.writeUInt16LE(0, 30);
-        centralHeader.writeUInt16LE(0, 32);
-        centralHeader.writeUInt16LE(0, 34);
-        centralHeader.writeUInt16LE(0, 36);
-        centralHeader.writeUInt32LE(0, 38);
-        centralHeader.writeUInt32LE(localOffset, 42);
+    const centralHeader = Buffer.alloc(46);
+    centralHeader.writeUInt32LE(0x02014b50, 0);
+    centralHeader.writeUInt16LE(20, 4);
+    centralHeader.writeUInt16LE(20, 6);
+    centralHeader.writeUInt16LE(0, 8);
+    centralHeader.writeUInt16LE(0, 10);
+    centralHeader.writeUInt16LE(dosTime, 12);
+    centralHeader.writeUInt16LE(dosDate, 14);
+    centralHeader.writeUInt32LE(crc, 16);
+    centralHeader.writeUInt32LE(dataBuffer.length, 20);
+    centralHeader.writeUInt32LE(dataBuffer.length, 24);
+    centralHeader.writeUInt16LE(nameBuffer.length, 28);
+    centralHeader.writeUInt16LE(0, 30);
+    centralHeader.writeUInt16LE(0, 32);
+    centralHeader.writeUInt16LE(0, 34);
+    centralHeader.writeUInt16LE(0, 36);
+    centralHeader.writeUInt32LE(0, 38);
+    centralHeader.writeUInt32LE(localOffset, 42);
 
-        centralParts.push(centralHeader, nameBuffer);
-        localOffset += localHeader.length + nameBuffer.length + dataBuffer.length;
-    });
+    centralParts.push(centralHeader, nameBuffer);
+    localOffset += localHeader.length + nameBuffer.length + dataBuffer.length;
+  });
 
-    const centralDirectory = Buffer.concat(centralParts);
-    const endRecord = Buffer.alloc(22);
-    endRecord.writeUInt32LE(0x06054b50, 0);
-    endRecord.writeUInt16LE(0, 4);
-    endRecord.writeUInt16LE(0, 6);
-    endRecord.writeUInt16LE(entries.length, 8);
-    endRecord.writeUInt16LE(entries.length, 10);
-    endRecord.writeUInt32LE(centralDirectory.length, 12);
-    endRecord.writeUInt32LE(localOffset, 16);
-    endRecord.writeUInt16LE(0, 20);
+  const centralDirectory = Buffer.concat(centralParts);
+  const endRecord = Buffer.alloc(22);
+  endRecord.writeUInt32LE(0x06054b50, 0);
+  endRecord.writeUInt16LE(0, 4);
+  endRecord.writeUInt16LE(0, 6);
+  endRecord.writeUInt16LE(entries.length, 8);
+  endRecord.writeUInt16LE(entries.length, 10);
+  endRecord.writeUInt32LE(centralDirectory.length, 12);
+  endRecord.writeUInt32LE(localOffset, 16);
+  endRecord.writeUInt16LE(0, 20);
 
-    return Buffer.concat([...localParts, centralDirectory, endRecord]);
+  return Buffer.concat([...localParts, centralDirectory, endRecord]);
 }
 
 function buildDeckExportHtml({ storage, deckId, printMode = false, createResolveAssetUrl }) {
-    const deck = storage.readDeck(deckId);
-    const resolveAssetUrl = typeof createResolveAssetUrl === 'function'
-        ? createResolveAssetUrl(deck)
-        : () => '';
-    const html = renderExportHtml({ deck, printMode, resolveAssetUrl });
-    const baseName = normalizeFileName(deck.title, deck.id || 'deck');
-    return {
-        deck,
-        html,
-        filename: `${baseName}.html`,
-    };
+  const deck = storage.readDeck(deckId);
+  const resolveAssetUrl =
+    typeof createResolveAssetUrl === 'function' ? createResolveAssetUrl(deck) : () => '';
+  const html = renderExportHtml({ deck, printMode, resolveAssetUrl });
+  const baseName = normalizeFileName(deck.title, deck.id || 'deck');
+  return {
+    deck,
+    html,
+    filename: `${baseName}.html`,
+  };
 }
 
 export function createDeckExportHtml({ storage, deckId, printMode = false }) {
-    return buildDeckExportHtml({
-        storage,
-        deckId,
-        printMode,
-        createResolveAssetUrl: (deck) => createAssetDataUriResolver(storage, deck),
-    });
+  return buildDeckExportHtml({
+    storage,
+    deckId,
+    printMode,
+    createResolveAssetUrl: (deck) => createAssetDataUriResolver(storage, deck),
+  });
 }
 
 export function createDeckExportZip({ storage, deckId }) {
-    const { deck, html } = buildDeckExportHtml({
-        storage,
-        deckId,
-        printMode: false,
-        createResolveAssetUrl: () => createRelativeAssetResolver(),
-    });
-    const entries = [];
+  const { deck, html } = buildDeckExportHtml({
+    storage,
+    deckId,
+    printMode: false,
+    createResolveAssetUrl: () => createRelativeAssetResolver(),
+  });
+  const entries = [];
 
-    const manifestPath = storage.getDeckJsonPath(deck.id);
-    if (fs.existsSync(manifestPath)) {
-        entries.push({ name: 'deck.json', data: fs.readFileSync(manifestPath) });
+  const manifestPath = storage.getDeckJsonPath(deck.id);
+  if (fs.existsSync(manifestPath)) {
+    entries.push({ name: 'deck.json', data: fs.readFileSync(manifestPath) });
+  }
+
+  (deck.files || []).forEach((file) => {
+    entries.push({ name: `files/${file.name}`, data: file.code || '' });
+  });
+
+  (deck.assets || []).forEach((asset) => {
+    if (!asset?.exists) return;
+    try {
+      const resolved = storage.readAsset(deck.id, asset.path);
+      entries.push({ name: `assets/${asset.path}`, data: resolved.buffer });
+    } catch {
+      // Skip unreadable assets.
     }
+  });
 
-    (deck.files || []).forEach((file) => {
-        entries.push({ name: `files/${file.name}`, data: file.code || '' });
-    });
+  entries.push({ name: 'slides.html', data: html });
 
-    (deck.assets || []).forEach((asset) => {
-        if (!asset?.exists) return;
-        try {
-            const resolved = storage.readAsset(deck.id, asset.path);
-            entries.push({ name: `assets/${asset.path}`, data: resolved.buffer });
-        } catch {
-            // Skip unreadable assets.
-        }
-    });
-
-    entries.push({ name: 'slides.html', data: html });
-
-    const baseName = normalizeFileName(deck.title, deck.id || 'deck');
-    return {
-        buffer: createZipBuffer(entries),
-        filename: `${baseName}.zip`,
-    };
+  const baseName = normalizeFileName(deck.title, deck.id || 'deck');
+  return {
+    buffer: createZipBuffer(entries),
+    filename: `${baseName}.zip`,
+  };
 }

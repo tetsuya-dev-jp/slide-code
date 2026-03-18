@@ -1,885 +1,1883 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja" data-theme="dark" data-app-ready="false">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SlideCode — コードスライドショー</title>
-  <meta name="description" content="コード・実行結果・解説を1画面でスライド形式で学べるツール" />
-  <script>
-    (() => {
-      try {
-        const stored = localStorage.getItem('slidecode-theme');
-        const initial = stored || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-        document.documentElement.setAttribute('data-theme', initial);
-      } catch {
-        // Ignore storage/matchMedia issues and keep defaults.
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SlideCode — コードスライドショー</title>
+    <meta name="description" content="コード・実行結果・解説を1画面でスライド形式で学べるツール" />
+    <script>
+      (() => {
+        try {
+          const stored = localStorage.getItem('slidecode-theme');
+          const initial =
+            stored ||
+            (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          document.documentElement.setAttribute('data-theme', initial);
+        } catch {
+          // Ignore storage/matchMedia issues and keep defaults.
+        }
+
+        const showBootFallback = (reason = 'unknown') => {
+          if (document.documentElement.getAttribute('data-app-ready') === 'true') return;
+          document.documentElement.setAttribute('data-app-ready', 'error');
+          document.documentElement.setAttribute('data-app-error', reason);
+        };
+
+        window.__codestageShowBootFallback = showBootFallback;
+        window.__codestageBootTimeout = window.setTimeout(() => {
+          showBootFallback('timeout');
+        }, 2500);
+
+        window.addEventListener(
+          'error',
+          (event) => {
+            const target = event.target;
+            const isCriticalScript =
+              target instanceof HTMLScriptElement && target.dataset.critical === 'true';
+            if (isCriticalScript) {
+              showBootFallback('asset-load');
+            }
+          },
+          true,
+        );
+      })();
+    </script>
+    <style>
+      html[data-app-ready='false'],
+      html[data-app-ready='false'] body {
+        background: #0b0b0b;
       }
 
-      const showBootFallback = (reason = 'unknown') => {
-        if (document.documentElement.getAttribute('data-app-ready') === 'true') return;
-        document.documentElement.setAttribute('data-app-ready', 'error');
-        document.documentElement.setAttribute('data-app-error', reason);
-      };
+      html[data-theme='light'][data-app-ready='false'],
+      html[data-theme='light'][data-app-ready='false'] body {
+        background: #f2f2f2;
+      }
 
-      window.__codestageShowBootFallback = showBootFallback;
-      window.__codestageBootTimeout = window.setTimeout(() => {
-        showBootFallback('timeout');
-      }, 2500);
+      html[data-app-ready='false'] body {
+        visibility: hidden;
+        opacity: 0;
+      }
 
-      window.addEventListener('error', (event) => {
-        const target = event.target;
-        const isCriticalScript = target instanceof HTMLScriptElement && target.dataset.critical === 'true';
-        if (isCriticalScript) {
-          showBootFallback('asset-load');
-        }
-      }, true);
-    })();
-  </script>
-  <style>
-    html[data-app-ready="false"],
-    html[data-app-ready="false"] body {
-      background: #0b0b0b;
-    }
+      html[data-app-ready='true'] body,
+      html[data-app-ready='error'] body {
+        visibility: visible;
+        opacity: 1;
+      }
 
-    html[data-theme="light"][data-app-ready="false"],
-    html[data-theme="light"][data-app-ready="false"] body {
-      background: #f2f2f2;
-    }
+      #appBootFallback {
+        display: none;
+      }
 
-    html[data-app-ready="false"] body {
-      visibility: hidden;
-      opacity: 0;
-    }
+      html[data-app-ready='error'] #app {
+        display: none;
+      }
 
-    html[data-app-ready="true"] body,
-    html[data-app-ready="error"] body {
-      visibility: visible;
-      opacity: 1;
-    }
+      html[data-app-ready='error'] #appBootFallback {
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 32px;
+        box-sizing: border-box;
+        background: inherit;
+      }
 
-    #appBootFallback {
-      display: none;
-    }
+      .boot-fallback-card {
+        max-width: 560px;
+        width: 100%;
+        padding: 28px;
+        border-radius: 20px;
+        background: rgba(29, 29, 29, 0.96);
+        border: 1px solid #2b2b2b;
+        color: #f2f2f2;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+      }
 
-    html[data-app-ready="error"] #app {
-      display: none;
-    }
+      html[data-theme='light'] .boot-fallback-card {
+        background: rgba(255, 255, 255, 0.96);
+        border-color: #c8c8c8;
+        color: #0b0b0b;
+        box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
+      }
 
-    html[data-app-ready="error"] #appBootFallback {
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 32px;
-      box-sizing: border-box;
-      background: inherit;
-    }
+      .boot-fallback-card h2 {
+        margin: 0 0 10px;
+        font-size: 24px;
+      }
 
-    .boot-fallback-card {
-      max-width: 560px;
-      width: 100%;
-      padding: 28px;
-      border-radius: 20px;
-      background: rgba(29, 29, 29, 0.96);
-      border: 1px solid #2b2b2b;
-      color: #f2f2f2;
-      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
-    }
+      .boot-fallback-card p {
+        margin: 0 0 14px;
+        line-height: 1.6;
+        color: inherit;
+        opacity: 0.88;
+      }
 
-    html[data-theme="light"] .boot-fallback-card {
-      background: rgba(255, 255, 255, 0.96);
-      border-color: #c8c8c8;
-      color: #0b0b0b;
-      box-shadow: 0 20px 60px rgba(15, 23, 42, 0.12);
-    }
+      .boot-fallback-meta {
+        margin-bottom: 20px;
+        font-size: 12px;
+        opacity: 0.7;
+      }
 
-    .boot-fallback-card h2 {
-      margin: 0 0 10px;
-      font-size: 24px;
-    }
+      .boot-fallback-actions {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
 
-    .boot-fallback-card p {
-      margin: 0 0 14px;
-      line-height: 1.6;
-      color: inherit;
-      opacity: 0.88;
-    }
+      .boot-fallback-actions a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 10px 16px;
+        border-radius: 999px;
+        text-decoration: none;
+        font-weight: 600;
+        color: #081018;
+        background: #b7ff1a;
+      }
 
-    .boot-fallback-meta {
-      margin-bottom: 20px;
-      font-size: 12px;
-      opacity: 0.7;
-    }
-
-    .boot-fallback-actions {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .boot-fallback-actions a {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 10px 16px;
-      border-radius: 999px;
-      text-decoration: none;
-      font-weight: 600;
-      color: #081018;
-      background: #b7ff1a;
-    }
-
-    html[data-theme="light"] .boot-fallback-actions a {
-      color: #0b0b0b;
-      background: #7aa91a;
-    }
-  </style>
-  <link rel="icon" type="image/svg+xml" href="/logo.svg" />
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link id="hljs-theme" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css" />
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/devicons/devicon@v2.16.0/devicon.min.css" />
-</head>
-<body>
-  <div id="app">
-    <!-- Header Toolbar -->
-    <header class="toolbar">
-      <div class="toolbar-left">
-        <h1 class="logo">
-          <a href="#/" class="logo-link">
-            <img src="/logo.svg" alt="SlideCode Logo" class="logo-img" />
-            <span class="logo-text">SlideCode</span>
-          </a>
-        </h1>
-        <span class="slide-title" id="slideTitle" dir="auto"></span>
-      </div>
-      <div class="toolbar-center" id="toolbarCenter">
-        <div class="pane-toggles" id="paneToggles">
-          <button class="toggle-btn active" data-pane="code" title="コードペイン" aria-label="コードペインの表示を切り替え" aria-pressed="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-            <span>コード</span>
-          </button>
-          <button class="toggle-btn active" data-pane="shell" title="シェルペイン" aria-label="シェルペインの表示を切り替え" aria-pressed="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-            <span>シェル</span>
-          </button>
-          <button class="toggle-btn active" data-pane="markdown" title="解説ペイン" aria-label="解説ペインの表示を切り替え" aria-pressed="true">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-            <span>解説</span>
-          </button>
+      html[data-theme='light'] .boot-fallback-actions a {
+        color: #0b0b0b;
+        background: #7aa91a;
+      }
+    </style>
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      id="hljs-theme"
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark-dimmed.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/gh/devicons/devicon@v2.16.0/devicon.min.css"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Header Toolbar -->
+      <header class="toolbar">
+        <div class="toolbar-left">
+          <h1 class="logo">
+            <a href="#/" class="logo-link">
+              <img src="/logo.svg" alt="SlideCode Logo" class="logo-img" />
+              <span class="logo-text">SlideCode</span>
+            </a>
+          </h1>
+          <span class="slide-title" id="slideTitle" dir="auto"></span>
         </div>
-      </div>
-      <div class="toolbar-right" id="toolbarRight">
-        <!-- Layout Picker -->
-        <div class="layout-picker" id="layoutPicker">
-          <button class="layout-picker-btn" id="layoutPickerBtn" title="レイアウト変更" aria-label="レイアウト変更" aria-expanded="false" aria-controls="layoutDropdown">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect></svg>
-          </button>
-          <div class="layout-dropdown" id="layoutDropdown" hidden>
-            <div class="layout-section">
-              <p class="layout-section-title">レイアウト</p>
-              <div class="layout-options-grid" role="group" aria-label="レイアウト候補">
-                <button class="layout-option active" data-layout="three-col" data-layout-label="3列" title="3列" aria-label="3列レイアウト">
-                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="10" y="1" width="8" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="20" y="1" width="7" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-                </button>
-                <button class="layout-option" data-layout="left-stack" data-layout-label="左2段+右" title="左2段+右" aria-label="左2段+右レイアウト">
-                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-                </button>
-                <button class="layout-option" data-layout="right-stack" data-layout-label="左+右2段" title="左+右2段" aria-label="左+右2段レイアウト">
-                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="18" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-                </button>
-                <button class="layout-option" data-layout="top-bottom" data-layout-label="上+下2列" title="上+下2列" aria-label="上+下2列レイアウト">
-                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="11" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-                </button>
-                <button class="layout-option" data-layout="bottom-top" data-layout-label="上2列+下" title="上2列+下" aria-label="上2列+下レイアウト">
-                  <svg width="28" height="20" viewBox="0 0 28 20"><rect x="1" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="15" y="1" width="12" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="1" y="11" width="26" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-                </button>
-              </div>
-            </div>
-            <div class="layout-section">
-              <p class="layout-section-title">ペイン順序</p>
-              <div class="pane-order-list" aria-label="ペイン順序の変更">
-                <div class="pane-order-item" data-pane-order="code">
-                  <span class="pane-order-rank" aria-hidden="true">1</span>
-                  <span class="pane-order-label">コード</span>
-                  <div class="pane-order-actions">
-                    <button class="layout-mini-btn pane-move-prev" data-pane="code" type="button" aria-label="コードを前へ移動">←</button>
-                    <button class="layout-mini-btn pane-move-next" data-pane="code" type="button" aria-label="コードを後ろへ移動">→</button>
-                  </div>
-                </div>
-                <div class="pane-order-item" data-pane-order="shell">
-                  <span class="pane-order-rank" aria-hidden="true">2</span>
-                  <span class="pane-order-label">シェル</span>
-                  <div class="pane-order-actions">
-                    <button class="layout-mini-btn pane-move-prev" data-pane="shell" type="button" aria-label="シェルを前へ移動">←</button>
-                    <button class="layout-mini-btn pane-move-next" data-pane="shell" type="button" aria-label="シェルを後ろへ移動">→</button>
-                  </div>
-                </div>
-                <div class="pane-order-item" data-pane-order="markdown">
-                  <span class="pane-order-rank" aria-hidden="true">3</span>
-                  <span class="pane-order-label">解説</span>
-                  <div class="pane-order-actions">
-                    <button class="layout-mini-btn pane-move-prev" data-pane="markdown" type="button" aria-label="解説を前へ移動">←</button>
-                    <button class="layout-mini-btn pane-move-next" data-pane="markdown" type="button" aria-label="解説を後ろへ移動">→</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="layout-section">
-              <p class="layout-section-title">ショートカット</p>
-              <ul class="layout-shortcut-list" id="layoutShortcutList">
-                <li><kbd>←</kbd><kbd>→</kbd> スライド移動</li>
-                <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> ペイン表示切替</li>
-                <li><kbd>L</kbd> レイアウトメニュー</li>
-                <li><kbd>Esc</kbd> メニューを閉じる</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <button class="theme-toggle" id="themeToggle" title="テーマ切替" aria-label="テーマ切替">
-          <svg class="icon-sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
-          <svg class="icon-moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-        </button>
-        <button class="nav-btn" id="dashboardConfigBtn" title="アプリ設定" aria-label="アプリ設定">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-        </button>
-        <button class="nav-btn" id="editDeckBtn" title="編集画面へ" aria-label="編集画面へ">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
-        </button>
-        <div class="slide-nav" id="slideNav">
-          <label class="visually-hidden" for="slideJumpInput">開始スライドへ移動</label>
-          <input type="number" id="slideJumpInput" class="slide-jump-input" min="1" value="1" aria-label="スライド番号へ移動" />
-          <button class="nav-btn nav-btn-text" id="slideJumpBtn" title="指定スライドへ移動" aria-label="指定スライドへ移動">Go</button>
-          <button class="nav-btn" id="prevBtn" title="前のスライド" aria-label="前のスライド">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-          </button>
-          <span class="slide-counter" id="slideCounter">1 / 1</span>
-          <button class="nav-btn" id="nextBtn" title="次のスライド" aria-label="次のスライド">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-          </button>
-          <button class="nav-btn" id="fullscreenBtn" title="全画面表示" aria-label="全画面表示" aria-pressed="false">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M16 3h3a2 2 0 0 1 2 2v3"></path><path d="M8 21H5a2 2 0 0 1-2-2v-3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
-          </button>
-        </div>
-      </div>
-    </header>
-
-    <!-- Slide Progress Bar -->
-    <div class="progress-bar" id="progressBar">
-      <div class="progress-fill" id="progressFill"></div>
-    </div>
-
-    <!-- ========== DASHBOARD VIEW ========== -->
-    <main id="viewDashboard" class="view" style="display:none;">
-      <div class="dashboard">
-        <div class="dashboard-header">
-          <div>
-            <h2 class="dashboard-title">
-              <svg class="dashboard-title-icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-              デッキ一覧
-            </h2>
-            <p class="dashboard-subtitle">スライドデッキを作成・管理できます</p>
-          </div>
-          <div class="dashboard-actions">
-            <button class="btn btn-secondary" id="importBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              インポート
+        <div class="toolbar-center" id="toolbarCenter">
+          <div class="pane-toggles" id="paneToggles">
+            <button
+              class="toggle-btn active"
+              data-pane="code"
+              title="コードペイン"
+              aria-label="コードペインの表示を切り替え"
+              aria-pressed="true"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="16 18 22 12 16 6"></polyline>
+                <polyline points="8 6 2 12 8 18"></polyline>
+              </svg>
+              <span>コード</span>
             </button>
-            <button class="btn btn-primary" id="newDeckBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              新規デッキ
+            <button
+              class="toggle-btn active"
+              data-pane="shell"
+              title="シェルペイン"
+              aria-label="シェルペインの表示を切り替え"
+              aria-pressed="true"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="4 17 10 11 4 5"></polyline>
+                <line x1="12" y1="19" x2="20" y2="19"></line>
+              </svg>
+              <span>シェル</span>
+            </button>
+            <button
+              class="toggle-btn active"
+              data-pane="markdown"
+              title="解説ペイン"
+              aria-label="解説ペインの表示を切り替え"
+              aria-pressed="true"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+              </svg>
+              <span>解説</span>
             </button>
           </div>
         </div>
-        <section class="deck-issues" id="deckIssues" hidden>
-          <!-- Quarantined deck issues rendered here -->
-        </section>
-        <section class="dashboard-filters-panel" aria-label="デッキ一覧の整理">
-          <div class="dashboard-panel-header">
+        <div class="toolbar-right" id="toolbarRight">
+          <!-- Layout Picker -->
+          <div class="layout-picker" id="layoutPicker">
+            <button
+              class="layout-picker-btn"
+              id="layoutPickerBtn"
+              title="レイアウト変更"
+              aria-label="レイアウト変更"
+              aria-expanded="false"
+              aria-controls="layoutDropdown"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="7" height="7"></rect>
+                <rect x="14" y="3" width="7" height="7"></rect>
+                <rect x="3" y="14" width="7" height="7"></rect>
+                <rect x="14" y="14" width="7" height="7"></rect>
+              </svg>
+            </button>
+            <div class="layout-dropdown" id="layoutDropdown" hidden>
+              <div class="layout-section">
+                <p class="layout-section-title">レイアウト</p>
+                <div class="layout-options-grid" role="group" aria-label="レイアウト候補">
+                  <button
+                    class="layout-option active"
+                    data-layout="three-col"
+                    data-layout-label="3列"
+                    title="3列"
+                    aria-label="3列レイアウト"
+                  >
+                    <svg width="28" height="20" viewBox="0 0 28 20">
+                      <rect
+                        x="1"
+                        y="1"
+                        width="7"
+                        height="18"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="10"
+                        y="1"
+                        width="8"
+                        height="18"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="20"
+                        y="1"
+                        width="7"
+                        height="18"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="layout-option"
+                    data-layout="left-stack"
+                    data-layout-label="左2段+右"
+                    title="左2段+右"
+                    aria-label="左2段+右レイアウト"
+                  >
+                    <svg width="28" height="20" viewBox="0 0 28 20">
+                      <rect
+                        x="1"
+                        y="1"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="1"
+                        y="11"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="15"
+                        y="1"
+                        width="12"
+                        height="18"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="layout-option"
+                    data-layout="right-stack"
+                    data-layout-label="左+右2段"
+                    title="左+右2段"
+                    aria-label="左+右2段レイアウト"
+                  >
+                    <svg width="28" height="20" viewBox="0 0 28 20">
+                      <rect
+                        x="1"
+                        y="1"
+                        width="12"
+                        height="18"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="15"
+                        y="1"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="15"
+                        y="11"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="layout-option"
+                    data-layout="top-bottom"
+                    data-layout-label="上+下2列"
+                    title="上+下2列"
+                    aria-label="上+下2列レイアウト"
+                  >
+                    <svg width="28" height="20" viewBox="0 0 28 20">
+                      <rect
+                        x="1"
+                        y="1"
+                        width="26"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="1"
+                        y="11"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="15"
+                        y="11"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                  <button
+                    class="layout-option"
+                    data-layout="bottom-top"
+                    data-layout-label="上2列+下"
+                    title="上2列+下"
+                    aria-label="上2列+下レイアウト"
+                  >
+                    <svg width="28" height="20" viewBox="0 0 28 20">
+                      <rect
+                        x="1"
+                        y="1"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="15"
+                        y="1"
+                        width="12"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                      <rect
+                        x="1"
+                        y="11"
+                        width="26"
+                        height="8"
+                        rx="1"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+              <div class="layout-section">
+                <p class="layout-section-title">ペイン順序</p>
+                <div class="pane-order-list" aria-label="ペイン順序の変更">
+                  <div class="pane-order-item" data-pane-order="code">
+                    <span class="pane-order-rank" aria-hidden="true">1</span>
+                    <span class="pane-order-label">コード</span>
+                    <div class="pane-order-actions">
+                      <button
+                        class="layout-mini-btn pane-move-prev"
+                        data-pane="code"
+                        type="button"
+                        aria-label="コードを前へ移動"
+                      >
+                        ←
+                      </button>
+                      <button
+                        class="layout-mini-btn pane-move-next"
+                        data-pane="code"
+                        type="button"
+                        aria-label="コードを後ろへ移動"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                  <div class="pane-order-item" data-pane-order="shell">
+                    <span class="pane-order-rank" aria-hidden="true">2</span>
+                    <span class="pane-order-label">シェル</span>
+                    <div class="pane-order-actions">
+                      <button
+                        class="layout-mini-btn pane-move-prev"
+                        data-pane="shell"
+                        type="button"
+                        aria-label="シェルを前へ移動"
+                      >
+                        ←
+                      </button>
+                      <button
+                        class="layout-mini-btn pane-move-next"
+                        data-pane="shell"
+                        type="button"
+                        aria-label="シェルを後ろへ移動"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                  <div class="pane-order-item" data-pane-order="markdown">
+                    <span class="pane-order-rank" aria-hidden="true">3</span>
+                    <span class="pane-order-label">解説</span>
+                    <div class="pane-order-actions">
+                      <button
+                        class="layout-mini-btn pane-move-prev"
+                        data-pane="markdown"
+                        type="button"
+                        aria-label="解説を前へ移動"
+                      >
+                        ←
+                      </button>
+                      <button
+                        class="layout-mini-btn pane-move-next"
+                        data-pane="markdown"
+                        type="button"
+                        aria-label="解説を後ろへ移動"
+                      >
+                        →
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="layout-section">
+                <p class="layout-section-title">ショートカット</p>
+                <ul class="layout-shortcut-list" id="layoutShortcutList">
+                  <li><kbd>←</kbd><kbd>→</kbd> スライド移動</li>
+                  <li><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> ペイン表示切替</li>
+                  <li><kbd>L</kbd> レイアウトメニュー</li>
+                  <li><kbd>Esc</kbd> メニューを閉じる</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+          <button class="theme-toggle" id="themeToggle" title="テーマ切替" aria-label="テーマ切替">
+            <svg
+              class="icon-sun"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="5"></circle>
+              <line x1="12" y1="1" x2="12" y2="3"></line>
+              <line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line>
+              <line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+            </svg>
+            <svg
+              class="icon-moon"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+          </button>
+          <button
+            class="nav-btn"
+            id="dashboardConfigBtn"
+            title="アプリ設定"
+            aria-label="アプリ設定"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="3"></circle>
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              ></path>
+            </svg>
+          </button>
+          <button class="nav-btn" id="editDeckBtn" title="編集画面へ" aria-label="編集画面へ">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path d="M12 20h9"></path>
+              <path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+            </svg>
+          </button>
+          <div class="slide-nav" id="slideNav">
+            <label class="visually-hidden" for="slideJumpInput">開始スライドへ移動</label>
+            <input
+              type="number"
+              id="slideJumpInput"
+              class="slide-jump-input"
+              min="1"
+              value="1"
+              aria-label="スライド番号へ移動"
+            />
+            <button
+              class="nav-btn nav-btn-text"
+              id="slideJumpBtn"
+              title="指定スライドへ移動"
+              aria-label="指定スライドへ移動"
+            >
+              Go
+            </button>
+            <button class="nav-btn" id="prevBtn" title="前のスライド" aria-label="前のスライド">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+            <span class="slide-counter" id="slideCounter">1 / 1</span>
+            <button class="nav-btn" id="nextBtn" title="次のスライド" aria-label="次のスライド">
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+            <button
+              class="nav-btn"
+              id="fullscreenBtn"
+              title="全画面表示"
+              aria-label="全画面表示"
+              aria-pressed="false"
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+                <path d="M16 3h3a2 2 0 0 1 2 2v3"></path>
+                <path d="M8 21H5a2 2 0 0 1-2-2v-3"></path>
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Slide Progress Bar -->
+      <div class="progress-bar" id="progressBar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+
+      <!-- ========== DASHBOARD VIEW ========== -->
+      <main id="viewDashboard" class="view" style="display: none">
+        <div class="dashboard">
+          <div class="dashboard-header">
             <div>
-              <p class="dashboard-panel-kicker">管理</p>
-              <h3 class="dashboard-panel-title">一覧を絞り込む</h3>
+              <h2 class="dashboard-title">
+                <svg
+                  class="dashboard-title-icon"
+                  width="22"
+                  height="22"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  aria-hidden="true"
+                >
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                デッキ一覧
+              </h2>
+              <p class="dashboard-subtitle">スライドデッキを作成・管理できます</p>
             </div>
-            <div class="dashboard-summary" id="deckSummary" aria-live="polite"></div>
+            <div class="dashboard-actions">
+              <button class="btn btn-secondary" id="importBtn">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                インポート
+              </button>
+              <button class="btn btn-primary" id="newDeckBtn">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                新規デッキ
+              </button>
+            </div>
           </div>
-          <div class="dashboard-controls">
-            <div class="dashboard-search">
-              <label class="dashboard-control-label" for="deckSearchInput">検索</label>
-              <input type="search" id="deckSearchInput" placeholder="タイトル・説明・IDで検索" />
+          <section class="deck-issues" id="deckIssues" hidden>
+            <!-- Quarantined deck issues rendered here -->
+          </section>
+          <section class="dashboard-filters-panel" aria-label="デッキ一覧の整理">
+            <div class="dashboard-panel-header">
+              <div>
+                <p class="dashboard-panel-kicker">管理</p>
+                <h3 class="dashboard-panel-title">一覧を絞り込む</h3>
+              </div>
+              <div class="dashboard-summary" id="deckSummary" aria-live="polite"></div>
             </div>
-            <div class="dashboard-filter-group">
-              <label class="dashboard-control-label" for="deckSortSelect">並び順</label>
-              <select id="deckSortSelect" class="editor-select dashboard-select">
-                <option value="recent-opened">最近開いた順</option>
-                <option value="updated-desc">更新が新しい順</option>
-                <option value="updated-asc">更新が古い順</option>
-                <option value="title-asc">タイトル A-Z</option>
-              </select>
+            <div class="dashboard-controls">
+              <div class="dashboard-search">
+                <label class="dashboard-control-label" for="deckSearchInput">検索</label>
+                <input type="search" id="deckSearchInput" placeholder="タイトル・説明・IDで検索" />
+              </div>
+              <div class="dashboard-filter-group">
+                <label class="dashboard-control-label" for="deckSortSelect">並び順</label>
+                <select id="deckSortSelect" class="editor-select dashboard-select">
+                  <option value="recent-opened">最近開いた順</option>
+                  <option value="updated-desc">更新が新しい順</option>
+                  <option value="updated-asc">更新が古い順</option>
+                  <option value="title-asc">タイトル A-Z</option>
+                </select>
+              </div>
+              <div class="dashboard-filter-group">
+                <label class="dashboard-control-label" for="deckStatusFilter">表示</label>
+                <select id="deckStatusFilter" class="editor-select dashboard-select">
+                  <option value="all">すべて</option>
+                  <option value="recent">最近開いたもの</option>
+                  <option value="templates">テンプレート保存済み</option>
+                </select>
+              </div>
             </div>
-            <div class="dashboard-filter-group">
-              <label class="dashboard-control-label" for="deckStatusFilter">表示</label>
-              <select id="deckStatusFilter" class="editor-select dashboard-select">
-                <option value="all">すべて</option>
-                <option value="recent">最近開いたもの</option>
-                <option value="templates">テンプレート保存済み</option>
-              </select>
-            </div>
+          </section>
+          <div class="deck-grid" id="deckGrid">
+            <!-- Deck cards rendered here -->
           </div>
-        </section>
-        <div class="deck-grid" id="deckGrid">
-          <!-- Deck cards rendered here -->
         </div>
-      </div>
-    </main>
-
-    <!-- ========== PRESENTATION VIEW ========== -->
-    <div id="viewPresentation" class="view" style="display:none;">
-      <!-- Main Content Area (CSS Grid) -->
-      <main class="content" id="content">
-        <!-- Code Pane -->
-        <section class="pane pane-code" id="paneCode" data-pane="code">
-          <div class="pane-header" draggable="true" data-pane="code">
-            <span class="pane-label">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-              コード
-            </span>
-            <div class="pane-actions">
-              <span class="lang-badge" id="langBadge">python</span>
-              <button class="action-btn" id="copyBtn" title="コピー" aria-label="コードをコピー">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-              </button>
-            </div>
-          </div>
-          <div class="pane-body code-body" id="codeBody">
-            <pre><code id="codeContent"></code></pre>
-          </div>
-        </section>
-
-        <!-- Shell Pane -->
-        <section class="pane pane-shell" id="paneShell" data-pane="shell">
-          <div class="pane-header" draggable="true" data-pane="shell">
-            <span class="pane-label">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
-              シェル
-            </span>
-            <div class="pane-actions">
-              <span class="shell-status" id="shellStatus" role="status" aria-live="polite">接続中</span>
-              <button class="action-btn" id="shellReconnectBtn" title="再接続" aria-label="シェルを再接続">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6"></path><path d="M1 20v-6h6"></path><path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path><path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path></svg>
-              </button>
-              <button class="action-btn" id="shellClearBtn" title="表示をクリア" aria-label="シェル表示をクリア">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M19 6l-1 14H6L5 6"></path></svg>
-              </button>
-              <button class="action-btn" id="shellResetBtn" title="セッションをリセット" aria-label="シェルセッションをリセット">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"></polyline><path d="M3.51 15a9 9 0 1 0 .49-9"></path></svg>
-              </button>
-            </div>
-          </div>
-          <div class="pane-body shell-body" id="shellBody"></div>
-        </section>
-
-        <!-- Markdown Pane -->
-        <section class="pane pane-markdown" id="paneMarkdown" data-pane="markdown">
-          <div class="pane-header" draggable="true" data-pane="markdown">
-            <span class="pane-label">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-              解説
-            </span>
-          </div>
-          <div class="pane-body markdown-body" id="markdownBody"></div>
-        </section>
       </main>
 
-    </div>
+      <!-- ========== PRESENTATION VIEW ========== -->
+      <div id="viewPresentation" class="view" style="display: none">
+        <!-- Main Content Area (CSS Grid) -->
+        <main class="content" id="content">
+          <!-- Code Pane -->
+          <section class="pane pane-code" id="paneCode" data-pane="code">
+            <div class="pane-header" draggable="true" data-pane="code">
+              <span class="pane-label">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="16 18 22 12 16 6"></polyline>
+                  <polyline points="8 6 2 12 8 18"></polyline>
+                </svg>
+                コード
+              </span>
+              <div class="pane-actions">
+                <span class="lang-badge" id="langBadge">python</span>
+                <button class="action-btn" id="copyBtn" title="コピー" aria-label="コードをコピー">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="pane-body code-body" id="codeBody">
+              <pre><code id="codeContent"></code></pre>
+            </div>
+          </section>
 
-    <!-- ========== EDITOR VIEW ========== -->
-    <div id="viewEditor" class="view" style="display:none;">
-      <div class="editor-container">
-        <!-- Editor toolbar -->
-        <div class="editor-toolbar">
-          <div class="editor-toolbar-left">
-            <span class="editor-deck-name" id="editorDeckName" dir="auto"></span>
-            <span class="editor-save-status" id="editorSaveStatus" role="status" aria-live="polite" aria-atomic="true">保存済み</span>
+          <!-- Shell Pane -->
+          <section class="pane pane-shell" id="paneShell" data-pane="shell">
+            <div class="pane-header" draggable="true" data-pane="shell">
+              <span class="pane-label">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polyline points="4 17 10 11 4 5"></polyline>
+                  <line x1="12" y1="19" x2="20" y2="19"></line>
+                </svg>
+                シェル
+              </span>
+              <div class="pane-actions">
+                <span class="shell-status" id="shellStatus" role="status" aria-live="polite"
+                  >接続中</span
+                >
+                <button
+                  class="action-btn"
+                  id="shellReconnectBtn"
+                  title="再接続"
+                  aria-label="シェルを再接続"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M23 4v6h-6"></path>
+                    <path d="M1 20v-6h6"></path>
+                    <path d="M3.51 9a9 9 0 0 1 14.13-3.36L23 10"></path>
+                    <path d="M20.49 15a9 9 0 0 1-14.13 3.36L1 14"></path>
+                  </svg>
+                </button>
+                <button
+                  class="action-btn"
+                  id="shellClearBtn"
+                  title="表示をクリア"
+                  aria-label="シェル表示をクリア"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M3 6h18"></path>
+                    <path d="M8 6V4h8v2"></path>
+                    <path d="M19 6l-1 14H6L5 6"></path>
+                  </svg>
+                </button>
+                <button
+                  class="action-btn"
+                  id="shellResetBtn"
+                  title="セッションをリセット"
+                  aria-label="シェルセッションをリセット"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <polyline points="1 4 1 10 7 10"></polyline>
+                    <path d="M3.51 15a9 9 0 1 0 .49-9"></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="pane-body shell-body" id="shellBody"></div>
+          </section>
+
+          <!-- Markdown Pane -->
+          <section class="pane pane-markdown" id="paneMarkdown" data-pane="markdown">
+            <div class="pane-header" draggable="true" data-pane="markdown">
+              <span class="pane-label">
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                解説
+              </span>
+            </div>
+            <div class="pane-body markdown-body" id="markdownBody"></div>
+          </section>
+        </main>
+      </div>
+
+      <!-- ========== EDITOR VIEW ========== -->
+      <div id="viewEditor" class="view" style="display: none">
+        <div class="editor-container">
+          <!-- Editor toolbar -->
+          <div class="editor-toolbar">
+            <div class="editor-toolbar-left">
+              <span class="editor-deck-name" id="editorDeckName" dir="auto"></span>
+              <span
+                class="editor-save-status"
+                id="editorSaveStatus"
+                role="status"
+                aria-live="polite"
+                aria-atomic="true"
+                >保存済み</span
+              >
+            </div>
+            <div class="editor-toolbar-right">
+              <button
+                class="btn btn-secondary"
+                id="editorDeckSettingsBtn"
+                title="デッキ設定（タイトル・フォルダ・作業ディレクトリ）"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+                デッキ設定
+              </button>
+              <button
+                class="btn btn-secondary"
+                id="editorPreferencesBtn"
+                title="エディタ設定（フォント・タブ・折り返し等）"
+              >
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+                  ></path>
+                </svg>
+                エディタ設定
+              </button>
+              <button class="btn btn-secondary" id="editorAssetsBtn">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M4 7h16"></path>
+                  <path d="M4 17h16"></path>
+                  <path d="M7 7v10"></path>
+                  <path d="M17 7v10"></path>
+                  <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+                </svg>
+                素材
+              </button>
+              <button class="btn btn-secondary" id="editorPreviewBtn">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                プレビュー
+              </button>
+              <button class="btn btn-primary" id="editorSaveBtn">
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+                  <polyline points="17 21 17 13 7 13 7 21"></polyline>
+                  <polyline points="7 3 7 8 15 8"></polyline>
+                </svg>
+                保存
+              </button>
+            </div>
           </div>
-          <div class="editor-toolbar-right">
-            <button class="btn btn-secondary" id="editorDeckSettingsBtn" title="デッキ設定（タイトル・フォルダ・作業ディレクトリ）">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
-              デッキ設定
-            </button>
-            <button class="btn btn-secondary" id="editorPreferencesBtn" title="エディタ設定（フォント・タブ・折り返し等）">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33h.08a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h.08a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v.08a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-              エディタ設定
-            </button>
-            <button class="btn btn-secondary" id="editorAssetsBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7h16"></path><path d="M4 17h16"></path><path d="M7 7v10"></path><path d="M17 7v10"></path><rect x="3" y="3" width="18" height="18" rx="2"></rect></svg>
-              素材
-            </button>
-            <button class="btn btn-secondary" id="editorPreviewBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              プレビュー
-            </button>
-            <button class="btn btn-primary" id="editorSaveBtn">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
-              保存
-            </button>
-          </div>
-        </div>
 
-        <!-- Slide list sidebar + editor area -->
-        <div class="editor-body">
-          <aside class="editor-sidebar">
-            <section class="editor-panel editor-panel-slides">
-              <div class="editor-sidebar-header">
-                <span>スライド一覧</span>
-                <div class="editor-sidebar-header-actions">
-                  <button class="btn-icon" id="addSlideBtn" title="スライド追加" aria-label="スライド追加">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  </button>
-                </div>
-              </div>
-              <ul class="editor-slide-list" id="editorSlideList">
-                <!-- Slide list items rendered here -->
-              </ul>
-            </section>
-
-            <section class="editor-panel editor-panel-settings">
-              <div class="editor-panel-header">
-                <span>スライド設定</span>
-              </div>
-              <div class="editor-fields editor-fields-meta">
-                <div class="editor-field">
-                  <label for="editorSlideTitle">スライドタイトル</label>
-                  <input type="text" id="editorSlideTitle" placeholder="スライドタイトル" maxlength="160" dir="auto" />
-                </div>
-                <div class="editor-field">
-                  <label for="editorFileRef">参照ファイル</label>
-                  <select id="editorFileRef" class="editor-select"></select>
-                </div>
-                <fieldset class="editor-field editor-fieldset">
-                  <legend>表示行範囲</legend>
-                  <div class="editor-line-range">
-                    <label class="visually-hidden" for="editorLineStart">開始行</label>
-                    <input type="number" id="editorLineStart" min="1" placeholder="開始" class="editor-line-input" inputmode="numeric" aria-describedby="editorRangeHint editorRangeSummary" />
-                    <span class="editor-line-separator">〜</span>
-                    <label class="visually-hidden" for="editorLineEnd">終了行</label>
-                    <input type="number" id="editorLineEnd" min="1" placeholder="終了" class="editor-line-input" inputmode="numeric" aria-describedby="editorRangeHint editorRangeSummary" />
-                  </div>
-                  <div class="editor-summary-row">
-                    <div class="editor-selection-summary" id="editorRangeSummary">L1-L1 (1行)</div>
-                    <button class="editor-inline-action" id="resetRangeBtn" type="button" title="全体範囲に戻す">全体に戻す</button>
-                  </div>
-                  <p class="editor-field-hint" id="editorRangeHint">青い帯が表示範囲です。行番号ドラッグで範囲選択、Shift+クリックで範囲確定</p>
-                </fieldset>
-                <div class="editor-field">
-                  <label for="editorHighlight">ハイライト行</label>
-                  <div class="editor-inline-actions">
-                    <button class="editor-inline-action" id="toggleHighlightInputBtn" type="button">編集</button>
-                    <button class="editor-inline-action" id="clearHighlightBtn" type="button">全解除</button>
-                  </div>
-                  <div class="editor-highlight-chips" id="editorHighlightChips"></div>
-                  <div class="editor-highlight-input-row" id="editorHighlightInputRow" hidden>
-                    <input type="text" id="editorHighlight" placeholder="4,5,6" inputmode="numeric" aria-describedby="editorHighlightHint" />
-                    <button class="editor-inline-action" id="closeHighlightInputBtn" type="button">閉じる</button>
-                  </div>
-                  <p class="editor-field-hint" id="editorHighlightHint">左端の緑チェック列をクリック/ドラッグで選択（必要なら編集で数値入力）</p>
-                </div>
-              </div>
-            </section>
-          </aside>
-
-          <div class="editor-sidebar-resizer" id="editorSidebarResizer" title="ドラッグで幅調整 / ダブルクリックで開閉">
-            <button class="editor-sidebar-handle" id="editorSidebarHandle" title="左パネルを開閉" aria-label="左パネルを開閉" aria-pressed="false">
-              <svg class="editor-sidebar-handle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"></path></svg>
-            </button>
-          </div>
-
-          <main class="editor-main">
-            <div class="editor-files-section">
-              <div class="editor-files-header">
-                <span class="editor-section-label">ソースファイル + エディタ</span>
-                <div class="editor-files-actions">
-                  <button class="btn-icon" id="importFileFromDiskBtn" title="ローカルファイルを読み込む" aria-label="ローカルファイルを読み込む">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-                  </button>
-                  <button class="btn-icon" id="addFileBtn" title="空ファイル追加" aria-label="空ファイルを追加">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                  </button>
-                </div>
-                <input type="file" id="sourceFileInput" multiple accept=".py,.js,.ts,.jsx,.tsx,.html,.css,.json,.java,.c,.cpp,.h,.hpp,.go,.rs,.rb,.php,.swift,.kt,.sh,.sql,.md,.txt,.yaml,.yml,.toml,.xml,.r,.scala,.lua,.pl,.ex,.exs,.hs,.ml,.clj,.dart,.vue,.svelte" style="display:none;" />
-              </div>
-              <div class="editor-file-tabs" id="editorFileTabs">
-                <!-- File tabs rendered here -->
-              </div>
-              <div class="editor-file-editor">
-                <div class="editor-file-meta">
-                  <label class="visually-hidden" for="editorFileName">ファイル名</label>
-                  <input type="text" id="editorFileName" placeholder="ファイル名 (例: main.py)" class="editor-file-name-input" maxlength="240" dir="auto" aria-describedby="editorFileNameError" />
-                  <label class="visually-hidden" for="editorFileLang">言語</label>
-                  <input type="text" id="editorFileLang" placeholder="言語 (例: python)" class="editor-file-lang-input" maxlength="80" dir="auto" />
-                  <button class="btn-icon btn-danger-icon" id="deleteFileBtn" title="ファイル削除" aria-label="現在のファイルを削除">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                  </button>
-                </div>
-                <p class="editor-inline-error" id="editorFileNameError" role="status" aria-live="polite" hidden></p>
-                <div class="editor-file-code-wrapper">
-                  <div class="editor-code-column-header">
-                    <span
-                      class="editor-hl-column-label"
-                      title="クリック/ドラッグでハイライト"
-                      aria-label="クリックまたはドラッグでハイライト行を選択"
+          <!-- Slide list sidebar + editor area -->
+          <div class="editor-body">
+            <aside class="editor-sidebar">
+              <section class="editor-panel editor-panel-slides">
+                <div class="editor-sidebar-header">
+                  <span>スライド一覧</span>
+                  <div class="editor-sidebar-header-actions">
+                    <button
+                      class="btn-icon"
+                      id="addSlideBtn"
+                      title="スライド追加"
+                      aria-label="スライド追加"
                     >
-                      <span class="editor-hl-column-dot" aria-hidden="true"></span>
-                      <span>HL</span>
-                    </span>
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                    </button>
                   </div>
-                  <div id="editorFileCode" class="editor-file-code-container"></div>
                 </div>
-              </div>
-            </div>
-          </main>
+                <ul class="editor-slide-list" id="editorSlideList">
+                  <!-- Slide list items rendered here -->
+                </ul>
+              </section>
 
-          <div class="editor-resizer" id="editorMainNarrativeResizer" title="ドラッグして幅を調整"></div>
-
-          <aside class="editor-narrative">
-            <section class="editor-panel editor-panel-markdown">
-              <div class="editor-panel-header">
-                <span>解説</span>
-              </div>
-              <div class="editor-fields editor-fields-markdown">
-                <div class="editor-field editor-markdown-input-field">
-                  <span class="editor-field-label" id="editorMarkdownLabel">マークダウン</span>
-                  <div id="editorMarkdown" class="editor-markdown-editor" role="textbox" aria-multiline="true" aria-labelledby="editorMarkdownLabel"></div>
-                  <p class="editor-asset-warning" id="editorAssetWarning" hidden></p>
+              <section class="editor-panel editor-panel-settings">
+                <div class="editor-panel-header">
+                  <span>スライド設定</span>
                 </div>
-                <div class="editor-markdown-resizer" id="editorMarkdownResizer" title="ドラッグして上下の比率を調整"></div>
-                <div class="editor-field editor-markdown-preview-field">
-                  <span class="editor-field-label" id="editorMarkdownPreviewLabel">プレビュー</span>
-                  <div class="editor-preview editor-markdown-preview">
-                    <div class="editor-preview-header">
-                      <span class="editor-preview-label">Render</span>
+                <div class="editor-fields editor-fields-meta">
+                  <div class="editor-field">
+                    <label for="editorSlideTitle">スライドタイトル</label>
+                    <input
+                      type="text"
+                      id="editorSlideTitle"
+                      placeholder="スライドタイトル"
+                      maxlength="160"
+                      dir="auto"
+                    />
+                  </div>
+                  <div class="editor-field">
+                    <label for="editorFileRef">参照ファイル</label>
+                    <select id="editorFileRef" class="editor-select"></select>
+                  </div>
+                  <fieldset class="editor-field editor-fieldset">
+                    <legend>表示行範囲</legend>
+                    <div class="editor-line-range">
+                      <label class="visually-hidden" for="editorLineStart">開始行</label>
+                      <input
+                        type="number"
+                        id="editorLineStart"
+                        min="1"
+                        placeholder="開始"
+                        class="editor-line-input"
+                        inputmode="numeric"
+                        aria-describedby="editorRangeHint editorRangeSummary"
+                      />
+                      <span class="editor-line-separator">〜</span>
+                      <label class="visually-hidden" for="editorLineEnd">終了行</label>
+                      <input
+                        type="number"
+                        id="editorLineEnd"
+                        min="1"
+                        placeholder="終了"
+                        class="editor-line-input"
+                        inputmode="numeric"
+                        aria-describedby="editorRangeHint editorRangeSummary"
+                      />
                     </div>
-                    <div class="editor-preview-body markdown-body" id="editorMarkdownPreview" role="region" aria-labelledby="editorMarkdownPreviewLabel"></div>
+                    <div class="editor-summary-row">
+                      <div class="editor-selection-summary" id="editorRangeSummary">
+                        L1-L1 (1行)
+                      </div>
+                      <button
+                        class="editor-inline-action"
+                        id="resetRangeBtn"
+                        type="button"
+                        title="全体範囲に戻す"
+                      >
+                        全体に戻す
+                      </button>
+                    </div>
+                    <p class="editor-field-hint" id="editorRangeHint">
+                      青い帯が表示範囲です。行番号ドラッグで範囲選択、Shift+クリックで範囲確定
+                    </p>
+                  </fieldset>
+                  <div class="editor-field">
+                    <label for="editorHighlight">ハイライト行</label>
+                    <div class="editor-inline-actions">
+                      <button
+                        class="editor-inline-action"
+                        id="toggleHighlightInputBtn"
+                        type="button"
+                      >
+                        編集
+                      </button>
+                      <button class="editor-inline-action" id="clearHighlightBtn" type="button">
+                        全解除
+                      </button>
+                    </div>
+                    <div class="editor-highlight-chips" id="editorHighlightChips"></div>
+                    <div class="editor-highlight-input-row" id="editorHighlightInputRow" hidden>
+                      <input
+                        type="text"
+                        id="editorHighlight"
+                        placeholder="4,5,6"
+                        inputmode="numeric"
+                        aria-describedby="editorHighlightHint"
+                      />
+                      <button
+                        class="editor-inline-action"
+                        id="closeHighlightInputBtn"
+                        type="button"
+                      >
+                        閉じる
+                      </button>
+                    </div>
+                    <p class="editor-field-hint" id="editorHighlightHint">
+                      左端の緑チェック列をクリック/ドラッグで選択（必要なら編集で数値入力）
+                    </p>
+                  </div>
+                </div>
+              </section>
+            </aside>
+
+            <div
+              class="editor-sidebar-resizer"
+              id="editorSidebarResizer"
+              title="ドラッグで幅調整 / ダブルクリックで開閉"
+            >
+              <button
+                class="editor-sidebar-handle"
+                id="editorSidebarHandle"
+                title="左パネルを開閉"
+                aria-label="左パネルを開閉"
+                aria-pressed="false"
+              >
+                <svg
+                  class="editor-sidebar-handle-icon"
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                >
+                  <path d="M15 18l-6-6 6-6"></path>
+                </svg>
+              </button>
+            </div>
+
+            <main class="editor-main">
+              <div class="editor-files-section">
+                <div class="editor-files-header">
+                  <span class="editor-section-label">ソースファイル + エディタ</span>
+                  <div class="editor-files-actions">
+                    <button
+                      class="btn-icon"
+                      id="importFileFromDiskBtn"
+                      title="ローカルファイルを読み込む"
+                      aria-label="ローカルファイルを読み込む"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <path
+                          d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                        ></path>
+                      </svg>
+                    </button>
+                    <button
+                      class="btn-icon"
+                      id="addFileBtn"
+                      title="空ファイル追加"
+                      aria-label="空ファイルを追加"
+                    >
+                      <svg
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                    </button>
+                  </div>
+                  <input
+                    type="file"
+                    id="sourceFileInput"
+                    multiple
+                    accept=".py,.js,.ts,.jsx,.tsx,.html,.css,.json,.java,.c,.cpp,.h,.hpp,.go,.rs,.rb,.php,.swift,.kt,.sh,.sql,.md,.txt,.yaml,.yml,.toml,.xml,.r,.scala,.lua,.pl,.ex,.exs,.hs,.ml,.clj,.dart,.vue,.svelte"
+                    style="display: none"
+                  />
+                </div>
+                <div class="editor-file-tabs" id="editorFileTabs">
+                  <!-- File tabs rendered here -->
+                </div>
+                <div class="editor-file-editor">
+                  <div class="editor-file-meta">
+                    <label class="visually-hidden" for="editorFileName">ファイル名</label>
+                    <input
+                      type="text"
+                      id="editorFileName"
+                      placeholder="ファイル名 (例: main.py)"
+                      class="editor-file-name-input"
+                      maxlength="240"
+                      dir="auto"
+                      aria-describedby="editorFileNameError"
+                    />
+                    <label class="visually-hidden" for="editorFileLang">言語</label>
+                    <input
+                      type="text"
+                      id="editorFileLang"
+                      placeholder="言語 (例: python)"
+                      class="editor-file-lang-input"
+                      maxlength="80"
+                      dir="auto"
+                    />
+                    <button
+                      class="btn-icon btn-danger-icon"
+                      id="deleteFileBtn"
+                      title="ファイル削除"
+                      aria-label="現在のファイルを削除"
+                    >
+                      <svg
+                        width="14"
+                        height="14"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                      >
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path
+                          d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"
+                        ></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <p
+                    class="editor-inline-error"
+                    id="editorFileNameError"
+                    role="status"
+                    aria-live="polite"
+                    hidden
+                  ></p>
+                  <div class="editor-file-code-wrapper">
+                    <div class="editor-code-column-header">
+                      <span
+                        class="editor-hl-column-label"
+                        title="クリック/ドラッグでハイライト"
+                        aria-label="クリックまたはドラッグでハイライト行を選択"
+                      >
+                        <span class="editor-hl-column-dot" aria-hidden="true"></span>
+                        <span>HL</span>
+                      </span>
+                    </div>
+                    <div id="editorFileCode" class="editor-file-code-container"></div>
                   </div>
                 </div>
               </div>
-            </section>
-          </aside>
+            </main>
+
+            <div
+              class="editor-resizer"
+              id="editorMainNarrativeResizer"
+              title="ドラッグして幅を調整"
+            ></div>
+
+            <aside class="editor-narrative">
+              <section class="editor-panel editor-panel-markdown">
+                <div class="editor-panel-header">
+                  <span>解説</span>
+                </div>
+                <div class="editor-fields editor-fields-markdown">
+                  <div class="editor-field editor-markdown-input-field">
+                    <span class="editor-field-label" id="editorMarkdownLabel">マークダウン</span>
+                    <div
+                      id="editorMarkdown"
+                      class="editor-markdown-editor"
+                      role="textbox"
+                      aria-multiline="true"
+                      aria-labelledby="editorMarkdownLabel"
+                    ></div>
+                    <p class="editor-asset-warning" id="editorAssetWarning" hidden></p>
+                  </div>
+                  <div
+                    class="editor-markdown-resizer"
+                    id="editorMarkdownResizer"
+                    title="ドラッグして上下の比率を調整"
+                  ></div>
+                  <div class="editor-field editor-markdown-preview-field">
+                    <span class="editor-field-label" id="editorMarkdownPreviewLabel"
+                      >プレビュー</span
+                    >
+                    <div class="editor-preview editor-markdown-preview">
+                      <div class="editor-preview-header">
+                        <span class="editor-preview-label">Render</span>
+                      </div>
+                      <div
+                        class="editor-preview-body markdown-body"
+                        id="editorMarkdownPreview"
+                        role="region"
+                        aria-labelledby="editorMarkdownPreviewLabel"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </aside>
+          </div>
         </div>
       </div>
-    </div>
 
-    <div class="modal-overlay" id="appConfigModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="appConfigTitle">
-        <h3 class="modal-title" id="appConfigTitle">アプリ設定</h3>
-        <form id="appConfigForm" autocomplete="off">
-          <div class="modal-field">
-            <label for="appConfigDecksDir">デッキ保存ディレクトリ <span class="modal-required">*</span></label>
-            <div class="modal-input-with-btn">
-              <input type="text" id="appConfigDecksDir" placeholder="例: ~/.local/share/slidecode/decks" required />
-              <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigDecksDirBtn" title="ディレクトリを選択" aria-label="デッキ保存ディレクトリを選択">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+      <div class="modal-overlay" id="appConfigModal" hidden>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="appConfigTitle">
+          <h3 class="modal-title" id="appConfigTitle">アプリ設定</h3>
+          <form id="appConfigForm" autocomplete="off">
+            <div class="modal-field">
+              <label for="appConfigDecksDir"
+                >デッキ保存ディレクトリ <span class="modal-required">*</span></label
+              >
+              <div class="modal-input-with-btn">
+                <input
+                  type="text"
+                  id="appConfigDecksDir"
+                  placeholder="例: ~/.local/share/slidecode/decks"
+                  required
+                />
+                <button
+                  type="button"
+                  class="btn-icon modal-picker-btn"
+                  id="pickAppConfigDecksDirBtn"
+                  title="ディレクトリを選択"
+                  aria-label="デッキ保存ディレクトリを選択"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="modal-field">
+              <label for="appConfigTemplatesDir"
+                >テンプレート保存ディレクトリ <span class="modal-required">*</span></label
+              >
+              <div class="modal-input-with-btn">
+                <input
+                  type="text"
+                  id="appConfigTemplatesDir"
+                  placeholder="例: ~/.local/share/slidecode/templates"
+                  required
+                />
+                <button
+                  type="button"
+                  class="btn-icon modal-picker-btn"
+                  id="pickAppConfigTemplatesDirBtn"
+                  title="ディレクトリを選択"
+                  aria-label="テンプレート保存ディレクトリを選択"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="modal-field">
+              <label for="appConfigSharedTemplatesDir"
+                >共有テンプレートディレクトリ <span class="modal-optional">任意</span></label
+              >
+              <div class="modal-input-with-btn">
+                <input
+                  type="text"
+                  id="appConfigSharedTemplatesDir"
+                  placeholder="例: /mnt/team-templates"
+                />
+                <button
+                  type="button"
+                  class="btn-icon modal-picker-btn"
+                  id="pickAppConfigSharedTemplatesDirBtn"
+                  title="ディレクトリを選択"
+                  aria-label="共有テンプレートディレクトリを選択"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="modal-field">
+              <label for="appConfigTerminalBaseCwd"
+                >ターミナル基準ディレクトリ <span class="modal-required">*</span></label
+              >
+              <div class="modal-input-with-btn">
+                <input type="text" id="appConfigTerminalBaseCwd" placeholder="例: ~" required />
+                <button
+                  type="button"
+                  class="btn-icon modal-picker-btn"
+                  id="pickAppConfigTerminalBaseCwdBtn"
+                  title="ディレクトリを選択"
+                  aria-label="ターミナル基準ディレクトリを選択"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div class="modal-field">
+              <label for="appConfigTerminalShell"
+                >ターミナルシェル <span class="modal-optional">任意</span></label
+              >
+              <input type="text" id="appConfigTerminalShell" placeholder="例: /bin/bash" />
+              <p class="modal-hint">空欄時は環境のデフォルトシェルを使用します</p>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" id="appConfigCancel">
+                キャンセル
+              </button>
+              <button type="submit" class="btn btn-primary" id="appConfigSubmit">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="configDirPickerModal" hidden>
+        <div
+          class="modal-dialog cwd-picker-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="configDirPickerTitle"
+        >
+          <h3 class="modal-title" id="configDirPickerTitle">ディレクトリを選択</h3>
+          <p class="cwd-picker-current" id="configDirPickerCurrent">~</p>
+          <div class="cwd-picker-toolbar">
+            <button type="button" class="btn btn-secondary" id="configDirPickerHomeBtn">
+              ホーム
+            </button>
+            <button type="button" class="btn btn-secondary" id="configDirPickerUpBtn">
+              1階層上へ
+            </button>
+          </div>
+          <div class="cwd-picker-list" id="configDirPickerList"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="configDirPickerCancel">
+              キャンセル
+            </button>
+            <button type="button" class="btn btn-primary" id="configDirPickerSelect">
+              この場所を使う
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Deck create/edit modal -->
+      <div class="modal-overlay" id="deckModal" hidden>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckModalTitle">
+          <h3 class="modal-title" id="deckModalTitle">新規デッキ</h3>
+          <form id="deckModalForm" autocomplete="off">
+            <div class="modal-field" id="deckModalTemplateField">
+              <label for="deckModalTemplate"
+                >テンプレート <span class="modal-optional">任意</span></label
+              >
+              <select id="deckModalTemplate" class="editor-select">
+                <option value="">空のデッキから作成</option>
+              </select>
+              <p class="modal-hint">ローカルと共有テンプレートを選択できます</p>
+            </div>
+            <div class="modal-field">
+              <label for="deckModalName">タイトル <span class="modal-required">*</span></label>
+              <input type="text" id="deckModalName" placeholder="デッキのタイトルを入力" required />
+            </div>
+            <div class="modal-field">
+              <label for="deckModalFolder">フォルダ名 <span class="modal-required">*</span></label>
+              <input
+                type="text"
+                id="deckModalFolder"
+                placeholder="例: bubble-sort-intro"
+                required
+              />
+              <p class="modal-hint">英数字・ハイフン・アンダースコアのみ</p>
+            </div>
+            <div class="modal-field">
+              <label for="deckModalDesc">説明 <span class="modal-optional">任意</span></label>
+              <input type="text" id="deckModalDesc" placeholder="デッキの説明（省略可）" />
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" id="deckModalCancel">
+                キャンセル
+              </button>
+              <button type="submit" class="btn btn-primary" id="deckModalSubmit">作成</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="deckExportModal" hidden>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckExportTitle">
+          <h3 class="modal-title" id="deckExportTitle">エクスポート</h3>
+          <form id="deckExportForm" autocomplete="off">
+            <div class="modal-field">
+              <label for="deckExportFormat">形式</label>
+              <select id="deckExportFormat" class="editor-select">
+                <option value="html">HTML</option>
+                <option value="print">印刷プレビュー</option>
+                <option value="zip">ZIP</option>
+              </select>
+              <p class="modal-hint" id="deckExportFormatHint">
+                ブラウザで閲覧しやすい単一 HTML を出力します
+              </p>
+            </div>
+            <div class="modal-field">
+              <div class="modal-callout" id="deckExportDetails" aria-live="polite">
+                <strong>HTML</strong>
+                <p>
+                  プレゼン内容を 1
+                  ファイルにまとめて書き出します。共有やローカル確認に向いています。
+                </p>
+                <ul>
+                  <li>画像アセットは埋め込みます</li>
+                  <li>そのままブラウザで開けます</li>
+                </ul>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" id="deckExportCancel">
+                キャンセル
+              </button>
+              <button type="submit" class="btn btn-primary" id="deckExportSubmit">
+                エクスポート
               </button>
             </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="deckDeleteModal" hidden>
+        <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckDeleteTitle">
+          <h3 class="modal-title" id="deckDeleteTitle">デッキを削除</h3>
+          <p class="modal-copy" id="deckDeleteMessage">この操作は元に戻せません。</p>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="deckDeleteCancel">
+              キャンセル
+            </button>
+            <button type="button" class="btn btn-danger" id="deckDeleteConfirm">削除する</button>
           </div>
-          <div class="modal-field">
-            <label for="appConfigTemplatesDir">テンプレート保存ディレクトリ <span class="modal-required">*</span></label>
-            <div class="modal-input-with-btn">
-              <input type="text" id="appConfigTemplatesDir" placeholder="例: ~/.local/share/slidecode/templates" required />
-              <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigTemplatesDirBtn" title="ディレクトリを選択" aria-label="テンプレート保存ディレクトリを選択">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="editorDeckSettingsModal" hidden>
+        <div
+          class="modal-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editorDeckSettingsTitle"
+        >
+          <h3 class="modal-title" id="editorDeckSettingsTitle">デッキ設定</h3>
+          <form id="editorDeckSettingsForm" autocomplete="off">
+            <div class="modal-field">
+              <label for="editorDeckSettingsName"
+                >タイトル <span class="modal-required">*</span></label
+              >
+              <input
+                type="text"
+                id="editorDeckSettingsName"
+                placeholder="デッキのタイトルを入力"
+                required
+              />
+            </div>
+            <div class="modal-field">
+              <label for="editorDeckSettingsFolder"
+                >フォルダ名 <span class="modal-required">*</span></label
+              >
+              <input
+                type="text"
+                id="editorDeckSettingsFolder"
+                placeholder="例: bubble-sort-intro"
+                required
+              />
+              <p class="modal-hint">英数字・ハイフン・アンダースコアのみ</p>
+            </div>
+            <div class="modal-field">
+              <label for="editorDeckSettingsDesc"
+                >説明 <span class="modal-optional">任意</span></label
+              >
+              <input type="text" id="editorDeckSettingsDesc" placeholder="デッキの説明（省略可）" />
+            </div>
+            <div class="modal-field">
+              <label for="editorDeckSettingsCwd"
+                >作業ディレクトリ <span class="modal-optional">任意</span></label
+              >
+              <div class="modal-input-with-btn">
+                <input type="text" id="editorDeckSettingsCwd" placeholder="例: projects/my-app" />
+                <button
+                  type="button"
+                  class="btn-icon modal-picker-btn"
+                  id="editorDeckSettingsPickCwdBtn"
+                  title="フォルダを選択"
+                  aria-label="作業ディレクトリを選択"
+                >
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path
+                      d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                    ></path>
+                  </svg>
+                </button>
+              </div>
+              <p class="modal-hint">`~` 基準の相対パス（例: `projects/my-app`）</p>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" id="editorDeckSettingsCancel">
+                キャンセル
+              </button>
+              <button type="submit" class="btn btn-primary" id="editorDeckSettingsSubmit">
+                反映
               </button>
             </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="editorPreferencesModal" hidden>
+        <div
+          class="modal-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editorPreferencesTitle"
+        >
+          <h3 class="modal-title" id="editorPreferencesTitle">エディタ設定</h3>
+          <form id="editorPreferencesForm" autocomplete="off">
+            <div class="modal-field">
+              <label for="editorPrefFontSize">フォントサイズ</label>
+              <select id="editorPrefFontSize" class="editor-select">
+                <option value="12">12</option>
+                <option value="13">13</option>
+                <option value="14">14</option>
+                <option value="16">16</option>
+                <option value="18">18</option>
+                <option value="20">20</option>
+                <option value="24">24</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="editorPrefTabSize">タブ幅</label>
+              <select id="editorPrefTabSize" class="editor-select">
+                <option value="2">2</option>
+                <option value="4">4</option>
+                <option value="8">8</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="editorPrefWordWrap">折り返し</label>
+              <select id="editorPrefWordWrap" class="editor-select">
+                <option value="off">オフ</option>
+                <option value="on">オン</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label for="editorPrefLineNumbers">行番号</label>
+              <select id="editorPrefLineNumbers" class="editor-select">
+                <option value="on">表示</option>
+                <option value="off">非表示</option>
+              </select>
+            </div>
+            <div class="modal-field">
+              <label class="modal-checkbox"
+                ><input type="checkbox" id="editorPrefMinimap" /> minimap を表示</label
+              >
+              <label class="modal-checkbox"
+                ><input type="checkbox" id="editorPrefAutosave" /> autosave を有効にする</label
+              >
+            </div>
+            <div class="modal-field">
+              <label for="editorPrefAutosaveDelay">autosave 間隔</label>
+              <select id="editorPrefAutosaveDelay" class="editor-select">
+                <option value="500">0.5 秒</option>
+                <option value="1000">1 秒</option>
+                <option value="1500">1.5 秒</option>
+                <option value="3000">3 秒</option>
+                <option value="5000">5 秒</option>
+              </select>
+            </div>
+            <div class="modal-actions">
+              <button type="button" class="btn btn-secondary" id="editorPreferencesCancel">
+                キャンセル
+              </button>
+              <button type="submit" class="btn btn-primary" id="editorPreferencesSave">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="cwdPickerModal" hidden>
+        <div
+          class="modal-dialog cwd-picker-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="cwdPickerTitle"
+        >
+          <h3 class="modal-title" id="cwdPickerTitle">作業ディレクトリを選択</h3>
+          <p class="cwd-picker-current" id="cwdPickerCurrent">~</p>
+          <div class="cwd-picker-toolbar">
+            <button type="button" class="btn btn-secondary" id="cwdPickerHomeBtn">ホーム</button>
+            <button type="button" class="btn btn-secondary" id="cwdPickerUpBtn">1階層上へ</button>
           </div>
+          <div class="cwd-picker-list" id="cwdPickerList"></div>
+          <div class="modal-actions">
+            <button type="button" class="btn btn-secondary" id="cwdPickerCancel">キャンセル</button>
+            <button type="button" class="btn btn-primary" id="cwdPickerSelect">
+              この場所を使う
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-overlay" id="editorAssetsModal" hidden>
+        <div
+          class="modal-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="editorAssetsTitle"
+        >
+          <h3 class="modal-title" id="editorAssetsTitle">素材管理</h3>
           <div class="modal-field">
-            <label for="appConfigSharedTemplatesDir">共有テンプレートディレクトリ <span class="modal-optional">任意</span></label>
-            <div class="modal-input-with-btn">
-              <input type="text" id="appConfigSharedTemplatesDir" placeholder="例: /mnt/team-templates" />
-              <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigSharedTemplatesDirBtn" title="ディレクトリを選択" aria-label="共有テンプレートディレクトリを選択">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+            <label>アップロード</label>
+            <div class="editor-inline-actions">
+              <button type="button" class="btn btn-secondary" id="editorAssetsUploadBtn">
+                素材を追加
               </button>
             </div>
+            <input
+              type="file"
+              id="editorAssetsFileInput"
+              accept=".png,.jpg,.jpeg,.gif,.webp,.avif,.pdf,.txt,.json,application/pdf,text/plain,application/json,image/png,image/jpeg,image/gif,image/webp,image/avif"
+              hidden
+            />
           </div>
           <div class="modal-field">
-            <label for="appConfigTerminalBaseCwd">ターミナル基準ディレクトリ <span class="modal-required">*</span></label>
-            <div class="modal-input-with-btn">
-              <input type="text" id="appConfigTerminalBaseCwd" placeholder="例: ~" required />
-              <button type="button" class="btn-icon modal-picker-btn" id="pickAppConfigTerminalBaseCwdBtn" title="ディレクトリを選択" aria-label="ターミナル基準ディレクトリを選択">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              </button>
-            </div>
+            <label>素材一覧</label>
+            <div class="editor-assets-list" id="editorAssetsList"></div>
           </div>
           <div class="modal-field">
-            <label for="appConfigTerminalShell">ターミナルシェル <span class="modal-optional">任意</span></label>
-            <input type="text" id="appConfigTerminalShell" placeholder="例: /bin/bash" />
-            <p class="modal-hint">空欄時は環境のデフォルトシェルを使用します</p>
+            <label>参照切れ</label>
+            <p class="editor-asset-warning" id="editorAssetsBrokenRefs">参照切れはありません</p>
           </div>
           <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="appConfigCancel">キャンセル</button>
-            <button type="submit" class="btn btn-primary" id="appConfigSubmit">保存</button>
+            <button type="button" class="btn btn-secondary" id="editorAssetsClose">閉じる</button>
           </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="configDirPickerModal" hidden>
-      <div class="modal-dialog cwd-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="configDirPickerTitle">
-        <h3 class="modal-title" id="configDirPickerTitle">ディレクトリを選択</h3>
-        <p class="cwd-picker-current" id="configDirPickerCurrent">~</p>
-        <div class="cwd-picker-toolbar">
-          <button type="button" class="btn btn-secondary" id="configDirPickerHomeBtn">ホーム</button>
-          <button type="button" class="btn btn-secondary" id="configDirPickerUpBtn">1階層上へ</button>
-        </div>
-        <div class="cwd-picker-list" id="configDirPickerList"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" id="configDirPickerCancel">キャンセル</button>
-          <button type="button" class="btn btn-primary" id="configDirPickerSelect">この場所を使う</button>
         </div>
       </div>
+
+      <!-- Hidden file input for import -->
+      <input type="file" id="importFileInput" accept=".json" style="display: none" />
     </div>
 
-    <!-- Deck create/edit modal -->
-    <div class="modal-overlay" id="deckModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckModalTitle">
-        <h3 class="modal-title" id="deckModalTitle">新規デッキ</h3>
-        <form id="deckModalForm" autocomplete="off">
-          <div class="modal-field" id="deckModalTemplateField">
-            <label for="deckModalTemplate">テンプレート <span class="modal-optional">任意</span></label>
-            <select id="deckModalTemplate" class="editor-select">
-              <option value="">空のデッキから作成</option>
-            </select>
-            <p class="modal-hint">ローカルと共有テンプレートを選択できます</p>
-          </div>
-          <div class="modal-field">
-            <label for="deckModalName">タイトル <span class="modal-required">*</span></label>
-            <input type="text" id="deckModalName" placeholder="デッキのタイトルを入力" required />
-          </div>
-          <div class="modal-field">
-            <label for="deckModalFolder">フォルダ名 <span class="modal-required">*</span></label>
-            <input type="text" id="deckModalFolder" placeholder="例: bubble-sort-intro" required />
-            <p class="modal-hint">英数字・ハイフン・アンダースコアのみ</p>
-          </div>
-          <div class="modal-field">
-            <label for="deckModalDesc">説明 <span class="modal-optional">任意</span></label>
-            <input type="text" id="deckModalDesc" placeholder="デッキの説明（省略可）" />
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="deckModalCancel">キャンセル</button>
-            <button type="submit" class="btn btn-primary" id="deckModalSubmit">作成</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="deckExportModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckExportTitle">
-        <h3 class="modal-title" id="deckExportTitle">エクスポート</h3>
-        <form id="deckExportForm" autocomplete="off">
-          <div class="modal-field">
-            <label for="deckExportFormat">形式</label>
-            <select id="deckExportFormat" class="editor-select">
-              <option value="html">HTML</option>
-              <option value="print">印刷プレビュー</option>
-              <option value="zip">ZIP</option>
-            </select>
-            <p class="modal-hint" id="deckExportFormatHint">ブラウザで閲覧しやすい単一 HTML を出力します</p>
-          </div>
-          <div class="modal-field">
-            <div class="modal-callout" id="deckExportDetails" aria-live="polite">
-              <strong>HTML</strong>
-              <p>プレゼン内容を 1 ファイルにまとめて書き出します。共有やローカル確認に向いています。</p>
-              <ul>
-                <li>画像アセットは埋め込みます</li>
-                <li>そのままブラウザで開けます</li>
-              </ul>
-            </div>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="deckExportCancel">キャンセル</button>
-            <button type="submit" class="btn btn-primary" id="deckExportSubmit">エクスポート</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="deckDeleteModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="deckDeleteTitle">
-        <h3 class="modal-title" id="deckDeleteTitle">デッキを削除</h3>
-        <p class="modal-copy" id="deckDeleteMessage">この操作は元に戻せません。</p>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" id="deckDeleteCancel">キャンセル</button>
-          <button type="button" class="btn btn-danger" id="deckDeleteConfirm">削除する</button>
+    <div id="appBootFallback" aria-live="assertive">
+      <section class="boot-fallback-card" role="alert">
+        <h2>アプリの起動に失敗しました</h2>
+        <p>
+          JavaScript
+          の読み込み中に問題が発生した可能性があります。再読み込みしても直らない場合は、ブラウザ拡張やネットワーク設定も確認してください。
+        </p>
+        <div class="boot-fallback-meta">状態: <span id="appBootFallbackReason"></span></div>
+        <div class="boot-fallback-actions">
+          <a href="">再読み込み</a>
         </div>
-      </div>
+      </section>
     </div>
+    <script>
+      (() => {
+        const reasonEl = document.getElementById('appBootFallbackReason');
+        if (!reasonEl) return;
 
-    <div class="modal-overlay" id="editorDeckSettingsModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorDeckSettingsTitle">
-        <h3 class="modal-title" id="editorDeckSettingsTitle">デッキ設定</h3>
-        <form id="editorDeckSettingsForm" autocomplete="off">
-          <div class="modal-field">
-            <label for="editorDeckSettingsName">タイトル <span class="modal-required">*</span></label>
-            <input type="text" id="editorDeckSettingsName" placeholder="デッキのタイトルを入力" required />
-          </div>
-          <div class="modal-field">
-            <label for="editorDeckSettingsFolder">フォルダ名 <span class="modal-required">*</span></label>
-            <input type="text" id="editorDeckSettingsFolder" placeholder="例: bubble-sort-intro" required />
-            <p class="modal-hint">英数字・ハイフン・アンダースコアのみ</p>
-          </div>
-          <div class="modal-field">
-            <label for="editorDeckSettingsDesc">説明 <span class="modal-optional">任意</span></label>
-            <input type="text" id="editorDeckSettingsDesc" placeholder="デッキの説明（省略可）" />
-          </div>
-          <div class="modal-field">
-            <label for="editorDeckSettingsCwd">作業ディレクトリ <span class="modal-optional">任意</span></label>
-            <div class="modal-input-with-btn">
-              <input type="text" id="editorDeckSettingsCwd" placeholder="例: projects/my-app" />
-              <button type="button" class="btn-icon modal-picker-btn" id="editorDeckSettingsPickCwdBtn" title="フォルダを選択" aria-label="作業ディレクトリを選択">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
-              </button>
-            </div>
-            <p class="modal-hint">`~` 基準の相対パス（例: `projects/my-app`）</p>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="editorDeckSettingsCancel">キャンセル</button>
-            <button type="submit" class="btn btn-primary" id="editorDeckSettingsSubmit">反映</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        const updateReason = () => {
+          const reason = document.documentElement.getAttribute('data-app-error') || 'unknown';
+          reasonEl.textContent = reason;
+        };
 
-    <div class="modal-overlay" id="editorPreferencesModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorPreferencesTitle">
-        <h3 class="modal-title" id="editorPreferencesTitle">エディタ設定</h3>
-        <form id="editorPreferencesForm" autocomplete="off">
-          <div class="modal-field">
-            <label for="editorPrefFontSize">フォントサイズ</label>
-            <select id="editorPrefFontSize" class="editor-select">
-              <option value="12">12</option>
-              <option value="13">13</option>
-              <option value="14">14</option>
-              <option value="16">16</option>
-              <option value="18">18</option>
-              <option value="20">20</option>
-              <option value="24">24</option>
-            </select>
-          </div>
-          <div class="modal-field">
-            <label for="editorPrefTabSize">タブ幅</label>
-            <select id="editorPrefTabSize" class="editor-select">
-              <option value="2">2</option>
-              <option value="4">4</option>
-              <option value="8">8</option>
-            </select>
-          </div>
-          <div class="modal-field">
-            <label for="editorPrefWordWrap">折り返し</label>
-            <select id="editorPrefWordWrap" class="editor-select">
-              <option value="off">オフ</option>
-              <option value="on">オン</option>
-            </select>
-          </div>
-          <div class="modal-field">
-            <label for="editorPrefLineNumbers">行番号</label>
-            <select id="editorPrefLineNumbers" class="editor-select">
-              <option value="on">表示</option>
-              <option value="off">非表示</option>
-            </select>
-          </div>
-          <div class="modal-field">
-            <label class="modal-checkbox"><input type="checkbox" id="editorPrefMinimap" /> minimap を表示</label>
-            <label class="modal-checkbox"><input type="checkbox" id="editorPrefAutosave" /> autosave を有効にする</label>
-          </div>
-          <div class="modal-field">
-            <label for="editorPrefAutosaveDelay">autosave 間隔</label>
-            <select id="editorPrefAutosaveDelay" class="editor-select">
-              <option value="500">0.5 秒</option>
-              <option value="1000">1 秒</option>
-              <option value="1500">1.5 秒</option>
-              <option value="3000">3 秒</option>
-              <option value="5000">5 秒</option>
-            </select>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn btn-secondary" id="editorPreferencesCancel">キャンセル</button>
-            <button type="submit" class="btn btn-primary" id="editorPreferencesSave">保存</button>
-          </div>
-        </form>
-      </div>
-    </div>
+        updateReason();
+        new MutationObserver(updateReason).observe(document.documentElement, {
+          attributes: true,
+          attributeFilter: ['data-app-error'],
+        });
+      })();
+    </script>
 
-    <div class="modal-overlay" id="cwdPickerModal" hidden>
-      <div class="modal-dialog cwd-picker-dialog" role="dialog" aria-modal="true" aria-labelledby="cwdPickerTitle">
-        <h3 class="modal-title" id="cwdPickerTitle">作業ディレクトリを選択</h3>
-        <p class="cwd-picker-current" id="cwdPickerCurrent">~</p>
-        <div class="cwd-picker-toolbar">
-          <button type="button" class="btn btn-secondary" id="cwdPickerHomeBtn">ホーム</button>
-          <button type="button" class="btn btn-secondary" id="cwdPickerUpBtn">1階層上へ</button>
-        </div>
-        <div class="cwd-picker-list" id="cwdPickerList"></div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" id="cwdPickerCancel">キャンセル</button>
-          <button type="button" class="btn btn-primary" id="cwdPickerSelect">この場所を使う</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="editorAssetsModal" hidden>
-      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="editorAssetsTitle">
-        <h3 class="modal-title" id="editorAssetsTitle">素材管理</h3>
-        <div class="modal-field">
-          <label>アップロード</label>
-          <div class="editor-inline-actions">
-            <button type="button" class="btn btn-secondary" id="editorAssetsUploadBtn">素材を追加</button>
-          </div>
-          <input type="file" id="editorAssetsFileInput" accept=".png,.jpg,.jpeg,.gif,.webp,.avif,.pdf,.txt,.json,application/pdf,text/plain,application/json,image/png,image/jpeg,image/gif,image/webp,image/avif" hidden />
-        </div>
-        <div class="modal-field">
-          <label>素材一覧</label>
-          <div class="editor-assets-list" id="editorAssetsList"></div>
-        </div>
-        <div class="modal-field">
-          <label>参照切れ</label>
-          <p class="editor-asset-warning" id="editorAssetsBrokenRefs">参照切れはありません</p>
-        </div>
-        <div class="modal-actions">
-          <button type="button" class="btn btn-secondary" id="editorAssetsClose">閉じる</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Hidden file input for import -->
-    <input type="file" id="importFileInput" accept=".json" style="display:none;" />
-  </div>
-
-  <div id="appBootFallback" aria-live="assertive">
-    <section class="boot-fallback-card" role="alert">
-      <h2>アプリの起動に失敗しました</h2>
-      <p>JavaScript の読み込み中に問題が発生した可能性があります。再読み込みしても直らない場合は、ブラウザ拡張やネットワーク設定も確認してください。</p>
-      <div class="boot-fallback-meta">状態: <span id="appBootFallbackReason"></span></div>
-      <div class="boot-fallback-actions">
-        <a href="">再読み込み</a>
-      </div>
-    </section>
-  </div>
-  <script>
-    (() => {
-      const reasonEl = document.getElementById('appBootFallbackReason');
-      if (!reasonEl) return;
-
-      const updateReason = () => {
-        const reason = document.documentElement.getAttribute('data-app-error') || 'unknown';
-        reasonEl.textContent = reason;
-      };
-
-      updateReason();
-      new MutationObserver(updateReason).observe(document.documentElement, {
-        attributes: true,
-        attributeFilter: ['data-app-error'],
-      });
-    })();
-  </script>
-
-  <script type="module" src="/src/main.js" data-critical="true"></script>
-</body>
+    <script type="module" src="/src/main.js" data-critical="true"></script>
+  </body>
 </html>

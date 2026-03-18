@@ -138,10 +138,10 @@ export function recordRecentDeck({ id, title = '' }) {
     lastOpenedAt: Date.now(),
   };
 
-  const nextDecks = [
-    nextEntry,
-    ...getRecentDecks().filter((entry) => entry.id !== deckId),
-  ].slice(0, MAX_RECENT_DECKS);
+  const nextDecks = [nextEntry, ...getRecentDecks().filter((entry) => entry.id !== deckId)].slice(
+    0,
+    MAX_RECENT_DECKS,
+  );
 
   return writeJson(RECENT_DECKS_KEY, nextDecks);
 }
@@ -149,12 +149,18 @@ export function recordRecentDeck({ id, title = '' }) {
 export function getEditorPreferences() {
   const stored = readJson(EDITOR_PREFERENCES_KEY, {});
   return {
-    fontSize: Number.isFinite(stored?.fontSize) ? Math.min(Math.max(stored.fontSize, 12), 24) : DEFAULT_EDITOR_PREFERENCES.fontSize,
-    tabSize: Number.isFinite(stored?.tabSize) ? Math.min(Math.max(stored.tabSize, 2), 8) : DEFAULT_EDITOR_PREFERENCES.tabSize,
+    fontSize: Number.isFinite(stored?.fontSize)
+      ? Math.min(Math.max(stored.fontSize, 12), 24)
+      : DEFAULT_EDITOR_PREFERENCES.fontSize,
+    tabSize: Number.isFinite(stored?.tabSize)
+      ? Math.min(Math.max(stored.tabSize, 2), 8)
+      : DEFAULT_EDITOR_PREFERENCES.tabSize,
     wordWrap: stored?.wordWrap === 'on' ? 'on' : DEFAULT_EDITOR_PREFERENCES.wordWrap,
     lineNumbers: stored?.lineNumbers === 'off' ? 'off' : DEFAULT_EDITOR_PREFERENCES.lineNumbers,
-    minimap: typeof stored?.minimap === 'boolean' ? stored.minimap : DEFAULT_EDITOR_PREFERENCES.minimap,
-    autosave: typeof stored?.autosave === 'boolean' ? stored.autosave : DEFAULT_EDITOR_PREFERENCES.autosave,
+    minimap:
+      typeof stored?.minimap === 'boolean' ? stored.minimap : DEFAULT_EDITOR_PREFERENCES.minimap,
+    autosave:
+      typeof stored?.autosave === 'boolean' ? stored.autosave : DEFAULT_EDITOR_PREFERENCES.autosave,
     autosaveDelay: Number.isFinite(stored?.autosaveDelay)
       ? Math.min(Math.max(stored.autosaveDelay, 500), 5000)
       : DEFAULT_EDITOR_PREFERENCES.autosaveDelay,

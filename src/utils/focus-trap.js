@@ -15,8 +15,7 @@ function isVisible(el) {
 
 export function getFocusableElements(container) {
   if (!(container instanceof HTMLElement)) return [];
-  return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR))
-    .filter(isVisible);
+  return Array.from(container.querySelectorAll(FOCUSABLE_SELECTOR)).filter(isVisible);
 }
 
 export function trapFocusInModal(event, modalEl) {

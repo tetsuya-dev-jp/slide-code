@@ -4,12 +4,14 @@ import { resolveSlideCode } from './resolve-code.js';
 describe('resolveSlideCode', () => {
   test('returns sliced code and relative highlight lines', () => {
     const deck = {
-      files: [{
-        id: 'file-main',
-        name: 'main.py',
-        language: 'python',
-        code: 'one\ntwo\nthree\nfour',
-      }],
+      files: [
+        {
+          id: 'file-main',
+          name: 'main.py',
+          language: 'python',
+          code: 'one\ntwo\nthree\nfour',
+        },
+      ],
     };
     const slide = {
       fileId: 'file-main',
@@ -34,9 +36,14 @@ describe('resolveSlideCode', () => {
   });
 
   test('falls back to legacy fileRef when fileId is missing', () => {
-    expect(resolveSlideCode({ fileRef: 'main.py' }, {
-      files: [{ id: 'file-1', name: 'main.py', language: 'python', code: 'one' }],
-    })).toEqual({
+    expect(
+      resolveSlideCode(
+        { fileRef: 'main.py' },
+        {
+          files: [{ id: 'file-1', name: 'main.py', language: 'python', code: 'one' }],
+        },
+      ),
+    ).toEqual({
       code: 'one',
       language: 'python',
       highlightLines: [],

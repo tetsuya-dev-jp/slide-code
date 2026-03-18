@@ -93,11 +93,13 @@ describe('preferences', () => {
   });
 
   test('stores mermaid diagram scale per scope', () => {
-    expect(setMermaidDiagramPreference({
-      scope: 'presentation:deck-a:2',
-      diagramId: 'diagram-0-abcd',
-      scale: 1.35,
-    })).toBe(true);
+    expect(
+      setMermaidDiagramPreference({
+        scope: 'presentation:deck-a:2',
+        diagramId: 'diagram-0-abcd',
+        scale: 1.35,
+      }),
+    ).toBe(true);
 
     expect(getMermaidDiagramPreference('presentation:deck-a:2', 'diagram-0-abcd')).toEqual({
       scale: 1.35,

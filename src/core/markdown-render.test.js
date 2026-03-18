@@ -3,7 +3,8 @@ import { renderMarkdownDocument } from './markdown-render.js';
 
 describe('renderMarkdownDocument', () => {
   test('renders markdown structure, callouts, math, assets, and mermaid placeholders', () => {
-    const { html, hasMermaid } = renderMarkdownDocument(`# Heading
+    const { html, hasMermaid } = renderMarkdownDocument(
+      `# Heading
 
 > [!NOTE]
 > hello **world**
@@ -26,10 +27,12 @@ $$
 graph TD
 A-->B
 \`\`\`
-`, {
-      resolveAssetUrl: (assetPath) => `assets/${assetPath}`,
-      mermaidIdPrefix: 'test-mermaid',
-    });
+`,
+      {
+        resolveAssetUrl: (assetPath) => `assets/${assetPath}`,
+        mermaidIdPrefix: 'test-mermaid',
+      },
+    );
 
     expect(html).toContain('<h1>Heading</h1>');
     expect(html).toContain('class="callout callout-info"');
@@ -41,7 +44,9 @@ A-->B
   });
 
   test('escapes raw html and strips unsafe link targets', () => {
-    const { html } = renderMarkdownDocument('<script>alert(1)</script>\n\n[bad](javascript:alert(1))');
+    const { html } = renderMarkdownDocument(
+      '<script>alert(1)</script>\n\n[bad](javascript:alert(1))',
+    );
 
     expect(html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(html).not.toContain('<script>');
@@ -49,9 +54,12 @@ A-->B
   });
 
   test('resolves asset references in text and links without mutating code spans or fences', () => {
-    const { html } = renderMarkdownDocument('asset://diagram.png\n\n![Diagram](asset://diagram.png)\n\n`asset://inline-code.png`\n\n```txt\nasset://code-block.png\n```', {
-      resolveAssetUrl: (assetPath) => `assets/${assetPath}`,
-    });
+    const { html } = renderMarkdownDocument(
+      'asset://diagram.png\n\n![Diagram](asset://diagram.png)\n\n`asset://inline-code.png`\n\n```txt\nasset://code-block.png\n```',
+      {
+        resolveAssetUrl: (assetPath) => `assets/${assetPath}`,
+      },
+    );
 
     expect(html).toContain('<p>assets/diagram.png</p>');
     expect(html).toContain('src="assets/diagram.png"');

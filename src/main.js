@@ -66,8 +66,10 @@ async function bootstrap() {
   let navigationSequence = 0;
 
   const viewLoaders = {
-    dashboard: () => import('./views/dashboard.js').then(({ initDashboard }) => initDashboard(router)),
-    presentation: () => import('./views/presentation.js').then(({ initPresentation }) => initPresentation(router)),
+    dashboard: () =>
+      import('./views/dashboard.js').then(({ initDashboard }) => initDashboard(router)),
+    presentation: () =>
+      import('./views/presentation.js').then(({ initPresentation }) => initPresentation(router)),
     editor: () => import('./views/editor.js').then(({ initEditor }) => initEditor(router)),
   };
 
@@ -86,9 +88,7 @@ async function bootstrap() {
     document.getElementById('slideTitle'),
   ];
 
-  const dashboardToolbar = [
-    document.getElementById('dashboardConfigBtn'),
-  ];
+  const dashboardToolbar = [document.getElementById('dashboardConfigBtn')];
 
   function showView(name) {
     Object.entries(viewEls).forEach(([key, el]) => {
@@ -96,8 +96,8 @@ async function bootstrap() {
     });
     const isPresentation = name === 'presentation';
     const isDashboard = name === 'dashboard';
-    presentationToolbar.forEach(el => el.style.display = isPresentation ? '' : 'none');
-    dashboardToolbar.forEach(el => el.style.display = isDashboard ? '' : 'none');
+    presentationToolbar.forEach((el) => (el.style.display = isPresentation ? '' : 'none'));
+    dashboardToolbar.forEach((el) => (el.style.display = isDashboard ? '' : 'none'));
   }
 
   async function getView(name) {

@@ -1,8 +1,4 @@
-export function isFileAlreadyLoaded({
-  currentFile,
-  requestedFileId,
-  editorValue,
-} = {}) {
+export function isFileAlreadyLoaded({ currentFile, requestedFileId, editorValue } = {}) {
   if (!currentFile || typeof requestedFileId !== 'string' || !requestedFileId) {
     return false;
   }

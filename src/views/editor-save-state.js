@@ -14,9 +14,10 @@ export function reconcileDeckAfterSave({
     };
   }
 
-  const renamed = typeof requestDeckId === 'string' && requestDeckId.trim()
-    ? safeSavedDeck.id !== requestDeckId
-    : false;
+  const renamed =
+    typeof requestDeckId === 'string' && requestDeckId.trim()
+      ? safeSavedDeck.id !== requestDeckId
+      : false;
 
   if (!hasLocalChanges || !currentDeck || typeof currentDeck !== 'object') {
     return {

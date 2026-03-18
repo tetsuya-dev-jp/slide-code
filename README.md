@@ -37,18 +37,18 @@ Then open `http://127.0.0.1:5173`.
 
 ## Common Commands
 
-| Command | Purpose |
-| --- | --- |
-| `pnpm dev` | Start frontend and backend together |
-| `pnpm dev:vite` | Start the frontend only |
-| `pnpm dev:terminal` | Start the local API / terminal server only |
-| `pnpm lint` | Run ESLint |
-| `pnpm typecheck` | Run the TypeScript-based static checks |
-| `pnpm test` | Run Vitest |
-| `pnpm test:e2e` | Run Playwright E2E tests |
-| `pnpm build` | Create a production build |
-| `pnpm check` | Run lint, typecheck, unit tests, E2E, and build |
-| `pnpm preview` | Serve `dist/` for bundle verification |
+| Command             | Purpose                                         |
+| ------------------- | ----------------------------------------------- |
+| `pnpm dev`          | Start frontend and backend together             |
+| `pnpm dev:vite`     | Start the frontend only                         |
+| `pnpm dev:terminal` | Start the local API / terminal server only      |
+| `pnpm lint`         | Run ESLint                                      |
+| `pnpm typecheck`    | Run the TypeScript-based static checks          |
+| `pnpm test`         | Run Vitest                                      |
+| `pnpm test:e2e`     | Run Playwright E2E tests                        |
+| `pnpm build`        | Create a production build                       |
+| `pnpm check`        | Run lint, typecheck, unit tests, E2E, and build |
+| `pnpm preview`      | Serve `dist/` for bundle verification           |
 
 ## Development Workflow
 
@@ -73,19 +73,19 @@ You can also change these paths from the in-app App Settings dialog.
 
 ## Key Environment Variables
 
-| Variable | Purpose |
-| --- | --- |
-| `DECKS_DIR` | Override the deck storage directory |
-| `TEMPLATES_DIR` | Override the local template directory |
-| `SHARED_TEMPLATES_DIR` | Set a shared template directory |
-| `QUARANTINE_DIR` | Override the quarantine directory |
-| `API_HOST` / `API_PORT` | Configure the local API bind address |
-| `TERMINAL_ENABLED` | Enable the terminal WebSocket server |
-| `TERMINAL_CWD` | Set the terminal base directory |
-| `TERMINAL_SHELL` | Override the shell used for terminal sessions |
-| `TERMINAL_WS_HOST` / `TERMINAL_WS_PORT` | Configure the terminal WebSocket bind address |
-| `TERMINAL_WS_ALLOWED_ORIGINS` | Comma-separated allowlist for terminal WebSocket origins |
-| `API_ALLOWED_ORIGINS` | Comma-separated allowlist for REST API origins |
+| Variable                                | Purpose                                                  |
+| --------------------------------------- | -------------------------------------------------------- |
+| `DECKS_DIR`                             | Override the deck storage directory                      |
+| `TEMPLATES_DIR`                         | Override the local template directory                    |
+| `SHARED_TEMPLATES_DIR`                  | Set a shared template directory                          |
+| `QUARANTINE_DIR`                        | Override the quarantine directory                        |
+| `API_HOST` / `API_PORT`                 | Configure the local API bind address                     |
+| `TERMINAL_ENABLED`                      | Enable the terminal WebSocket server                     |
+| `TERMINAL_CWD`                          | Set the terminal base directory                          |
+| `TERMINAL_SHELL`                        | Override the shell used for terminal sessions            |
+| `TERMINAL_WS_HOST` / `TERMINAL_WS_PORT` | Configure the terminal WebSocket bind address            |
+| `TERMINAL_WS_ALLOWED_ORIGINS`           | Comma-separated allowlist for terminal WebSocket origins |
+| `API_ALLOWED_ORIGINS`                   | Comma-separated allowlist for REST API origins           |
 
 ## Testing And CI
 

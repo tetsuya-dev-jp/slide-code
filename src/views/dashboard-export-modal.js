@@ -6,16 +6,15 @@ const EXPORT_FORMAT_DETAILS = {
   html: {
     hint: 'ブラウザで閲覧しやすい単一 HTML を出力します',
     title: 'HTML',
-    description: 'プレゼン内容を 1 ファイルにまとめて書き出します。共有やローカル確認に向いています。',
-    bullets: [
-      '画像アセットは埋め込みます',
-      'そのままブラウザで開けます',
-    ],
+    description:
+      'プレゼン内容を 1 ファイルにまとめて書き出します。共有やローカル確認に向いています。',
+    bullets: ['画像アセットは埋め込みます', 'そのままブラウザで開けます'],
   },
   print: {
     hint: '印刷向けに整えたプレビューを別ウィンドウで開きます',
     title: '印刷プレビュー',
-    description: '印刷や PDF 保存前の確認用ビューを開きます。ダウンロードではなく新しいウィンドウ表示です。',
+    description:
+      '印刷や PDF 保存前の確認用ビューを開きます。ダウンロードではなく新しいウィンドウ表示です。',
     bullets: [
       'ブラウザの印刷機能と組み合わせて使います',
       'ポップアップがブロックされると開けません',
@@ -55,7 +54,15 @@ export function initDashboardExportModal() {
   const exportFormatHintEl = document.getElementById('deckExportFormatHint');
   const exportDetailsEl = document.getElementById('deckExportDetails');
 
-  if (!exportModalEl || !exportFormEl || !exportFormatEl || !exportCancelEl || !exportSubmitEl || !exportFormatHintEl || !exportDetailsEl) {
+  if (
+    !exportModalEl ||
+    !exportFormEl ||
+    !exportFormatEl ||
+    !exportCancelEl ||
+    !exportSubmitEl ||
+    !exportFormatHintEl ||
+    !exportDetailsEl
+  ) {
     return {
       openExportModal: () => {},
     };

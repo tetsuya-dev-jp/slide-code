@@ -1,12 +1,20 @@
 import * as api from '../core/api.js';
-import { createDeckFolderSlug, DECK_FOLDER_PATTERN, normalizeDeckFolderName } from '../core/deck-utils.js';
+import {
+  createDeckFolderSlug,
+  DECK_FOLDER_PATTERN,
+  normalizeDeckFolderName,
+} from '../core/deck-utils.js';
 import { showToast, escapeHtml, formatCount, formatDate, debounce } from '../utils/helpers.js';
 import { restoreFocus, trapFocusInModal } from '../utils/focus-trap.js';
 import { initDashboardConfigModal } from './dashboard-config-modal.js';
 import { initDashboardDeleteModal } from './dashboard-delete-modal.js';
 import { initDashboardExportModal } from './dashboard-export-modal.js';
 import { normalizeImportedDeck } from './deck-import-normalize.js';
-import { applyTemplateButtonState, collectSavedTemplateDeckIds, parseTemplateSelection } from './dashboard-template-state.js';
+import {
+  applyTemplateButtonState,
+  collectSavedTemplateDeckIds,
+  parseTemplateSelection,
+} from './dashboard-template-state.js';
 import { getRecentDecks } from '../core/preferences.js';
 
 export function initDashboard(router) {
@@ -14,16 +22,16 @@ export function initDashboard(router) {
   const { confirmDelete } = initDashboardDeleteModal();
   const { openExportModal } = initDashboardExportModal();
   const deckIssuesEl = document.getElementById('deckIssues');
-  const modalEl      = document.getElementById('deckModal');
-  const modalTitle   = document.getElementById('deckModalTitle');
-  const modalForm    = document.getElementById('deckModalForm');
-  const modalName    = document.getElementById('deckModalName');
-  const modalFolder  = document.getElementById('deckModalFolder');
-  const modalDesc    = document.getElementById('deckModalDesc');
+  const modalEl = document.getElementById('deckModal');
+  const modalTitle = document.getElementById('deckModalTitle');
+  const modalForm = document.getElementById('deckModalForm');
+  const modalName = document.getElementById('deckModalName');
+  const modalFolder = document.getElementById('deckModalFolder');
+  const modalDesc = document.getElementById('deckModalDesc');
   const modalTemplateField = document.getElementById('deckModalTemplateField');
   const modalTemplate = document.getElementById('deckModalTemplate');
-  const modalSubmit  = document.getElementById('deckModalSubmit');
-  const modalCancel  = document.getElementById('deckModalCancel');
+  const modalSubmit = document.getElementById('deckModalSubmit');
+  const modalCancel = document.getElementById('deckModalCancel');
   const deckSearchInput = document.getElementById('deckSearchInput');
   const deckSortSelect = document.getElementById('deckSortSelect');
   const deckStatusFilter = document.getElementById('deckStatusFilter');
@@ -99,9 +107,10 @@ export function initDashboard(router) {
     const total = allDecks.length;
     const filtered = filteredDecks.length;
     const recentCount = getRecentDecks().length;
-    deckSummaryEl.textContent = filtered === total
-      ? `${formatCount(total)}件のデッキ${recentCount ? ` / 最近開いた ${formatCount(recentCount)}件` : ''}`
-      : `${formatCount(filtered)} / ${formatCount(total)}件を表示中`;
+    deckSummaryEl.textContent =
+      filtered === total
+        ? `${formatCount(total)}件のデッキ${recentCount ? ` / 最近開いた ${formatCount(recentCount)}件` : ''}`
+        : `${formatCount(filtered)} / ${formatCount(total)}件を表示中`;
   }
 
   function refreshDeckGrid() {
@@ -183,7 +192,14 @@ export function initDashboard(router) {
     });
   }
 
-  function renderDeckState({ state, title, description, actionLabel = '', actionClassName = 'btn btn-primary', actionId = '' }) {
+  function renderDeckState({
+    state,
+    title,
+    description,
+    actionLabel = '',
+    actionClassName = 'btn btn-primary',
+    actionId = '',
+  }) {
     return `
       <section class="deck-state deck-state-${state}" role="status" aria-live="polite">
         <div class="deck-state-badge" aria-hidden="true">
@@ -193,9 +209,11 @@ export function initDashboard(router) {
           <h3 class="deck-state-title">${escapeHtml(title)}</h3>
           <p class="deck-state-description">${escapeHtml(description)}</p>
         </div>
-        ${actionLabel && actionId
-          ? `<button class="${escapeHtml(actionClassName)}" id="${escapeHtml(actionId)}" type="button">${escapeHtml(actionLabel)}</button>`
-          : ''}
+        ${
+          actionLabel && actionId
+            ? `<button class="${escapeHtml(actionClassName)}" id="${escapeHtml(actionId)}" type="button">${escapeHtml(actionLabel)}</button>`
+            : ''
+        }
       </section>`;
   }
 
@@ -239,9 +257,8 @@ export function initDashboard(router) {
     modalSubmit.textContent = mode === 'edit' ? '保存' : '作成';
     const currentTitle = deckData?.title || '';
     modalName.value = currentTitle;
-    modalFolder.value = mode === 'edit'
-      ? (deckData?.id || '')
-      : createDeckFolderSlug(currentTitle || 'deck');
+    modalFolder.value =
+      mode === 'edit' ? deckData?.id || '' : createDeckFolderSlug(currentTitle || 'deck');
     modalDesc.value = deckData?.description || '';
     if (modalTemplateField) {
       modalTemplateField.hidden = mode === 'edit';
@@ -321,22 +338,26 @@ export function initDashboard(router) {
           title,
           description,
         });
-        showToast(updated.id !== editingDeckId ? 'デッキ情報とフォルダ名を更新しました' : 'デッキ情報を更新しました');
+        showToast(
+          updated.id !== editingDeckId
+            ? 'デッキ情報とフォルダ名を更新しました'
+            : 'デッキ情報を更新しました',
+        );
         closeModal({ restore: false });
         show();
       } else {
         const deck = selectedTemplate
           ? await api.createDeckFromTemplate({
-            ...selectedTemplate,
-            id: folderName,
-            title,
-            description,
-          })
+              ...selectedTemplate,
+              id: folderName,
+              title,
+              description,
+            })
           : await api.createDeck({
-            id: folderName,
-            title,
-            description,
-          });
+              id: folderName,
+              title,
+              description,
+            });
         closeModal({ restore: false });
         router.navigate(`/deck/${deck.id}/edit`);
       }
@@ -448,8 +469,10 @@ export function initDashboard(router) {
   function formatDeckIssueReason(reason) {
     const value = typeof reason === 'string' ? reason.trim() : '';
     if (!value) return '詳細不明の理由で隔離されました';
-    if (value.startsWith('invalid-deck:')) return 'deck.json の読み込みに失敗したため隔離されました';
-    if (value.startsWith('unsupported-schema:')) return '未対応の schemaVersion のため隔離されました';
+    if (value.startsWith('invalid-deck:'))
+      return 'deck.json の読み込みに失敗したため隔離されました';
+    if (value.startsWith('unsupported-schema:'))
+      return '未対応の schemaVersion のため隔離されました';
     if (value === 'missing-quarantine-record') return '隔離記録が欠落しています';
     if (value === 'invalid-quarantine-record') return '隔離記録の読み込みに失敗しました';
     return value;
@@ -471,16 +494,18 @@ export function initDashboard(router) {
         <p class="deck-issues-subtitle">読み込めなかったデッキは quarantine に移動されています。</p>
       </div>
       <div class="deck-issues-list">
-        ${issues.map((issue) => {
-          const timestamp = issue?.quarantinedAt ? formatDate(issue.quarantinedAt) : '日時不明';
-          return `
+        ${issues
+          .map((issue) => {
+            const timestamp = issue?.quarantinedAt ? formatDate(issue.quarantinedAt) : '日時不明';
+            return `
             <article class="deck-issue-card">
               <strong>${escapeHtml(issue?.deckId || 'unknown-deck')}</strong>
               <p>${escapeHtml(formatDeckIssueReason(issue?.reason))}</p>
               <div class="deck-issue-meta">隔離日時: ${escapeHtml(timestamp)}</div>
             </article>
           `;
-        }).join('')}
+          })
+          .join('')}
       </div>
     `;
   }
@@ -488,27 +513,29 @@ export function initDashboard(router) {
   function renderDeckGrid(decks) {
     if (!deckGridEl) return;
     if (decks.length === 0) {
-      deckGridEl.innerHTML = allDecks.length === 0
-        ? renderDeckState({
-          state: 'empty',
-          title: 'まだデッキがありません',
-          description: '最初のデッキを作成すると、編集とプレゼンの流れをすぐに始められます。',
-          actionLabel: '最初のデッキを作成',
-          actionId: 'createFirstDeckBtn',
-        })
-        : renderDeckState({
-          state: 'empty',
-          title: '条件に一致するデッキがありません',
-          description: '検索語やフィルタ条件を変えると、別のデッキを表示できます。',
-          actionLabel: '新規デッキを作成',
-          actionId: 'createFirstDeckBtn',
-        });
+      deckGridEl.innerHTML =
+        allDecks.length === 0
+          ? renderDeckState({
+              state: 'empty',
+              title: 'まだデッキがありません',
+              description: '最初のデッキを作成すると、編集とプレゼンの流れをすぐに始められます。',
+              actionLabel: '最初のデッキを作成',
+              actionId: 'createFirstDeckBtn',
+            })
+          : renderDeckState({
+              state: 'empty',
+              title: '条件に一致するデッキがありません',
+              description: '検索語やフィルタ条件を変えると、別のデッキを表示できます。',
+              actionLabel: '新規デッキを作成',
+              actionId: 'createFirstDeckBtn',
+            });
       return;
     }
 
-    deckGridEl.innerHTML = decks.map(deck => {
-      const templateSaved = savedTemplateDeckIds.has(deck.id);
-      return `
+    deckGridEl.innerHTML = decks
+      .map((deck) => {
+        const templateSaved = savedTemplateDeckIds.has(deck.id);
+        return `
       <article class="deck-card" data-id="${deck.id}">
         <a class="deck-card-main" href="#/deck/${encodeURIComponent(deck.id)}/edit" aria-label="デッキ「${escapeHtml(deck.title)}」を編集">
           <div class="deck-card-body">
@@ -549,11 +576,15 @@ export function initDashboard(router) {
         </div>
       </article>
     `;
-    }).join('');
+      })
+      .join('');
   }
 
   [deckSearchInput, deckSortSelect, deckStatusFilter].forEach((control) => {
-    control?.addEventListener('input', control === deckSearchInput ? refreshDeckGridDebounced : refreshDeckGrid);
+    control?.addEventListener(
+      'input',
+      control === deckSearchInput ? refreshDeckGridDebounced : refreshDeckGrid,
+    );
     control?.addEventListener('change', refreshDeckGrid);
   });
 

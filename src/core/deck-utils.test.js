@@ -36,13 +36,14 @@ describe('deck-utils', () => {
   });
 
   test('normalizeDraftSlideState resolves target file and clamps range', () => {
-    const result = normalizeDraftSlideState({
-      fileId: 'file-main',
-      lineRange: [2, 9],
-      highlightLines: [1, 3, 3, 5],
-    }, [
-      { id: 'file-main', name: 'main.py', code: 'a\nb\nc', language: 'python' },
-    ]);
+    const result = normalizeDraftSlideState(
+      {
+        fileId: 'file-main',
+        lineRange: [2, 9],
+        highlightLines: [1, 3, 3, 5],
+      },
+      [{ id: 'file-main', name: 'main.py', code: 'a\nb\nc', language: 'python' }],
+    );
 
     expect(result?.targetFile.id).toBe('file-main');
     expect(result?.targetFile.name).toBe('main.py');
@@ -78,8 +79,12 @@ describe('deck-utils', () => {
     const files = [{ id: 'file-1', name: 'main.py' }];
 
     expect(validateRelativeFilePath('', files, '')).toBe('ファイル名を入力してください');
-    expect(validateRelativeFilePath('../secret.py', files, '')).toBe('ファイル名に . や .. は使えません');
-    expect(validateRelativeFilePath('bad:name.py', files, '')).toBe('ファイル名に使えない文字が含まれています');
+    expect(validateRelativeFilePath('../secret.py', files, '')).toBe(
+      'ファイル名に . や .. は使えません',
+    );
+    expect(validateRelativeFilePath('bad:name.py', files, '')).toBe(
+      'ファイル名に使えない文字が含まれています',
+    );
     expect(validateRelativeFilePath('main.py', files, '')).toBe('同名のファイルが既に存在します');
     expect(validateRelativeFilePath('main.py', files, 'file-1')).toBe('');
   });

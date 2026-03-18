@@ -92,10 +92,11 @@ export function initEditorDeckSettings({
     const nextDescription = deckSettingsModal.descEl.value.trim();
     const nextCwd = normalizeRelativeDirectory(deckSettingsModal.cwdEl.value);
     const currentCwd = normalizeRelativeDirectory(deck.terminal?.cwd || '');
-    const changed = deck.title !== nextTitle
-      || deck.description !== nextDescription
-      || deck.id !== nextFolderName
-      || currentCwd !== nextCwd;
+    const changed =
+      deck.title !== nextTitle ||
+      deck.description !== nextDescription ||
+      deck.id !== nextFolderName ||
+      currentCwd !== nextCwd;
 
     deck.title = nextTitle;
     deck.description = nextDescription;
@@ -115,15 +116,17 @@ export function initEditorDeckSettings({
       return;
     }
 
-    cwdPicker.listEl.innerHTML = directories.map((directory) => {
-      const dirPath = normalizeRelativeDirectory(directory.path || '');
-      return `
+    cwdPicker.listEl.innerHTML = directories
+      .map((directory) => {
+        const dirPath = normalizeRelativeDirectory(directory.path || '');
+        return `
         <button type="button" class="cwd-picker-item" data-path="${escapeHtml(dirPath)}">
           <span class="cwd-picker-item-name">${escapeHtml(directory.name || '')}</span>
           <span class="cwd-picker-item-path">${escapeHtml(formatRelativeDirectoryDisplay(dirPath))}</span>
         </button>
       `;
-    }).join('');
+      })
+      .join('');
 
     cwdPicker.listEl.querySelectorAll('.cwd-picker-item').forEach((button) => {
       button.addEventListener('click', async () => {
@@ -137,9 +140,10 @@ export function initEditorDeckSettings({
     try {
       const payload = await api.listDirectories(pathToLoad);
       cwdPicker.currentPath = normalizeRelativeDirectory(payload.currentPath || '');
-      cwdPicker.parentPath = typeof payload.parentPath === 'string'
-        ? normalizeRelativeDirectory(payload.parentPath)
-        : null;
+      cwdPicker.parentPath =
+        typeof payload.parentPath === 'string'
+          ? normalizeRelativeDirectory(payload.parentPath)
+          : null;
 
       if (cwdPicker.currentEl) {
         cwdPicker.currentEl.textContent = formatRelativeDirectoryDisplay(cwdPicker.currentPath);
@@ -157,7 +161,8 @@ export function initEditorDeckSettings({
 
   function openCwdPickerModal(targetInputEl = deckSettingsModal.cwdEl) {
     if (!cwdPicker.modalEl) return;
-    cwdPickerTriggerEl = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    cwdPickerTriggerEl =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
     cwdPicker.targetInputEl = targetInputEl || deckSettingsModal.cwdEl;
     cwdPicker.modalEl.hidden = false;
     const initialPath = normalizeRelativeDirectory(cwdPicker.targetInputEl?.value || '');
@@ -190,7 +195,8 @@ export function initEditorDeckSettings({
   }
 
   function setupDeckSettingsModalEventListeners() {
-    if (!deckSettingsModal.modalEl || !deckSettingsModal.openBtn || !deckSettingsModal.formEl) return;
+    if (!deckSettingsModal.modalEl || !deckSettingsModal.openBtn || !deckSettingsModal.formEl)
+      return;
 
     deckSettingsModal.openBtn.addEventListener('click', (event) => {
       openDeckSettingsModal(event.currentTarget);

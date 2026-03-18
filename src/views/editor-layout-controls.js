@@ -310,7 +310,10 @@ function setupMarkdownResizer() {
   });
 
   window.addEventListener('resize', () => {
-    const current = parseInt(containerEl.style.getPropertyValue('--editor-markdown-input-height'), 10);
+    const current = parseInt(
+      containerEl.style.getPropertyValue('--editor-markdown-input-height'),
+      10,
+    );
     if (Number.isFinite(current)) {
       applyHeight(current);
     }

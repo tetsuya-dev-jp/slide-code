@@ -35,14 +35,17 @@ function createStorage() {
         title: 'Export Demo',
         description: 'deck description',
         files: [{ id: 'file-1', name: 'main.py', language: 'python', code: 'print(1)' }],
-        slides: [{
-          title: 'Slide 1',
-          fileId: 'file-1',
-          fileRef: 'main.py',
-          lineRange: [1, 1],
-          highlightLines: [],
-          markdown: '# Heading\n\n> [!TIP]\n> demo\n\n![Diagram](asset://diagram.png)\n\n\`\`\`mermaid\ngraph TD\nA-->B\n\`\`\`\n\nInline $a+b$.',
-        }],
+        slides: [
+          {
+            title: 'Slide 1',
+            fileId: 'file-1',
+            fileRef: 'main.py',
+            lineRange: [1, 1],
+            highlightLines: [],
+            markdown:
+              '# Heading\n\n> [!TIP]\n> demo\n\n![Diagram](asset://diagram.png)\n\n\`\`\`mermaid\ngraph TD\nA-->B\n\`\`\`\n\nInline $a+b$.',
+          },
+        ],
         assets: [{ path: 'diagram.png', exists: true }],
       };
     },

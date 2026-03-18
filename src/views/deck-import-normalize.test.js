@@ -15,15 +15,20 @@ describe('normalizeImportedDeck', () => {
   });
 
   test('normalizes slide refs and highlight lines', () => {
-    const deck = normalizeImportedDeck({
-      files: [{ name: 'main.py', language: 'python', code: 'a\nb' }],
-      slides: [{
-        title: '',
-        fileRef: 'missing.py',
-        lineRange: [0, 9],
-        highlightLines: [0, 1, 2, 3],
-      }],
-    }, 'slides.json');
+    const deck = normalizeImportedDeck(
+      {
+        files: [{ name: 'main.py', language: 'python', code: 'a\nb' }],
+        slides: [
+          {
+            title: '',
+            fileRef: 'missing.py',
+            lineRange: [0, 9],
+            highlightLines: [0, 1, 2, 3],
+          },
+        ],
+      },
+      'slides.json',
+    );
 
     expect(deck.slides[0]).toEqual({
       title: 'スライド 1',
@@ -36,15 +41,20 @@ describe('normalizeImportedDeck', () => {
   });
 
   test('preserves explicit empty file refs for markdown-only slides', () => {
-    const deck = normalizeImportedDeck({
-      files: [{ name: 'main.py', language: 'python', code: 'a\nb' }],
-      slides: [{
-        fileRef: '',
-        lineRange: [4, 9],
-        highlightLines: [1, 2],
-        markdown: '解説だけ',
-      }],
-    }, 'slides.json');
+    const deck = normalizeImportedDeck(
+      {
+        files: [{ name: 'main.py', language: 'python', code: 'a\nb' }],
+        slides: [
+          {
+            fileRef: '',
+            lineRange: [4, 9],
+            highlightLines: [1, 2],
+            markdown: '解説だけ',
+          },
+        ],
+      },
+      'slides.json',
+    );
 
     expect(deck.slides[0]).toEqual({
       title: 'スライド 1',
@@ -57,10 +67,13 @@ describe('normalizeImportedDeck', () => {
   });
 
   test('preserves explicit file ids when provided', () => {
-    const deck = normalizeImportedDeck({
-      files: [{ id: 'file-custom', name: 'main.py', language: 'python', code: 'a' }],
-      slides: [{ fileId: 'file-custom', lineRange: [1, 1], highlightLines: [] }],
-    }, 'ids.json');
+    const deck = normalizeImportedDeck(
+      {
+        files: [{ id: 'file-custom', name: 'main.py', language: 'python', code: 'a' }],
+        slides: [{ fileId: 'file-custom', lineRange: [1, 1], highlightLines: [] }],
+      },
+      'ids.json',
+    );
 
     expect(deck.files[0].id).toBe('file-custom');
     expect(deck.slides[0].fileId).toBe('file-custom');
