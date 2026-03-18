@@ -21,15 +21,21 @@ export default defineConfig({
   },
   webServer: [
     {
+      name: 'api',
       command: 'pnpm dev:terminal',
       url: 'http://127.0.0.1:3000/api/config',
       reuseExistingServer: !process.env.CI,
       env: e2eEnv,
+      stdout: 'pipe',
+      timeout: 120 * 1000,
     },
     {
+      name: 'vite',
       command: 'pnpm dev:vite -- --host 127.0.0.1 --port 5173 --strictPort',
       url: 'http://127.0.0.1:5173',
       reuseExistingServer: !process.env.CI,
+      stdout: 'pipe',
+      timeout: 120 * 1000,
     },
   ],
   projects: [
