@@ -613,11 +613,15 @@ export function initEditor(router) {
     if (nextIndex === fileIndex) {
       const currentFile = deck.files[fileIndex];
       const editorValue = monacoEditor ? monacoEditor.getValue() : null;
+      const fileNameValue = document.getElementById('editorFileName')?.value || '';
+      const fileLangValue = document.getElementById('editorFileLang')?.value || '';
+      const isFileMetaSynced = fileNameValue === (currentFile?.name || '')
+        && fileLangValue === (currentFile?.language || '');
       if (isFileAlreadyLoaded({
         currentFile,
         requestedFileId: fileId,
         editorValue,
-      })) {
+      }) && isFileMetaSynced) {
         return;
       }
 
