@@ -1017,7 +1017,7 @@ export function initEditor(router) {
   }
 
   function syncPendingLiveDraft({ markAsDirty = false, preserveSelection = true } = {}) {
-    if (loading) {
+    if (loading || markdownPanelMode !== 'live') {
       return false;
     }
 

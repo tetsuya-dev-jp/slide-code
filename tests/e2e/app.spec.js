@@ -8,7 +8,12 @@ async function setMarkdown(page, value) {
   await page.locator('[data-markdown-mode="markdown"]').click();
   const content = page.locator('#editorMarkdown .cm-content');
   await expect(content).toBeVisible();
-  await content.fill(value);
+  await content.click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.press('Delete');
+  if (value) {
+    await page.keyboard.insertText(value);
+  }
 }
 
 async function getScrollTop(locator) {
