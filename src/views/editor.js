@@ -276,6 +276,7 @@ export function initEditor(router) {
   function syncEditorAfterDeckNormalization(
     preferredFileId = '',
     preferredSlideIndex = slideIndex,
+    { viewportState = null } = {},
   ) {
     ensureDeckShape(deck);
     const nextSlideIndex = Math.min(
@@ -291,6 +292,47 @@ export function initEditor(router) {
     }
     updateFileRefOptions();
     assetsModal?.refreshBrokenReferences();
+    restoreEditorViewportState(viewportState);
+  }
+
+  function captureEditorViewportState() {
+    return {
+      slideIndex,
+      fileId: deck?.files?.[fileIndex]?.id || '',
+      monacoViewState:
+        monacoEditor && typeof monacoEditor.saveViewState === 'function'
+          ? monacoEditor.saveViewState()
+          : null,
+      markdownEditorViewState:
+        markdownEditor && typeof markdownEditor.getViewState === 'function'
+          ? markdownEditor.getViewState()
+          : null,
+    };
+  }
+
+  function restoreEditorViewportState(viewportState) {
+    if (!viewportState || typeof viewportState !== 'object') {
+      return;
+    }
+
+    if (
+      markdownEditor &&
+      typeof markdownEditor.restoreViewState === 'function' &&
+      viewportState.slideIndex === slideIndex
+    ) {
+      markdownEditor.restoreViewState(viewportState.markdownEditorViewState);
+    }
+
+    const activeFileId = deck?.files?.[fileIndex]?.id || '';
+    if (
+      monacoEditor &&
+      typeof monacoEditor.restoreViewState === 'function' &&
+      viewportState.fileId &&
+      viewportState.fileId === activeFileId &&
+      viewportState.monacoViewState
+    ) {
+      monacoEditor.restoreViewState(viewportState.monacoViewState);
+    }
   }
 
   function confirmLeave({ from, to } = {}) {
@@ -1159,6 +1201,7 @@ export function initEditor(router) {
     const preferredSlideIndex = slideIndex;
     const preferredFileId = deck.files[fileIndex]?.id || '';
     const saved = await api.updateDeck(currentDeckId, deck);
+    const viewportState = captureEditorViewportState();
     const reconciliation = reconcileDeckAfterSave({
       currentDeck: deck,
       savedDeck: saved,
@@ -1170,7 +1213,7 @@ export function initEditor(router) {
 
     setEditorDeckName(deck.title);
     if (reconciliation.shouldSyncEditor) {
-      syncEditorAfterDeckNormalization(preferredFileId, preferredSlideIndex);
+      syncEditorAfterDeckNormalization(preferredFileId, preferredSlideIndex, { viewportState });
     }
 
     if (reconciliation.renamed) {

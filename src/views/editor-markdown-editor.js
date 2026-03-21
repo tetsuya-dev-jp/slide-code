@@ -235,6 +235,12 @@ export function createMarkdownEditor({
 } = {}) {
   let applyingExternalValue = false;
 
+  function getClampedSelection(selection, valueLength) {
+    const anchor = Math.max(0, Math.min(selection?.anchor ?? 0, valueLength));
+    const head = Math.max(0, Math.min(selection?.head ?? anchor, valueLength));
+    return { anchor, head };
+  }
+
   const view = new EditorView({
     parent,
     state: EditorState.create({
@@ -398,6 +404,27 @@ export function createMarkdownEditor({
     getSelection() {
       const { anchor, head } = view.state.selection.main;
       return { anchor, head };
+    },
+    getViewState() {
+      const { anchor, head } = view.state.selection.main;
+      return {
+        selection: { anchor, head },
+        scrollTop: view.scrollDOM.scrollTop,
+        scrollLeft: view.scrollDOM.scrollLeft,
+      };
+    },
+    restoreViewState(nextViewState) {
+      if (!nextViewState || typeof nextViewState !== 'object') return;
+
+      const valueLength = view.state.doc.length;
+      const selection = getClampedSelection(nextViewState.selection, valueLength);
+      view.dispatch({ selection });
+      if (Number.isFinite(nextViewState.scrollTop)) {
+        view.scrollDOM.scrollTop = nextViewState.scrollTop;
+      }
+      if (Number.isFinite(nextViewState.scrollLeft)) {
+        view.scrollDOM.scrollLeft = nextViewState.scrollLeft;
+      }
     },
     destroy() {
       view.destroy();

@@ -11,6 +11,24 @@ async function setMarkdown(page, value) {
   await content.fill(value);
 }
 
+async function getScrollTop(locator) {
+  return locator.evaluate((element) => element.scrollTop);
+}
+
+async function setScrollTop(locator, value) {
+  await locator.evaluate((element, nextValue) => {
+    element.scrollTop = nextValue;
+  }, value);
+}
+
+async function getMonacoVisibleLines(page) {
+  return page
+    .locator('#editorFileCode .view-lines .view-line')
+    .evaluateAll((elements) =>
+      elements.map((element) => element.textContent?.trim() || '').filter(Boolean),
+    );
+}
+
 async function waitForEditorReady(page, title) {
   await expect(page.locator('#viewEditor')).toBeVisible();
   await expect(page.locator('#editorDeckName')).toContainText(title);
@@ -340,6 +358,52 @@ test('editor 設定で monaco 表示と autosave を切り替えられる', asyn
   await page.locator('#editorSlideTitle').fill('autosave off');
   await page.waitForTimeout(1800);
   await expect(page.locator('#editorSaveStatus')).toHaveText('未保存の変更');
+});
+
+test('editor の autosave 後も code editor のスクロール位置を維持する', async ({ page }) => {
+  await createDeck(page, 'Autosave Code Scroll');
+
+  const longCode = Array.from({ length: 240 }, (_, index) => `print(${index + 1})`).join('\n');
+  await page.locator('#sourceFileInput').setInputFiles({
+    name: 'long.py',
+    mimeType: 'text/x-python',
+    buffer: Buffer.from(longCode),
+  });
+  await expect(page.locator('.editor-file-tab')).toHaveCount(2);
+
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  const monacoScroller = page
+    .locator('#editorFileCode .monaco-editor .monaco-scrollable-element')
+    .first();
+  await setScrollTop(monacoScroller, 720);
+  await expect.poll(async () => (await getMonacoVisibleLines(page))[0]).toBe('print(38)');
+  const beforeVisibleLines = await getMonacoVisibleLines(page);
+
+  await page.locator('#editorSlideTitle').fill('autosave keeps code scroll');
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await expect.poll(async () => await getMonacoVisibleLines(page)).toEqual(beforeVisibleLines);
+});
+
+test('editor の autosave 後も markdown editor のスクロール位置を維持する', async ({ page }) => {
+  await createDeck(page, 'Autosave Markdown Scroll');
+
+  const longMarkdown = Array.from({ length: 80 }, (_, index) => `- item ${index + 1}`).join('\n');
+  await setMarkdown(page, longMarkdown);
+  await page.locator('#editorSaveBtn').click();
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  const markdownScroller = page.locator('#editorMarkdown .cm-scroller');
+  await setScrollTop(markdownScroller, 640);
+  await expect.poll(async () => getScrollTop(markdownScroller)).toBeGreaterThan(400);
+  const beforeScrollTop = await getScrollTop(markdownScroller);
+
+  await page.locator('#editorSlideTitle').fill('autosave keeps markdown scroll');
+  await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+
+  await expect.poll(async () => getScrollTop(markdownScroller)).toBe(beforeScrollTop);
 });
 
 test('presentation で slide jump と shell actions を使える', async ({ page }) => {
