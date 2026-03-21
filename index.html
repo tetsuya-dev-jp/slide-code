@@ -1322,9 +1322,34 @@
               <section class="editor-panel editor-panel-markdown">
                 <div class="editor-panel-header">
                   <span>解説</span>
+                  <div class="editor-mode-tabs" role="tablist" aria-label="解説モード">
+                    <button
+                      type="button"
+                      class="editor-mode-tab active"
+                      data-markdown-mode="live"
+                      role="tab"
+                      aria-selected="true"
+                    >
+                      LIVE
+                    </button>
+                    <button
+                      type="button"
+                      class="editor-mode-tab"
+                      data-markdown-mode="markdown"
+                      role="tab"
+                      aria-selected="false"
+                      tabindex="-1"
+                    >
+                      Markdown
+                    </button>
+                  </div>
                 </div>
                 <div class="editor-fields editor-fields-markdown">
-                  <div class="editor-field editor-markdown-input-field">
+                  <div
+                    class="editor-field editor-markdown-panel editor-markdown-live"
+                    id="editorMarkdownLivePane"
+                  ></div>
+                  <div class="editor-field editor-markdown-panel" id="editorMarkdownPane" hidden>
                     <span class="editor-field-label" id="editorMarkdownLabel">マークダウン</span>
                     <div
                       id="editorMarkdown"
@@ -1334,27 +1359,6 @@
                       aria-labelledby="editorMarkdownLabel"
                     ></div>
                     <p class="editor-asset-warning" id="editorAssetWarning" hidden></p>
-                  </div>
-                  <div
-                    class="editor-markdown-resizer"
-                    id="editorMarkdownResizer"
-                    title="ドラッグして上下の比率を調整"
-                  ></div>
-                  <div class="editor-field editor-markdown-preview-field">
-                    <span class="editor-field-label" id="editorMarkdownPreviewLabel"
-                      >プレビュー</span
-                    >
-                    <div class="editor-preview editor-markdown-preview">
-                      <div class="editor-preview-header">
-                        <span class="editor-preview-label">Render</span>
-                      </div>
-                      <div
-                        class="editor-preview-body markdown-body"
-                        id="editorMarkdownPreview"
-                        role="region"
-                        aria-labelledby="editorMarkdownPreviewLabel"
-                      ></div>
-                    </div>
                   </div>
                 </div>
               </section>

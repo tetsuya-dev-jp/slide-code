@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { renderMarkdownDocument } from './markdown-render.js';
+import { getMarkdownBlocks, renderMarkdownDocument } from './markdown-render.js';
 
 describe('renderMarkdownDocument', () => {
   test('renders markdown structure, callouts, math, assets, and mermaid placeholders', () => {
@@ -66,5 +66,44 @@ A-->B
     expect(html).toContain('<code>asset://inline-code.png</code>');
     expect(html).toContain('asset://code-block.png');
     expect(html).not.toContain('assets/code-block.png');
+  });
+
+  test('extracts top-level markdown blocks for live editing', () => {
+    const markdown = `# Title
+
+Paragraph text
+
+- one
+- two
+
+> [!NOTE]
+> heads up
+
+![Diagram](asset://diagram.png)
+
+\`\`\`mermaid
+graph TD
+A-->B
+\`\`\`
+`;
+    const blocks = getMarkdownBlocks(markdown, {
+      resolveAssetUrl: (assetPath) => `assets/${assetPath}`,
+      mermaidIdPrefix: 'live-mermaid',
+    });
+
+    expect(blocks.map((block) => block.kind)).toEqual([
+      'heading',
+      'paragraph',
+      'list',
+      'callout',
+      'image',
+      'mermaid',
+    ]);
+    expect(blocks[0]).toMatchObject({
+      source: '# Title\n\n',
+      start: 0,
+      end: '# Title\n\n'.length,
+    });
+    expect(blocks[5].source).toContain('```mermaid');
   });
 });

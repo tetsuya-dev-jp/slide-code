@@ -221,6 +221,68 @@ async function initMermaid() {
   return mermaid;
 }
 
+export async function renderMarkdownToElement(
+  markdownBody,
+  md,
+  {
+    resolveAssetUrl = null,
+    resetScrollOnRender = true,
+    mermaidPreferenceScope = '',
+    mermaidIdPrefix = 'preview-mermaid',
+    emptyStateHtml = `
+      <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:var(--text-sm);">
+        このスライドには解説がありません
+      </div>
+    `,
+  } = {},
+) {
+  if (!(markdownBody instanceof HTMLElement)) {
+    return;
+  }
+
+  if (!md) {
+    markdownBody.innerHTML = emptyStateHtml;
+    return;
+  }
+
+  const { renderMarkdownDocument } = await loadMarkdownRuntime();
+  const { html } = renderMarkdownDocument(md, {
+    resolveAssetUrl,
+    mermaidIdPrefix,
+  });
+
+  morphBodyHtml(markdownBody, DOMPurify.sanitize(html, HTML_SANITIZE_OPTIONS));
+
+  const mermaidNodes = [...markdownBody.querySelectorAll('.mermaid')];
+  if (mermaidNodes.length > 0) {
+    const mermaid = await initMermaid();
+    let mermaidId = 0;
+    for (const [diagramIndex, el] of mermaidNodes.entries()) {
+      try {
+        const source = el.textContent || '';
+        const renderId = `${el.id || mermaidIdPrefix}-svg-${mermaidId++}`;
+        const { svg } = await mermaid.render(renderId, source);
+        el.innerHTML = DOMPurify.sanitize(svg, MERMAID_SANITIZE_OPTIONS);
+        const svgEl = el.querySelector('svg');
+        normalizeMermaidSvg(svgEl);
+        attachMermaidControls(el, svgEl, {
+          preferenceScope: mermaidPreferenceScope,
+          diagramId: createMermaidPreferenceId(source, diagramIndex),
+        });
+      } catch (e) {
+        const errorPre = document.createElement('pre');
+        errorPre.style.color = 'var(--accent-danger)';
+        errorPre.textContent = e instanceof Error ? e.message : String(e);
+        el.replaceChildren(errorPre);
+      }
+    }
+  }
+
+  if (resetScrollOnRender) {
+    markdownBody.scrollTop = 0;
+  }
+}
+
 function getMermaidBounds(svgEl) {
   const candidates = [
     svgEl.querySelector('g.output'),
@@ -418,7 +480,6 @@ export function normalizeMermaidSvg(svgEl) {
 export class MarkdownPane {
   constructor(markdownBodyEl, { resolveAssetUrl, resetScrollOnRender = true } = {}) {
     this.markdownBody = markdownBodyEl;
-    this.mermaidId = 0;
     this.resolveAssetUrl = typeof resolveAssetUrl === 'function' ? resolveAssetUrl : null;
     this.resetScrollOnRender = resetScrollOnRender !== false;
   }
@@ -428,51 +489,11 @@ export class MarkdownPane {
    * @param {string} md - Markdown text
    */
   async render(md, { mermaidPreferenceScope = '' } = {}) {
-    if (!md) {
-      this.markdownBody.innerHTML = `
-        <div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-tertiary);font-size:var(--text-sm);">
-          このスライドには解説がありません
-        </div>
-      `;
-      return;
-    }
-
-    const { renderMarkdownDocument } = await loadMarkdownRuntime();
-    const { html } = renderMarkdownDocument(md, {
+    await renderMarkdownToElement(this.markdownBody, md, {
       resolveAssetUrl: this.resolveAssetUrl,
+      resetScrollOnRender: this.resetScrollOnRender,
+      mermaidPreferenceScope,
       mermaidIdPrefix: 'preview-mermaid',
     });
-
-    morphBodyHtml(this.markdownBody, DOMPurify.sanitize(html, HTML_SANITIZE_OPTIONS));
-
-    // Render mermaid diagrams
-    const mermaidNodes = [...this.markdownBody.querySelectorAll('.mermaid')];
-    if (mermaidNodes.length > 0) {
-      const mermaid = await initMermaid();
-      for (const [diagramIndex, el] of mermaidNodes.entries()) {
-        try {
-          const source = el.textContent || '';
-          const renderId = `${el.id || 'preview-mermaid'}-svg-${this.mermaidId++}`;
-          const { svg } = await mermaid.render(renderId, source);
-          el.innerHTML = DOMPurify.sanitize(svg, MERMAID_SANITIZE_OPTIONS);
-          const svgEl = el.querySelector('svg');
-          normalizeMermaidSvg(svgEl);
-          attachMermaidControls(el, svgEl, {
-            preferenceScope: mermaidPreferenceScope,
-            diagramId: createMermaidPreferenceId(source, diagramIndex),
-          });
-        } catch (e) {
-          const errorPre = document.createElement('pre');
-          errorPre.style.color = 'var(--accent-danger)';
-          errorPre.textContent = e instanceof Error ? e.message : String(e);
-          el.replaceChildren(errorPre);
-        }
-      }
-    }
-
-    // Scroll to top
-    if (this.resetScrollOnRender) {
-      this.markdownBody.scrollTop = 0;
-    }
   }
 }

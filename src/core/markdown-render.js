@@ -19,6 +19,60 @@ const MARKED_OPTIONS = {
   breaks: true,
 };
 
+function isCalloutBlockquote(token) {
+  return (
+    token?.type === 'blockquote' &&
+    /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.test(String(token.text || '').trimStart())
+  );
+}
+
+function isImageOnlyParagraph(token) {
+  if (token?.type !== 'paragraph' || !Array.isArray(token.tokens)) {
+    return false;
+  }
+
+  const meaningfulTokens = token.tokens.filter(
+    (childToken) => childToken?.type !== 'space' && childToken?.type !== 'br',
+  );
+  return meaningfulTokens.length === 1 && meaningfulTokens[0]?.type === 'image';
+}
+
+function getMarkdownBlockKind(token) {
+  if (!token || token.type === 'space') {
+    return 'unknown';
+  }
+
+  if (token.type === 'heading') {
+    return 'heading';
+  }
+
+  if (token.type === 'paragraph') {
+    return isImageOnlyParagraph(token) ? 'image' : 'paragraph';
+  }
+
+  if (token.type === 'list') {
+    return 'list';
+  }
+
+  if (token.type === 'blockquote') {
+    return isCalloutBlockquote(token) ? 'callout' : 'blockquote';
+  }
+
+  if (token.type === 'code') {
+    return String(token.lang || '')
+      .trim()
+      .toLowerCase() === 'mermaid'
+      ? 'mermaid'
+      : 'code';
+  }
+
+  if (token.type === 'blockMath') {
+    return 'math';
+  }
+
+  return token.type;
+}
+
 export function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')
@@ -124,10 +178,7 @@ function createMathExtensions() {
   ];
 }
 
-export function renderMarkdownDocument(
-  markdownText,
-  { resolveAssetUrl, mermaidIdPrefix = 'mermaid' } = {},
-) {
+function createMarkdownParser({ resolveAssetUrl, mermaidIdPrefix = 'mermaid' } = {}) {
   const parser = new Marked(MARKED_OPTIONS);
   let mermaidCount = 0;
 
@@ -190,10 +241,91 @@ export function renderMarkdownDocument(
     },
   });
 
-  const html = parser.parse(typeof markdownText === 'string' ? markdownText : '');
+  return {
+    parser,
+    getMermaidCount() {
+      return mermaidCount;
+    },
+  };
+}
+
+function getTokenRange(markdownText, token, cursor) {
+  const raw = typeof token?.raw === 'string' ? token.raw : '';
+  const expectedStart = Math.max(0, cursor);
+
+  if (!raw) {
+    return { start: expectedStart, end: expectedStart, raw };
+  }
+
+  if (markdownText.slice(expectedStart, expectedStart + raw.length) === raw) {
+    return {
+      start: expectedStart,
+      end: expectedStart + raw.length,
+      raw,
+    };
+  }
+
+  const fallbackStart = markdownText.indexOf(raw, expectedStart);
+  if (fallbackStart >= 0) {
+    return {
+      start: fallbackStart,
+      end: fallbackStart + raw.length,
+      raw,
+    };
+  }
+
+  return {
+    start: expectedStart,
+    end: expectedStart + raw.length,
+    raw,
+  };
+}
+
+export function getMarkdownBlocks(
+  markdownText,
+  { resolveAssetUrl, mermaidIdPrefix = 'mermaid' } = {},
+) {
+  const markdown = typeof markdownText === 'string' ? markdownText : '';
+  const { parser } = createMarkdownParser({ resolveAssetUrl, mermaidIdPrefix });
+  const tokens = parser.lexer(markdown);
+  const blocks = [];
+  let cursor = 0;
+
+  tokens.forEach((token) => {
+    const { start, end, raw } = getTokenRange(markdown, token, cursor);
+    cursor = end;
+
+    if (token.type === 'space') {
+      return;
+    }
+
+    const source = markdown.slice(start, end) || raw;
+    blocks.push({
+      kind: getMarkdownBlockKind(token),
+      tokenType: token.type,
+      headingDepth: token.type === 'heading' ? token.depth : null,
+      start,
+      end,
+      source,
+    });
+  });
+
+  return blocks;
+}
+
+export function renderMarkdownDocument(
+  markdownText,
+  { resolveAssetUrl, mermaidIdPrefix = 'mermaid' } = {},
+) {
+  const markdown = typeof markdownText === 'string' ? markdownText : '';
+  const { parser, getMermaidCount } = createMarkdownParser({
+    resolveAssetUrl,
+    mermaidIdPrefix,
+  });
+  const html = parser.parse(markdown);
 
   return {
     html,
-    hasMermaid: mermaidCount > 0,
+    hasMermaid: getMermaidCount() > 0,
   };
 }

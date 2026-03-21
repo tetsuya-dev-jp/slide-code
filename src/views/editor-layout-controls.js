@@ -4,7 +4,6 @@ import { getStoredItem, setStoredItem } from '../utils/storage.js';
 export function setupEditorLayoutControls({ getMonacoEditor }) {
   setupSidebarHandle({ getMonacoEditor });
   setupEditorResizer({ getMonacoEditor });
-  setupMarkdownResizer();
 }
 
 function getLayoutStorageKey(baseKey) {
@@ -243,79 +242,6 @@ function setupSidebarHandle({ getMonacoEditor }) {
     const current = parseInt(bodyEl.style.getPropertyValue('--editor-sidebar-width'), 10);
     if (Number.isFinite(current)) {
       applySidebarWidth(current);
-    }
-  });
-}
-
-function setupMarkdownResizer() {
-  const containerEl = document.querySelector('.editor-fields-markdown');
-  const resizerEl = document.getElementById('editorMarkdownResizer');
-  if (!containerEl || !resizerEl) return;
-
-  const STORAGE_KEY = getLayoutStorageKey('slidecode-editor-markdown-input-height');
-  const minInputHeight = 140;
-  const minPreviewHeight = 140;
-  const splitterSize = 8;
-
-  const clampHeight = (rawHeight) => {
-    const total = containerEl.getBoundingClientRect().height;
-    const maxInputHeight = Math.max(minInputHeight, total - minPreviewHeight - splitterSize);
-    return Math.min(Math.max(rawHeight, minInputHeight), maxInputHeight);
-  };
-
-  const applyHeight = (height, persist = false) => {
-    const clamped = clampHeight(height);
-    containerEl.style.setProperty('--editor-markdown-input-height', `${clamped}px`);
-    if (persist) {
-      setStoredItem(STORAGE_KEY, String(Math.round(clamped)));
-    }
-  };
-
-  const savedHeight = parseInt(getStoredItem(STORAGE_KEY), 10);
-  if (Number.isFinite(savedHeight)) {
-    containerEl.style.setProperty('--editor-markdown-input-height', `${savedHeight}px`);
-  }
-
-  let dragging = false;
-
-  const onMouseMove = (event) => {
-    if (!dragging) return;
-    const rect = containerEl.getBoundingClientRect();
-    const nextHeight = event.clientY - rect.top;
-    applyHeight(nextHeight);
-  };
-
-  const onMouseUp = (event) => {
-    if (!dragging) return;
-    dragging = false;
-    document.body.classList.remove('resizing-v');
-    resizerEl.classList.remove('dragging');
-
-    const rect = containerEl.getBoundingClientRect();
-    const nextHeight = event.clientY - rect.top;
-    applyHeight(nextHeight, true);
-
-    window.removeEventListener('mousemove', onMouseMove);
-    window.removeEventListener('mouseup', onMouseUp);
-  };
-
-  resizerEl.addEventListener('mousedown', (event) => {
-    if (window.matchMedia('(max-width: 860px)').matches) return;
-    event.preventDefault();
-    dragging = true;
-    document.body.classList.add('resizing-v');
-    resizerEl.classList.add('dragging');
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-  });
-
-  window.addEventListener('resize', () => {
-    const current = parseInt(
-      containerEl.style.getPropertyValue('--editor-markdown-input-height'),
-      10,
-    );
-    if (Number.isFinite(current)) {
-      applyHeight(current);
     }
   });
 }

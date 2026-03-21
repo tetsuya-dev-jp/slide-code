@@ -5,6 +5,7 @@ function uniqueId(prefix) {
 }
 
 async function setMarkdown(page, value) {
+  await page.locator('[data-markdown-mode="markdown"]').click();
   const content = page.locator('#editorMarkdown .cm-content');
   await expect(content).toBeVisible();
   await content.fill(value);
@@ -18,7 +19,8 @@ async function waitForEditorReady(page, title) {
   await expect(page.locator('#editorFileRef')).not.toHaveValue('');
   await expect(page.locator('#editorFileName')).not.toHaveValue('');
   await expect(page.locator('#editorFileLang')).not.toHaveValue('');
-  await expect(page.locator('#editorMarkdown .cm-editor')).toBeVisible();
+  await expect(page.locator('[data-markdown-mode="live"]')).toHaveClass(/active/);
+  await expect(page.locator('#editorMarkdownLivePane')).toBeVisible();
 }
 
 async function createDeck(page, titlePrefix = 'Smoke') {
@@ -57,6 +59,29 @@ test('editor で編集して保存状態を更新できる', async ({ page }) =>
 
   await page.locator('#editorSaveBtn').click();
   await expect(page.locator('#editorSaveStatus')).toHaveText('保存済み');
+});
+
+test('editor の解説ペインは LIVE と Markdown を切り替えつつ block 保存できる', async ({ page }) => {
+  await createDeck(page, 'Markdown Live');
+
+  await setMarkdown(page, '# 見出し\n\n- 項目A\n- 項目B');
+  await page.locator('[data-markdown-mode="live"]').click();
+  await expect(page.locator('#editorMarkdownLivePane h1')).toHaveText('見出し');
+  await expect(page.locator('#editorMarkdownLivePane li')).toHaveCount(2);
+  await expect(page.locator('#editorMarkdownLivePane')).not.toContainText('クリックして編集');
+  await expect(page.locator('#editorMarkdownLivePane')).not.toContainText('HEADING');
+  await expect(page.locator('#editorMarkdownLivePane button')).toHaveCount(0);
+
+  await page.locator('#editorMarkdownLivePane [data-markdown-block-index]').first().click();
+  const textarea = page.locator('.editor-markdown-live-editor');
+  await expect(textarea).toBeVisible();
+  await textarea.fill('# 更新した見出し');
+  await page.locator('#editorMarkdownLivePane [data-markdown-block-index]').nth(1).click();
+
+  await expect(page.locator('#editorMarkdownLivePane h1')).toHaveText('更新した見出し');
+
+  await page.locator('[data-markdown-mode="markdown"]').click();
+  await expect(page.locator('#editorMarkdown .cm-content')).toContainText('更新した見出し');
 });
 
 test('presentation でスライド移動と pane toggle が動く', async ({ page }) => {

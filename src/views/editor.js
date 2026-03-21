@@ -72,8 +72,8 @@ self.MonacoEnvironment = {
 let monaco = null;
 let monacoLoadPromise = null;
 let editorRuntimePromise = null;
-let MarkdownPane = null;
 let createMarkdownEditor = null;
+let createMarkdownLivePane = null;
 
 async function loadMonaco() {
   if (!monacoLoadPromise) {
@@ -89,15 +89,15 @@ async function loadMonaco() {
 async function loadEditorRuntime() {
   if (!editorRuntimePromise) {
     editorRuntimePromise = Promise.all([
-      import('../panes/markdown.js'),
       import('./editor-markdown-editor.js'),
+      import('./editor-markdown-live.js'),
     ])
-      .then(([markdownPaneModule, markdownEditorModule]) => {
-        MarkdownPane = markdownPaneModule.MarkdownPane;
+      .then(([markdownEditorModule, markdownLiveModule]) => {
         createMarkdownEditor = markdownEditorModule.createMarkdownEditor;
+        createMarkdownLivePane = markdownLiveModule.createMarkdownLivePane;
         return {
-          MarkdownPane,
           createMarkdownEditor,
+          createMarkdownLivePane,
         };
       })
       .catch((error) => {
@@ -140,11 +140,12 @@ export function initEditor(router) {
   const saveButtonEl = document.getElementById('editorSaveBtn');
   const saveStatusEl = document.getElementById('editorSaveStatus');
 
-  let mdPreviewPane = null;
+  let markdownLivePane = null;
   let deckSettingsController = null;
   let assetsModal = null;
   let editorPreferencesModal = null;
   let markdownEditor = null;
+  let markdownPanelMode = 'live';
   let fileValidationState = { message: '', normalizedName: '' };
 
   // --- Dirty state ---
@@ -925,7 +926,79 @@ export function initEditor(router) {
 
   // --- Slide Editor ---
 
+  function getMarkdownMermaidScope(blockIndex = null) {
+    const deckId = persistedDeckId || deck?.id || 'draft';
+    return blockIndex === null
+      ? `editor:${deckId}:${slideIndex}`
+      : `editor:${deckId}:${slideIndex}:block:${blockIndex}`;
+  }
+
+  function getCurrentMarkdownValue() {
+    if (markdownPanelMode === 'live') {
+      const liveValue = markdownLivePane?.getDraftValue?.();
+      if (typeof liveValue === 'string') {
+        return liveValue;
+      }
+    }
+
+    if (markdownEditor) {
+      return markdownEditor.getValue();
+    }
+
+    return deck?.slides?.[slideIndex]?.markdown || '';
+  }
+
+  function applyMarkdownValue(
+    value,
+    { source = 'external', preserveSelection = false, markAsDirty = false } = {},
+  ) {
+    const nextValue = typeof value === 'string' ? value : '';
+    const previousValue = deck?.slides?.[slideIndex]?.markdown || '';
+
+    if (deck?.slides?.[slideIndex]) {
+      deck.slides[slideIndex].markdown = nextValue;
+    }
+
+    if (markdownEditor && source !== 'markdown-editor') {
+      markdownEditor.setValue(nextValue, { preserveSelection });
+    }
+
+    if (markdownLivePane && source !== 'live') {
+      markdownLivePane.setValue(nextValue).catch(() => {});
+    }
+
+    assetsModal?.refreshBrokenReferences();
+
+    if (markAsDirty && nextValue !== previousValue) {
+      markDirty();
+    }
+  }
+
+  function syncPendingLiveDraft({ markAsDirty = false, preserveSelection = true } = {}) {
+    if (loading) {
+      return false;
+    }
+
+    const nextValue = markdownLivePane?.getDraftValue?.();
+    if (typeof nextValue !== 'string') {
+      return false;
+    }
+
+    const previousValue = deck?.slides?.[slideIndex]?.markdown || markdownEditor?.getValue() || '';
+    if (nextValue === previousValue) {
+      return false;
+    }
+
+    applyMarkdownValue(nextValue, {
+      source: 'live-flush',
+      preserveSelection,
+      markAsDirty,
+    });
+    return true;
+  }
+
   function loadSlide(index) {
+    syncPendingLiveDraft({ markAsDirty: true, preserveSelection: true });
     loading = true;
     slideIndex = index;
     const slide = deck.slides[index];
@@ -946,7 +1019,11 @@ export function initEditor(router) {
     document.getElementById('editorLineStart').value = lineStart;
     document.getElementById('editorLineEnd').value = lineEnd;
     document.getElementById('editorHighlight').value = (slide.highlightLines || []).join(', ');
-    markdownEditor?.setValue(slide.markdown || '');
+    applyMarkdownValue(slide.markdown || '', {
+      source: 'load',
+      preserveSelection: false,
+      markAsDirty: false,
+    });
 
     loadFileById(slide.fileId || '');
 
@@ -956,8 +1033,6 @@ export function initEditor(router) {
     });
 
     updateCodePreview({ saveFile: false, reveal: true });
-    updateMarkdownPreview();
-    assetsModal?.refreshBrokenReferences();
     loading = false;
     persistEditorViewState();
   }
@@ -980,7 +1055,7 @@ export function initEditor(router) {
       slide.lineRange = [1, 1];
       slide.highlightLines = [];
     }
-    slide.markdown = markdownEditor?.getValue() || '';
+    slide.markdown = getCurrentMarkdownValue();
   }
 
   function insertAssetReference(assetPath) {
@@ -988,13 +1063,10 @@ export function initEditor(router) {
     if (!markdownEditor) return;
 
     markdownEditor.insertText(reference);
-
-    if (deck?.slides?.[slideIndex]) {
-      deck.slides[slideIndex].markdown = markdownEditor.getValue();
-    }
-    updateMarkdownPreview();
-    assetsModal?.refreshBrokenReferences();
-    markDirty();
+    applyMarkdownValue(markdownEditor.getValue(), {
+      source: 'markdown-editor',
+      markAsDirty: true,
+    });
   }
 
   // --- Live Previews ---
@@ -1003,21 +1075,15 @@ export function initEditor(router) {
     syncMonacoWithFormState({ saveFile, reveal });
   }
 
-  function updateMarkdownPreview() {
-    const md = markdownEditor?.getValue() || '';
-    const deckId = persistedDeckId || deck?.id || 'draft';
-    mdPreviewPane?.render(md, {
-      mermaidPreferenceScope: `editor:${deckId}:${slideIndex}`,
-    });
-  }
-
   function handleMarkdownChange(value) {
-    if (deck?.slides?.[slideIndex]) {
-      deck.slides[slideIndex].markdown = value;
+    if (markdownEditor && value !== markdownEditor.getValue()) {
+      return;
     }
-    updateMarkdownPreview();
-    assetsModal?.refreshBrokenReferences();
-    markDirty();
+
+    applyMarkdownValue(value, {
+      source: 'markdown-editor',
+      markAsDirty: true,
+    });
   }
 
   function applyDeckMetaFromForm() {
@@ -1030,6 +1096,42 @@ export function initEditor(router) {
 
   function setEditorDeckName(name) {
     document.getElementById('editorDeckName').textContent = name || '無題のデッキ';
+  }
+
+  function setMarkdownPanelMode(nextMode, { syncLiveDraft = true } = {}) {
+    const normalizedMode = nextMode === 'markdown' ? 'markdown' : 'live';
+    if (normalizedMode === 'markdown' && syncLiveDraft) {
+      syncPendingLiveDraft({ markAsDirty: true, preserveSelection: true });
+    }
+    if (normalizedMode === 'live' && markdownEditor && !loading) {
+      applyMarkdownValue(markdownEditor.getValue(), {
+        source: 'markdown-editor',
+        markAsDirty: true,
+      });
+    }
+
+    markdownPanelMode = normalizedMode;
+
+    document.querySelectorAll('[data-markdown-mode]').forEach((button) => {
+      const active = button.dataset.markdownMode === markdownPanelMode;
+      button.classList.toggle('active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+      button.setAttribute('tabindex', active ? '0' : '-1');
+    });
+
+    document
+      .getElementById('editorMarkdownPane')
+      ?.toggleAttribute('hidden', markdownPanelMode !== 'markdown');
+    document
+      .getElementById('editorMarkdownLivePane')
+      ?.toggleAttribute('hidden', markdownPanelMode !== 'live');
+
+    if (markdownPanelMode === 'markdown') {
+      markdownEditor?.focus();
+      return;
+    }
+
+    markdownLivePane?.focus();
   }
 
   function replaceHash(path) {
@@ -1048,6 +1150,7 @@ export function initEditor(router) {
       throw Object.assign(new Error('invalid-file-name'), { status: 400 });
     }
 
+    syncPendingLiveDraft({ markAsDirty: false, preserveSelection: true });
     saveCurrentSlide();
     saveCurrentFile();
     applyDeckMetaFromForm();
@@ -1132,16 +1235,26 @@ export function initEditor(router) {
     }
 
     setupPromise = (async () => {
-      const { MarkdownPane: MarkdownPaneClass, createMarkdownEditor: createMarkdownEditorFactory } =
-        await loadEditorRuntime();
-      if (!mdPreviewPane) {
-        mdPreviewPane = new MarkdownPaneClass(document.getElementById('editorMarkdownPreview'), {
+      const {
+        createMarkdownEditor: createMarkdownEditorFactory,
+        createMarkdownLivePane: createMarkdownLivePaneFactory,
+      } = await loadEditorRuntime();
+      if (!markdownLivePane) {
+        markdownLivePane = createMarkdownLivePaneFactory({
+          parent: document.getElementById('editorMarkdownLivePane'),
           resolveAssetUrl: (assetPath) => {
             const deckId = persistedDeckId || deck?.id;
             if (!deckId) return `asset://${assetPath}`;
             return api.getDeckAssetUrl(deckId, assetPath);
           },
-          resetScrollOnRender: false,
+          getMermaidPreferenceScope: (blockIndex) => getMarkdownMermaidScope(blockIndex),
+          onChange: (value) => {
+            applyMarkdownValue(value, {
+              source: 'live',
+              preserveSelection: true,
+              markAsDirty: true,
+            });
+          },
         });
       }
 
@@ -1156,6 +1269,13 @@ export function initEditor(router) {
           debouncedMarkdownChange(value);
         },
       });
+
+      document.querySelectorAll('[data-markdown-mode]').forEach((button) => {
+        button.addEventListener('click', () => {
+          setMarkdownPanelMode(button.dataset.markdownMode || 'live');
+        });
+      });
+      setMarkdownPanelMode('live', { syncLiveDraft: false });
 
       setupEditorLayoutControls({
         getMonacoEditor: () => monacoEditor,
@@ -1581,6 +1701,7 @@ export function initEditor(router) {
         : 0;
 
       await setupEventListeners();
+      setMarkdownPanelMode('live', { syncLiveDraft: false });
       await initMonaco();
       syncEditorAfterDeckNormalization(restoredState?.fileId || '', restoredSlideIndex);
       clearDirty();
@@ -1616,9 +1737,7 @@ export function initEditor(router) {
       if (!currentSlide) return;
 
       const markdown = markdownEditor ? markdownEditor.getValue() : currentSlide.markdown || '';
-      mdPreviewPane?.render(markdown, {
-        mermaidPreferenceScope: `editor:${persistedDeckId || deck?.id || 'draft'}:${slideIndex}`,
-      });
+      markdownLivePane?.setValue(markdown).catch(() => {});
     },
   };
 }
